@@ -57,6 +57,10 @@ export interface OfficeSnapshot {
   you: { userId: string; deviceId: string }
 }
 
+export interface MoveRequest {
+  roomId: string
+}
+
 /** What a client sends to say who it is. */
 export interface EnterOfficeRequest {
   /** Whatever the host's identity adapter understands. The core never reads it. */
@@ -90,6 +94,8 @@ export interface ClientEvents {
     ack: (result: Ack<{ snapshot: OfficeSnapshot }>) => void,
   ) => void
   'office:leave': (ack: (result: Ack) => void) => void
+  'room:join': (request: MoveRequest, ack: (result: Ack) => void) => void
+  'room:leave': (ack: (result: Ack) => void) => void
   /** A refreshed credential, over the socket that is already open. */
   'auth:refresh': (request: { credentials: unknown }, ack: (result: Ack) => void) => void
   heartbeat: (ack: (result: Ack) => void) => void
@@ -130,6 +136,14 @@ export const Refusal = {
   OFFICE_FORBIDDEN: 'office.forbidden',
   /** Not in an office, so there is nothing to do this in. */
   NOT_PRESENT: 'office.not_present',
+
+  ROOM_UNKNOWN: 'room.unknown',
+  /** The identity adapter said no: restricted, not a member, a guest. */
+  ROOM_FORBIDDEN: 'room.forbidden',
+  /** Full at the moment you tried. Nothing was ever held for you. */
+  ROOM_FULL: 'room.full',
+  /** Already there. Not an error worth showing, but not a success either. */
+  ROOM_ALREADY_THERE: 'room.already_there',
 
   /** The request did not match the contract. */
   MALFORMED: 'request.malformed',

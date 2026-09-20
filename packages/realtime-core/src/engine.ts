@@ -67,6 +67,14 @@ export interface OfficeEngineOptions {
   events?: EventBus
   logger?: Logger
   now?: () => number
+  /**
+   * How many people a room holds.
+   *
+   * An office setting rather than a template one, so the same layout serves a
+   * two-person team and a forty-person one. The free office has no capacity at
+   * all and returns null for everything.
+   */
+  roomCapacity?: (room: Room) => number | null
 }
 
 export class OfficeEngine {
@@ -294,6 +302,83 @@ export class OfficeEngine {
     await this.#endPresence(officeId, userId)
   }
 
+  // ------------------------------------------------------------------- moving
+
+  /**
+   * Move to a room.
+   *
+   * Two questions in a fixed order: may they (the adapter), and is there room.
+   * **Nothing is reserved and nothing is held** — capacity is checked at the
+   * moment of the move, so a room that filled while somebody was deciding
+   * refuses them rather than squeezing them in.
+   *
+   * Every successful move is broadcast to the office; every refusal goes only
+   * to whoever asked, with a reason they can be shown.
+   */
+  async joinRoom(connectionId: string, roomId: string): Promise<Ack> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { identity, officeId, presence } = resolved
+
+    const template = await this.#options.templates.get(officeId)
+    const room = template?.rooms.find((candidate) => candidate.id === roomId)
+    if (!room) return fail(Refusal.ROOM_UNKNOWN, 'There is no such room.')
+
+    if (presence.roomId === roomId) {
+      return fail(Refusal.ROOM_ALREADY_THERE, `You are already in ${room.name}.`)
+    }
+
+    const permitted = await this.#options.identity.may({
+      permission: 'join_room',
+      identity,
+      officeId,
+      roomId,
+    })
+    if (!permitted.allowed) return fail(permitted.code, permitted.message)
+
+    const capacity = this.#options.roomCapacity?.(room) ?? null
+    if (capacity !== null) {
+      const inside = await this.#store.listRoom(officeId, roomId)
+      if (inside.length >= capacity) return fail(Refusal.ROOM_FULL, `${room.name} is full.`)
+    }
+
+    await this.#move(officeId, presence, roomId)
+    return done()
+  }
+
+  /** Leave the room you are in, which puts you back in reception. */
+  async leaveRoom(connectionId: string): Promise<Ack> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { officeId, presence } = resolved
+
+    const template = await this.#options.templates.get(officeId)
+    if (!template) return fail(Refusal.OFFICE_UNKNOWN, 'There is no office here.')
+
+    const reception = receptionOf(template)
+    if (presence.roomId === reception.id) return done()
+
+    await this.#move(officeId, presence, reception.id)
+    return done()
+  }
+
+  /** The move itself, once every rule has said yes. */
+  async #move(officeId: string, presence: Presence, roomId: string): Promise<void> {
+    const arrivedAt = new Date(this.#now()).toISOString()
+    await this.#store.put({ ...presence, roomId, arrivedAt })
+    await this.#broadcast(officeId)
+
+    // The host is told, so unityofis can remember the last office and room on
+    // the membership and put somebody back there next time they sign in.
+    await this.#options.identity.onPresenceChanged?.({
+      identity: { id: presence.userId, displayName: presence.displayName },
+      officeId,
+      roomId,
+    })
+
+    this.#logger.debug('moved', { userId: presence.userId, officeId, roomId })
+  }
+
   // ---------------------------------------------------------------- the office
 
   /**
@@ -339,6 +424,26 @@ export class OfficeEngine {
       people: people.map((presence) => toPublic(presence)),
       you: { userId: '', deviceId: '' },
     })
+  }
+
+  /**
+   * Resolve a connection to everything a handler needs, or the refusal.
+   *
+   * Every action funnels through here, so "you are not signed in" and "you are
+   * not in the office" are answered once with one code each, rather than in
+   * fourteen slightly different ways across fourteen handlers.
+   */
+  async #resolve(
+    connectionId: string,
+  ): Promise<Refused | { identity: Identity; officeId: string; presence: Presence }> {
+    const connection = this.#connections.get(connectionId)
+    if (!connection?.identity || !connection.officeId) {
+      return fail(Refusal.NOT_AUTHENTICATED, 'Enter the office first.')
+    }
+    const presence = await this.#store.get(connection.officeId, connection.identity.id)
+    if (!presence) return fail(Refusal.NOT_PRESENT, 'You are not in the office.')
+
+    return { identity: connection.identity, officeId: connection.officeId, presence }
   }
 
   #track(userId: string, connectionId: string): void {
