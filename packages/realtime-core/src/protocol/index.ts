@@ -38,6 +38,13 @@ export interface PublicPresence {
    * call, muted, sharing — arrives with the stories that give it meaning.
    */
   devices: Array<{ deviceId: string; kind: DeviceKind }>
+  /**
+   * Their last device dropped and they have not come back yet.
+   *
+   * Shown on the person rather than as a leave, so a laptop sleeping for ten
+   * seconds does not make somebody vanish from a room and reappear in it.
+   */
+  reconnecting: boolean
   /** When they arrived in this room. Avatars are ordered by it, so they hold still. */
   arrivedAt: string
 }

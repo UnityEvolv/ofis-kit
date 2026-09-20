@@ -6,7 +6,12 @@ import type {
   IdentityAdapter,
   TemplateSource,
 } from '@unityevolv/ofiskit-adapters'
-import type { DeviceKind, Presence, PresenceStore } from '@unityevolv/ofiskit-presence-store'
+import {
+  DISCONNECT_GRACE_MS,
+  type DeviceKind,
+  type Presence,
+  type PresenceStore,
+} from '@unityevolv/ofiskit-presence-store'
 import type { Room, Template } from '@unityevolv/ofiskit-template'
 
 import { silentLogger, type Logger } from './logger.js'
@@ -68,6 +73,15 @@ export interface OfficeEngineOptions {
   logger?: Logger
   now?: () => number
   /**
+   * How long somebody stays in their room after their last device drops.
+   *
+   * Thirty seconds covers a laptop sleeping, a train tunnel and a wifi handover
+   * without anybody appearing to leave. Configurable because an end-to-end test
+   * cannot wait thirty seconds to watch somebody disappear, and because a
+   * flakier network may want longer.
+   */
+  graceMs?: number
+  /**
    * How many people a room holds.
    *
    * An office setting rather than a template one, so the same layout serves a
@@ -87,6 +101,8 @@ export class OfficeEngine {
   readonly #connections = new Map<string, Connection>()
   /** userId → the connections that person has open. Presence is per user. */
   readonly #byUser = new Map<string, Set<string>>()
+  /** userId → the timer that finishes removing them if nobody comes back. */
+  readonly #graceTimers = new Map<string, ReturnType<typeof setTimeout>>()
   #unsubscribe: (() => void) | null = null
 
   constructor(options: OfficeEngineOptions) {
@@ -163,6 +179,10 @@ export class OfficeEngine {
     connection.officeId = officeId
     this.#track(identity.id, connectionId)
 
+    // Back inside the grace period: cancel the removal and put them back where
+    // they were, with no churn at all for anybody watching.
+    this.#cancelGrace(identity.id)
+
     const at = new Date(this.#now()).toISOString()
     const existing = await this.#store.get(officeId, identity.id)
 
@@ -181,6 +201,7 @@ export class OfficeEngine {
           ...existing,
           displayName: identity.displayName,
           ...(identity.photoUrl ? { photoUrl: identity.photoUrl } : {}),
+          reconnectingUntil: null,
           // A second device for somebody already here, or the same device back
           // after a reload — either way it replaces rather than accumulates.
           devices: [
@@ -269,12 +290,15 @@ export class OfficeEngine {
   }
 
   /**
-   * The socket closed.
+   * The socket closed, which is not the same as leaving.
    *
-   * A device disconnecting never moves anybody: the person stays until their
-   * last device is gone. What happens when the *last* one goes — the grace
-   * period, and being shown to everyone else as reconnecting — is the
-   * disconnect story's, and lands next.
+   * A dropped connection starts a grace period. The person stays in their room,
+   * shown to everyone else as reconnecting, so a laptop sleeping for a moment
+   * or a train going into a tunnel changes nothing visible. Only when nobody
+   * comes back does the office get told they left.
+   *
+   * A device disconnecting never moves anybody, and never removes anybody who
+   * still has another device open.
    */
   async disconnected(connectionId: string): Promise<void> {
     const connection = this.#connections.get(connectionId)
@@ -294,12 +318,29 @@ export class OfficeEngine {
     const devices = presence.devices.filter((device) => device.connectionId !== connectionId)
 
     if (devices.length > 0) {
+      // Another device is still there, so nothing about the person changed
+      // except which screens they are on.
       await this.#store.put({ ...presence, devices })
       await this.#broadcast(officeId)
       return
     }
 
-    await this.#endPresence(officeId, userId)
+    const graceMs = this.#options.graceMs ?? DISCONNECT_GRACE_MS
+    const until = new Date(this.#now() + graceMs).toISOString()
+
+    await this.#store.put({ ...presence, devices: [], reconnectingUntil: until })
+    await this.#broadcast(officeId)
+
+    // An in-memory timer on the socket, with the store's TTL as the backstop
+    // for a node that dies mid-timer. There is no scheduler anywhere.
+    const timer = setTimeout(() => {
+      this.#graceTimers.delete(userId)
+      void this.#endPresence(officeId, userId)
+    }, graceMs)
+    timer.unref?.()
+    this.#graceTimers.set(userId, timer)
+
+    this.#logger.debug('connection dropped, grace started', { userId, officeId, connectionId })
   }
 
   // ------------------------------------------------------------------- moving
@@ -446,6 +487,15 @@ export class OfficeEngine {
     return { identity: connection.identity, officeId: connection.officeId, presence }
   }
 
+  /** Somebody came back, or left cleanly. Either way, stop the removal. */
+  #cancelGrace(userId: string): void {
+    const timer = this.#graceTimers.get(userId)
+    if (timer) {
+      clearTimeout(timer)
+      this.#graceTimers.delete(userId)
+    }
+  }
+
   #track(userId: string, connectionId: string): void {
     const open = this.#byUser.get(userId) ?? new Set<string>()
     open.add(connectionId)
@@ -454,6 +504,7 @@ export class OfficeEngine {
 
   /** End somebody's presence entirely and tell the office. */
   async #endPresence(officeId: string, userId: string): Promise<void> {
+    this.#cancelGrace(userId)
     const presence = await this.#store.get(officeId, userId)
     await this.#store.remove(officeId, userId)
 
@@ -492,6 +543,8 @@ export class OfficeEngine {
 
   /** Stop everything, so nothing outlives the server. */
   async close(): Promise<void> {
+    for (const timer of this.#graceTimers.values()) clearTimeout(timer)
+    this.#graceTimers.clear()
     this.#unsubscribe?.()
     this.#unsubscribe = null
   }
@@ -510,6 +563,10 @@ function toPublic(presence: Presence): PublicPresence {
     displayName: presence.displayName,
     ...(presence.photoUrl ? { photoUrl: presence.photoUrl } : {}),
     roomId: presence.roomId,
+    // No devices means the last one dropped and the grace period is running.
+    // They are still in their room; everyone else is told they are on their
+    // way back rather than that they left.
+    reconnecting: presence.devices.length === 0,
     devices: presence.devices.map((device) => ({
       deviceId: device.deviceId,
       kind: device.kind,

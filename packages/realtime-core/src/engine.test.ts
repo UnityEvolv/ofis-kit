@@ -69,6 +69,7 @@ interface Harness {
 function harness(
   identity: IdentityAdapter = typedEmailIdentity(),
   roomCapacity?: (room: { id: string }) => number | null,
+  graceMs?: number,
 ): Harness {
   const template = office()
   const store = new MemoryPresenceStore()
@@ -83,6 +84,7 @@ function harness(
     transport: sent,
     events,
     ...(roomCapacity ? { roomCapacity } : {}),
+    ...(graceMs === undefined ? {} : { graceMs }),
   })
 
   let counter = 0
@@ -233,11 +235,16 @@ describe('leaving', () => {
     expect(h.sent.office.some((one) => one.event === 'office:state')).toBe(true)
   })
 
-  it('removes somebody when their last device disconnects', async () => {
-    const h = harness()
+  it('does not remove somebody the moment their last device drops', async () => {
+    // This used to remove them immediately. It no longer does, deliberately:
+    // a dropped connection now starts a grace period, so a wifi blip does not
+    // make somebody vanish from a room. The removal is tested below.
+    const h = harness(typedEmailIdentity(), undefined, 5000)
     const socket = await h.enter({ name: 'Ada' })
+
     await h.engine.disconnected(socket)
-    expect((await h.engine.snapshot(socket)).people).toHaveLength(0)
+
+    expect((await h.engine.snapshot(socket)).people).toHaveLength(1)
   })
 })
 
@@ -472,5 +479,84 @@ describe('a move is per user, not per device', () => {
 
     const snapshot = await h.engine.snapshot('socket-phone')
     expect(snapshot.people[0]?.roomId).toBe(workspace)
+  })
+})
+
+describe('disconnecting, waiting, and coming back', () => {
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+  it('keeps somebody in their room during the grace period', async () => {
+    const h = harness(typedEmailIdentity(), undefined, 300)
+    const socket = await h.enter({ name: 'Ada' })
+    const workspace = h.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    await h.engine.joinRoom(socket, workspace)
+
+    await h.engine.disconnected(socket)
+
+    // A laptop closing for ten seconds changes nothing visible, except that
+    // everyone can see they are coming back.
+    const snapshot = await h.engine.snapshot(socket)
+    expect(snapshot.people).toHaveLength(1)
+    expect(snapshot.people[0]?.roomId).toBe(workspace)
+    expect(snapshot.people[0]?.reconnecting).toBe(true)
+  })
+
+  it('removes them once the grace period passes with nobody back', async () => {
+    const h = harness(typedEmailIdentity(), undefined, 60)
+    const socket = await h.enter({ name: 'Ada' })
+
+    await h.engine.disconnected(socket)
+    await sleep(160)
+
+    expect((await h.engine.snapshot(socket)).people).toHaveLength(0)
+  })
+
+  it('puts them back where they were when they return in time', async () => {
+    const h = harness(typedEmailIdentity(), undefined, 400)
+    const socket = await h.enter({ name: 'Ada', deviceId: 'laptop' })
+    const workspace = h.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    await h.engine.joinRoom(socket, workspace)
+
+    await h.engine.disconnected(socket)
+    const again = await h.enter({
+      name: 'Ada',
+      deviceId: 'laptop',
+      connectionId: 'socket-again',
+    })
+
+    const back = await h.engine.snapshot(again)
+    expect(back.people).toHaveLength(1)
+    expect(back.people[0]?.roomId).toBe(workspace)
+    expect(back.people[0]?.reconnecting).toBe(false)
+
+    // And the timer really was cancelled, rather than firing later and
+    // removing somebody who is sitting right there.
+    await sleep(500)
+    expect((await h.engine.snapshot(again)).people).toHaveLength(1)
+  })
+
+  it('skips the grace period entirely on a clean exit', async () => {
+    const h = harness(typedEmailIdentity(), undefined, 5000)
+    const socket = await h.enter({ name: 'Ada' })
+
+    await h.engine.leaveOffice(socket)
+
+    // They said they were going. Making everyone watch them linger for thirty
+    // seconds would just be wrong.
+    expect((await h.engine.snapshot(socket)).people).toHaveLength(0)
+  })
+
+  it('starts no grace period while another device is still open', async () => {
+    const h = harness(typedEmailIdentity(), undefined, 60)
+    const laptop = await h.enter({ name: 'Ada', deviceId: 'laptop' })
+    await h.enter({ name: 'Ada', deviceId: 'phone', kind: 'mobile', connectionId: 'socket-phone' })
+
+    await h.engine.disconnected(laptop)
+    await sleep(160)
+
+    // The phone is still there, so there was never anything to wait for.
+    const snapshot = await h.engine.snapshot('socket-phone')
+    expect(snapshot.people).toHaveLength(1)
+    expect(snapshot.people[0]?.reconnecting).toBe(false)
   })
 })

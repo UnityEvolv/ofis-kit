@@ -20,6 +20,6 @@ export type {
 } from './types.js'
 
 export type { PresenceStore } from './store.js'
-export { PRESENCE_TTL_MS } from './store.js'
+export { DISCONNECT_GRACE_MS, PRESENCE_TTL_MS } from './store.js'
 
 export { MemoryPresenceStore } from './memory.js'
