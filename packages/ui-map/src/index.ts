@@ -38,13 +38,23 @@ export { CallAudio, type CallAudioProps } from './CallAudio.js'
 export { CallControls, type CallControlsProps } from './CallControls.js'
 export { CallTiles, TILES_VISIBLE, type CallTilesProps } from './CallTiles.js'
 export {
+  REACTION_VISIBLE_MS,
   speakerOrder,
   useCallMedia,
+  useReactions,
   useSpeakerOrder,
   type CallMedia,
+  type LiveReaction,
   type PeerMedia,
   type PeerQuality,
 } from './useCall.js'
+export {
+  ReactionFloat,
+  ReactionPicker,
+  describeReaction,
+  type ReactionFloatProps,
+  type ReactionPickerProps,
+} from './Reactions.js'
 export { DevicePanel, PermissionPrimer, type DevicePanelProps } from './DevicePanel.js'
 export { RoomBar, type RoomBarProps } from './RoomBar.js'
 export { StatusControl, type StatusControlProps } from './StatusControl.js'

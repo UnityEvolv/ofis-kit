@@ -29,6 +29,7 @@ function person(overrides: Partial<PublicPresence> = {}): PublicPresence {
         sharing: false,
         speaking: false,
         lastSpokeAt: null,
+        handRaisedAt: null,
       },
     ],
     status: 'available',

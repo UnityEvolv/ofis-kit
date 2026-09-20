@@ -237,6 +237,34 @@ export function isSharing(person: PublicPresence): boolean {
   return person.devices.some((device) => device.sharing)
 }
 
+/** True when any of this person's devices has its hand up. */
+export function handRaised(person: PublicPresence): boolean {
+  return person.devices.some((device) => device.inCall && device.handRaisedAt !== null)
+}
+
+/**
+ * The hands that are up in a room's call, in the order they went up.
+ *
+ * By device, because a leg is a screen. The order is the queue, and it is the
+ * same on every client because the server stamps the instant — a client that
+ * joined a minute ago knows just as well who asked first.
+ */
+export function raisedHands(state: OfficeState, roomId: string): string[] {
+  const call = callIn(state, roomId)
+  if (!call) return []
+
+  return call.participants
+    .map((participant) => {
+      const device = state.people
+        .get(participant.userId)
+        ?.devices.find((one) => one.deviceId === participant.deviceId)
+      return { deviceId: participant.deviceId, at: device?.handRaisedAt ?? null }
+    })
+    .filter((one): one is { deviceId: string; at: string } => one.at !== null)
+    .sort((a, b) => a.at.localeCompare(b.at) || a.deviceId.localeCompare(b.deviceId))
+    .map((one) => one.deviceId)
+}
+
 /**
  * Whether this person is here only from a phone.
  *

@@ -1,6 +1,8 @@
-import { Icon, Tooltip } from '@unityevolv/unitykit'
-import type { RoomCall } from '@unityevolv/ofiskit-realtime-client'
+import { Icon, Popover, Tooltip } from '@unityevolv/unitykit'
+import type { Reaction, RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import { useEffect } from 'react'
+
+import { ReactionPicker } from './Reactions.js'
 
 /**
  * The bar at the bottom of the office, where a call starts, is controlled and ends.
@@ -33,19 +35,23 @@ export interface CallControlsProps {
   sharing: boolean
   callView: boolean
   call: RoomCall | null
+  /** Your own hand, so the control can say whether pressing it puts it up or down. */
+  handRaised: boolean
   /** Set when a control cannot be used, and shown rather than hiding it. */
   disabledReason?: string | null
 
   onToggleMic(): void
   onToggleCamera(): void
   onToggleShare(): void
+  onToggleHand(): void
+  onReact(reaction: Reaction): void
   onToggleCallView(): void
   onLeaveCall(): void
   onOpenDevices(): void
 }
 
 export function CallControls(props: CallControlsProps) {
-  const { available, inCall, muted, cameraOn, sharing, callView, call } = props
+  const { available, inCall, muted, cameraOn, sharing, callView, call, handRaised } = props
 
   // Full is about the call rather than the room, and about other people rather
   // than you: somebody already in it is never told it is full.
@@ -130,6 +136,42 @@ export function CallControls(props: CallControlsProps) {
               onClick={props.onToggleShare}
             />
 
+            {/*
+              The two signals that need no media, and are the reason they sit
+              beside the microphone rather than somewhere else: asking to speak and
+              reacting are what somebody does *instead* of unmuting.
+
+              Only while in the call. A hand raised by somebody who is not in the
+              conversation is a hand nobody in it can see, and the server refuses
+              it — so the control is absent rather than offering to fail.
+            */}
+            {inCall && (
+              <>
+                <Control
+                  label={handRaised ? 'Lower your hand' : 'Raise your hand'}
+                  icon="raise-hand"
+                  active={handRaised}
+                  onClick={props.onToggleHand}
+                />
+
+                {/*
+                  The trigger is a real button rather than a `Control` in a
+                  wrapper: the popover opens the panel itself, and a button inside
+                  a span would be two things to press where there should be one.
+                */}
+                <Popover
+                  width="auto"
+                  trigger={
+                    <button type="button" aria-label="React" className={controlClasses({})}>
+                      <Icon name="reactions" size="sm" />
+                    </button>
+                  }
+                >
+                  <ReactionPicker onReact={props.onReact} />
+                </Popover>
+              </>
+            )}
+
             <Control
               label="Microphone, camera and speaker"
               icon="settings"
@@ -180,13 +222,53 @@ export function CallControls(props: CallControlsProps) {
 
 interface ControlProps {
   label: string
-  icon: 'mic' | 'mic-off' | 'video' | 'video-off' | 'share' | 'call-view' | 'settings'
+  icon:
+    | 'mic'
+    | 'mic-off'
+    | 'video'
+    | 'video-off'
+    | 'share'
+    | 'raise-hand'
+    | 'reactions'
+    | 'call-view'
+    | 'settings'
   hint?: string
   active?: boolean
   danger?: boolean
   disabled?: boolean
   reason?: string | null
   onClick(): void
+}
+
+/**
+ * One look for every control in this bar.
+ *
+ * Extracted because the reaction picker's trigger is not a `Control` — a popover
+ * opens its own panel — and a second copy of these classes is how two buttons in
+ * the same row end up a pixel different from each other.
+ */
+function controlClasses({
+  active,
+  danger,
+  disabled,
+}: {
+  active?: boolean
+  danger?: boolean
+  disabled?: boolean
+}): string {
+  return [
+    'inline-flex h-9 w-9 items-center justify-center rounded-lg',
+    'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary',
+    disabled
+      ? 'cursor-not-allowed opacity-40'
+      : danger
+        ? // Muted is a state worth noticing at a glance, because talking while
+          // muted is the commonest thing that happens in any call product.
+          'bg-error/15 text-error hover:bg-error/25'
+        : active
+          ? 'bg-primary text-primary-content hover:bg-primary/90'
+          : 'hover:bg-base-200',
+  ].join(' ')
 }
 
 function Control({ label, icon, hint, active, danger, disabled, reason, onClick }: ControlProps) {
@@ -197,19 +279,7 @@ function Control({ label, icon, hint, active, danger, disabled, reason, onClick 
       disabled={disabled}
       aria-label={label}
       aria-pressed={active ?? false}
-      className={[
-        'inline-flex h-9 w-9 items-center justify-center rounded-lg',
-        'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary',
-        disabled
-          ? 'cursor-not-allowed opacity-40'
-          : danger
-            ? // Muted is a state worth noticing at a glance, because talking while
-              // muted is the commonest thing that happens in any call product.
-              'bg-error/15 text-error hover:bg-error/25'
-            : active
-              ? 'bg-primary text-primary-content hover:bg-primary/90'
-              : 'hover:bg-base-200',
-      ].join(' ')}
+      className={controlClasses({ active, danger, disabled })}
     >
       <Icon name={icon} size="sm" />
     </button>

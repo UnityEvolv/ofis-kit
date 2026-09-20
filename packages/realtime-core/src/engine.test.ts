@@ -110,6 +110,8 @@ interface HarnessOptions {
    */
   diffWindowMs?: number
   knockTtlMs?: number
+  /** Short by default in the one test that watches a hand come down. */
+  handLowerAfterMs?: number
   /**
    * Unlimited by default, so a test about knocking is about knocking. The one
    * test that is about the limit passes a real limiter.
@@ -126,6 +128,7 @@ function harness({
   graceMs,
   diffWindowMs = 10_000,
   knockTtlMs,
+  handLowerAfterMs,
   limiter = unlimited(),
   provider = builtInProvider(),
   callHooks,
@@ -149,6 +152,7 @@ function harness({
     ...(roomCapacity ? { roomCapacity } : {}),
     ...(graceMs === undefined ? {} : { graceMs }),
     ...(knockTtlMs === undefined ? {} : { knockTtlMs }),
+    ...(handLowerAfterMs === undefined ? {} : { handLowerAfterMs }),
   })
 
   let counter = 0
@@ -1988,5 +1992,190 @@ describe('relaying signalling', () => {
     h.engine.connected({ connectionId: 'stranger', deviceId: 'stranger', kind: 'web' })
     await h.engine.signal('stranger', { to: 'anybody', type: 'offer', payload: {} })
     expect(h.sent.connections).toHaveLength(0)
+  })
+})
+
+describe('a hand up, and reacting without interrupting', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = harness()
+  })
+
+  const named = (name: string) => h.template.rooms.find((room) => room.name === name)?.id ?? ''
+
+  /** Two people in the workspace, both in its call. */
+  async function inCall() {
+    const ada = await h.enter({ name: 'Ada', deviceId: 'ada-laptop' })
+    const grace = await h.enter({ name: 'Grace', deviceId: 'grace-laptop' })
+    for (const socket of [ada, grace]) {
+      await h.engine.joinRoom(socket, named('Workspace'))
+      await h.engine.joinCall(socket, { audio: true, video: false })
+    }
+    await h.flush()
+    h.sent.clear()
+    return { ada, grace }
+  }
+
+  /** One person's device, as everybody else sees it. */
+  async function legOf(socket: string, displayName: string) {
+    const snapshot = await h.engine.snapshot(socket)
+    return snapshot.people.find((one) => one.displayName === displayName)?.devices[0]
+  }
+
+  it('puts a hand up, and everybody in the office can see it', async () => {
+    const { ada, grace } = await inCall()
+
+    expect(await h.engine.raiseHand(ada, true)).toMatchObject({ ok: true })
+    await h.flush()
+
+    // Seen from the other person's own state rather than from the sender's, which
+    // is the only version that matters.
+    expect(await legOf(grace, 'Ada')).toMatchObject({ handRaisedAt: expect.any(String) })
+    expect(changes(h.sent).some((change) => change.kind === 'person.updated')).toBe(true)
+  })
+
+  it('takes it down again on a second press', async () => {
+    const { ada } = await inCall()
+
+    await h.engine.raiseHand(ada, true)
+    await h.engine.raiseHand(ada, false)
+
+    expect(await legOf(ada, 'Ada')).toMatchObject({ handRaisedAt: null })
+  })
+
+  it('keeps the order of raising, so raising twice does not lose your place', async () => {
+    // The whole value of a raised hand is the queue. A double press moving somebody
+    // to the back of a queue they are at the front of is the bug this stops, and it
+    // is invisible until they complain about being last.
+    const { ada, grace } = await inCall()
+
+    await h.engine.raiseHand(ada, true)
+    const first = (await legOf(ada, 'Ada'))?.handRaisedAt
+    await h.engine.raiseHand(grace, true)
+    await h.engine.raiseHand(ada, true)
+
+    expect((await legOf(ada, 'Ada'))?.handRaisedAt).toBe(first)
+    const gracesHand = (await legOf(ada, 'Grace'))?.handRaisedAt
+    expect(String(first) <= String(gracesHand)).toBe(true)
+  })
+
+  it('refuses a hand from somebody who is not in the call', async () => {
+    // A hand raised by somebody outside the conversation is a hand nobody in it
+    // can see. The control is absent in the UI; the server refuses it anyway,
+    // because the disabled state is a convenience and never the control.
+    const socket = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(socket, named('Workspace'))
+
+    expect(await h.engine.raiseHand(socket, true)).toMatchObject({ code: Refusal.NOT_IN_CALL })
+  })
+
+  it('takes the hand down when they leave the call', async () => {
+    const { ada } = await inCall()
+    await h.engine.raiseHand(ada, true)
+
+    await h.engine.leaveCall(ada)
+    await h.engine.joinCall(ada, { audio: true, video: false })
+
+    // The hand is on the leg, so leaving removes the thing it was on — and
+    // rejoining starts with it down rather than inheriting the last one.
+    expect(await legOf(ada, 'Ada')).toMatchObject({ handRaisedAt: null })
+  })
+
+  it('lowers it by itself once they have been talking for a moment', async () => {
+    // The hand means "I would like to speak". Once you are speaking it has done
+    // its job, and leaving it up makes the queue a lie.
+    h = harness({ handLowerAfterMs: 20 })
+    const { ada } = await inCall()
+
+    await h.engine.raiseHand(ada, true)
+    await h.engine.setSpeaking(ada, true)
+
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect(await legOf(ada, 'Ada')).toMatchObject({ handRaisedAt: null })
+  })
+
+  it('leaves it up for a two-word interjection', async () => {
+    // Agreeing while somebody else finishes is not your turn, so the hand stays
+    // where it is: the timer is cancelled the moment they stop.
+    h = harness({ handLowerAfterMs: 60 })
+    const { ada } = await inCall()
+
+    await h.engine.raiseHand(ada, true)
+    await h.engine.setSpeaking(ada, true)
+    await h.engine.setSpeaking(ada, false)
+
+    await new Promise((resolve) => setTimeout(resolve, 120))
+    expect(await legOf(ada, 'Ada')).toMatchObject({ handRaisedAt: expect.any(String) })
+  })
+
+  it('sends a reaction to the room, and stores nothing anywhere', async () => {
+    const { ada } = await inCall()
+
+    expect(await h.engine.react(ada, '\u{1F44F}')).toMatchObject({ ok: true })
+
+    const reaction = h.sent.rooms.find((one) => one.event === 'call:reaction')
+    expect(reaction?.roomId).toBe(named('Workspace'))
+    expect(reaction?.payload).toMatchObject({ reaction: '\u{1F44F}', deviceId: 'ada-laptop' })
+
+    // Not a diff, not in the snapshot, not on the presence record. A reaction is
+    // an event: somebody who was not looking missed it, which is what happens
+    // with a nod in a room.
+    await h.flush()
+    const snapshot = await h.engine.snapshot(ada)
+    expect(JSON.stringify(snapshot)).not.toContain('\u{1F44F}')
+    expect(JSON.stringify(changes(h.sent))).not.toContain('\u{1F44F}')
+  })
+
+  it('sends it to the room and never to the whole office', async () => {
+    // A reaction is part of a conversation and means nothing three rooms away.
+    const { ada } = await inCall()
+    await h.engine.react(ada, '\u{1F44D}')
+
+    expect(h.sent.office.some((one) => one.event === 'call:reaction')).toBe(false)
+    expect(h.sent.rooms.filter((one) => one.event === 'call:reaction')).toHaveLength(1)
+  })
+
+  it('refuses anything that is not one of the six', async () => {
+    // The set is closed so every client draws the same thing. A reaction one
+    // person can send and nobody else can see is worse than no reaction.
+    const { ada } = await inCall()
+
+    expect(await h.engine.react(ada, '\u{1F991}')).toMatchObject({
+      code: Refusal.REACTION_UNKNOWN,
+    })
+    expect(h.sent.rooms.filter((one) => one.event === 'call:reaction')).toHaveLength(0)
+  })
+
+  it('refuses a reaction from somebody who is not in the call', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(socket, named('Workspace'))
+
+    expect(await h.engine.react(socket, '\u{1F44D}')).toMatchObject({ code: Refusal.NOT_IN_CALL })
+  })
+
+  it('stops a held key from flooding the room', async () => {
+    // Not a security limit: a reaction floats over somebody's face, so a held key
+    // is a screen nobody else can read — and the person doing it has no idea.
+    h = harness({ limiter: memoryRateLimiter() })
+    const { ada } = await inCall()
+
+    const outcomes = []
+    for (let press = 0; press < 8; press += 1) {
+      outcomes.push(await h.engine.react(ada, '\u{1F389}'))
+    }
+
+    expect(outcomes.filter((one) => one.ok)).toHaveLength(6)
+    expect(outcomes.at(-1)).toMatchObject({ code: Refusal.REACTION_RATE_LIMITED })
+    expect(h.sent.rooms.filter((one) => one.event === 'call:reaction')).toHaveLength(6)
+  })
+
+  it('limits one person without limiting the person beside them', async () => {
+    // The thing being limited is one person's enthusiasm, not the room's total.
+    h = harness({ limiter: memoryRateLimiter() })
+    const { ada, grace } = await inCall()
+
+    for (let press = 0; press < 7; press += 1) await h.engine.react(ada, '\u{1F602}')
+
+    expect(await h.engine.react(grace, '\u{1F602}')).toMatchObject({ ok: true })
   })
 })

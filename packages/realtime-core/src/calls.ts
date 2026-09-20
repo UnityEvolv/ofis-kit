@@ -195,6 +195,15 @@ export interface CallLeg {
   /** When they last started speaking, so tile order is the same for everybody. */
   lastSpokeAt: string | null
   /**
+   * When they raised their hand, or null if it is down.
+   *
+   * An instant rather than a flag, because the queue is the point: whoever asked
+   * first is listed first. Stamped here so everybody in the call sees the same
+   * order, and gone with the leg when they leave — a hand cannot stay up in a
+   * call somebody is no longer in.
+   */
+  handRaisedAt: string | null
+  /**
    * Held through the disconnect grace period, so a room cannot fill past
    * somebody whose wifi blinked. Null once they are really gone.
    */
@@ -302,6 +311,7 @@ export class CallRegistry {
       sharing: false,
       speaking: false,
       lastSpokeAt: null,
+      handRaisedAt: null,
       reconnectingUntil: null,
     }
     call.legs.set(leg.deviceId, full)
@@ -398,6 +408,39 @@ export class CallRegistry {
 
     Object.assign(leg, state)
     return call
+  }
+
+  /**
+   * Put a hand up, or take it down.
+   *
+   * Raising a hand that is already up is deliberately a no-op rather than a
+   * restamp: the order of raising is what the queue is, and a second press moving
+   * somebody to the back of it would be a bug that only shows up as "why am I
+   * last". Returns the call, or null when this device is not in one.
+   */
+  setHand(officeId: string, roomId: string, deviceId: string, raised: boolean): LiveCall | null {
+    const call = this.get(officeId, roomId)
+    const leg = call?.legs.get(deviceId)
+    if (!call || !leg) return null
+
+    if (!raised) leg.handRaisedAt = null
+    else if (leg.handRaisedAt === null) leg.handRaisedAt = new Date(this.#now()).toISOString()
+
+    return call
+  }
+
+  /**
+   * Hands that are up, in the order they went up.
+   *
+   * The queue, and the reason the tile strip can put people who asked to speak
+   * ahead of people who happen to have spoken recently.
+   */
+  raisedHands(officeId: string, roomId: string): CallLeg[] {
+    const call = this.get(officeId, roomId)
+    if (!call) return []
+    return [...call.legs.values()]
+      .filter((leg) => leg.handRaisedAt !== null)
+      .sort((a, b) => String(a.handRaisedAt).localeCompare(String(b.handRaisedAt)))
   }
 
   /**

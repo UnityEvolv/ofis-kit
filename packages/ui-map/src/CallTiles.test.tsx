@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { CallTiles, TILES_VISIBLE } from './CallTiles.js'
 import { speakerOrder } from './useCall.js'
-import type { CallMedia } from './useCall.js'
+import type { CallMedia, LiveReaction } from './useCall.js'
 
 /**
  * The tiles, and the two halves of the five-tile rule.
@@ -25,6 +25,7 @@ function device(deviceId: string, overrides: Partial<PublicPresence['devices'][n
     sharing: false,
     speaking: false,
     lastSpokeAt: null,
+    handRaisedAt: null,
     ...overrides,
   }
 }
@@ -72,6 +73,7 @@ function tiles(
     media?: CallMedia
     placement?: 'top' | 'right' | 'grid'
     people?: Map<string, PublicPresence>
+    reactions?: Map<string, LiveReaction[]>
   } = {},
 ) {
   const names = options.names ?? ['grace']
@@ -85,6 +87,7 @@ function tiles(
       people={options.people ?? built.people}
       order={options.order ?? built.call.participants.map((one) => one.deviceId)}
       media={options.media ?? media()}
+      reactions={options.reactions ?? new Map()}
       you={{ userId: 'you', deviceId: 'you-laptop' }}
       placement={options.placement ?? 'top'}
       onMuteForMe={onMuteForMe}
@@ -311,5 +314,107 @@ describe('the speaking order', () => {
     const fromScratch = speakerOrder(participants, people)
     const again = speakerOrder([...participants].reverse(), people)
     expect(again).toEqual(fromScratch)
+  })
+})
+
+/**
+ * A hand up, from the tiles' point of view.
+ *
+ * Only five tiles are visible, so being last in the order means being paged off
+ * screen — and somebody who has asked to speak is the last person who should
+ * disappear. That is why the ordering is part of this story rather than a detail.
+ */
+describe('raised hands and the five tiles', () => {
+  const raisedAt = (name: string, at: string) =>
+    person(name, [device(`${name}-laptop`, { handRaisedAt: at })])
+
+  it('marks the tile of somebody with their hand up, and says so', () => {
+    const built = callOf(['grace'])
+    built.people.set('grace', raisedAt('grace', '2026-01-01T09:01:00.000Z'))
+
+    tiles({ names: ['grace'], people: built.people })
+
+    const tile = screen.getByTestId('tile-grace-laptop')
+    expect(within(tile).getByRole('img', { name: /hand raised/i })).toBeInTheDocument()
+  })
+
+  it('keeps somebody with their hand up on screen, however quiet they are', () => {
+    // Six others, and the sixth by arrival has never said a word — but she asked
+    // to speak, so she is the one tile that must not be paged away.
+    const names = ['a', 'b', 'c', 'd', 'e', 'quiet']
+    const built = callOf(names)
+    built.people.set('quiet', raisedAt('quiet', '2026-01-01T09:01:00.000Z'))
+
+    tiles({
+      names,
+      people: built.people,
+      order: speakerOrder(built.call.participants, built.people),
+    })
+
+    expect(screen.getByTestId('tile-quiet-laptop')).toBeInTheDocument()
+  })
+
+  it('floats a reaction over the person who sent it, and over nobody else', () => {
+    const { view } = tiles({
+      names: ['grace', 'alan'],
+      reactions: new Map([
+        ['grace-laptop', [{ id: 1, userId: 'grace', deviceId: 'grace-laptop', reaction: '👏' }]],
+      ]),
+    })
+
+    expect(within(screen.getByTestId('tile-grace-laptop')).getByText('👏')).toBeInTheDocument()
+    expect(within(screen.getByTestId('tile-alan-laptop')).queryByText('👏')).not.toBeInTheDocument()
+    // One reaction, one float. Nothing is stored and nothing accumulates.
+    expect(view.container.querySelectorAll('[data-testid="reaction-float"]')).toHaveLength(1)
+  })
+})
+
+describe('the order a hand changes', () => {
+  const at = (deviceId: string, fields: Partial<PublicPresence['devices'][number]>) =>
+    person(deviceId.replace('-laptop', ''), [device(deviceId, fields)])
+
+  const participants = [
+    { userId: 'talker', deviceId: 'talker-laptop' },
+    { userId: 'asker', deviceId: 'asker-laptop' },
+    { userId: 'quiet', deviceId: 'quiet-laptop' },
+  ]
+
+  it('puts a raised hand ahead of whoever has been talking', () => {
+    // Which is the point: the person who has been talking is already being heard.
+    const people = new Map<string, PublicPresence>([
+      ['talker', at('talker-laptop', { lastSpokeAt: '2026-01-01T10:00:00.000Z' })],
+      ['asker', at('asker-laptop', { handRaisedAt: '2026-01-01T09:00:00.000Z' })],
+      ['quiet', at('quiet-laptop', {})],
+    ])
+
+    expect(speakerOrder(participants, people)).toEqual([
+      'asker-laptop',
+      'talker-laptop',
+      'quiet-laptop',
+    ])
+  })
+
+  it('orders two raised hands by who asked first', () => {
+    const people = new Map<string, PublicPresence>([
+      ['talker', at('talker-laptop', { handRaisedAt: '2026-01-01T09:05:00.000Z' })],
+      ['asker', at('asker-laptop', { handRaisedAt: '2026-01-01T09:01:00.000Z' })],
+      ['quiet', at('quiet-laptop', {})],
+    ])
+
+    expect(speakerOrder(participants, people).slice(0, 2)).toEqual([
+      'asker-laptop',
+      'talker-laptop',
+    ])
+  })
+
+  it('falls back to the speaking order once every hand is down', () => {
+    // Lowering a hand must not leave somebody pinned to the front for ever.
+    const people = new Map<string, PublicPresence>([
+      ['talker', at('talker-laptop', { lastSpokeAt: '2026-01-01T10:00:00.000Z' })],
+      ['asker', at('asker-laptop', {})],
+      ['quiet', at('quiet-laptop', {})],
+    ])
+
+    expect(speakerOrder(participants, people)[0]).toBe('talker-laptop')
   })
 })

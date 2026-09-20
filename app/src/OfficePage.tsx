@@ -17,7 +17,9 @@ import {
   useIdleReporting,
   useOffice,
   usePersisted,
+  describeReaction,
   useCallMedia,
+  useReactions,
   useSpeakerOrder,
   useTheme,
   type OfficeView,
@@ -101,8 +103,20 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
       (event) => {
         if (event.type === 'refused') announce(event.message, 'assertive')
         if (event.type === 'closed') announce(event.message, 'assertive')
+        /*
+         * A reaction, said politely.
+         *
+         * Politely and not assertively on purpose: applause must not interrupt a
+         * screen reader mid-sentence, which is the whole reason somebody reacted
+         * instead of saying something. Drawing it alone would make it visible to
+         * everybody except the people who most need telling.
+         */
+        if (event.type === 'reaction') {
+          const who = state.people.get(event.userId)?.displayName
+          if (who) announce(describeReaction(who, event.reaction))
+        }
       },
-      [announce],
+      [announce, state.people],
     ),
   )
 
@@ -125,12 +139,22 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   const media = useCallMedia(client)
   const order = useSpeakerOrder(call.call?.participants ?? [], state.people)
 
+  /**
+   * The reactions in the air, drawn over tiles and over avatars.
+   *
+   * Held here for a few seconds and then gone. Nothing about a reaction is stored
+   * — not on the server, not in the office state, not here — so somebody who was
+   * not looking missed it, which is what happens with a nod in a room.
+   */
+  const reactions = useReactions(client)
+
   const knocks = useKnocks(client, template)
 
   const props = {
     template,
     state,
     imageUrl: officeImageUrl,
+    reactions: reactions.byUser,
     onJoin: join,
     onKnock: knocks.knock,
     onLock: (id: string) => void client.lock(id),
@@ -155,6 +179,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
             people={state.people}
             order={order}
             media={media}
+            reactions={reactions.byDevice}
             you={state.you}
             placement={tiles}
             onMuteForMe={media.muteForMe}
@@ -184,6 +209,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
                 people={state.people}
                 order={order}
                 media={media}
+                reactions={reactions.byDevice}
                 you={state.you}
                 placement="grid"
                 onMuteForMe={media.muteForMe}
@@ -226,11 +252,14 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
         muted={call.muted}
         cameraOn={call.cameraOn}
         sharing={call.sharing}
+        handRaised={call.handRaised}
         callView={call.callView}
         call={call.call}
         onToggleMic={call.toggleMic}
         onToggleCamera={call.toggleCamera}
         onToggleShare={call.toggleShare}
+        onToggleHand={call.toggleHand}
+        onReact={call.react}
         onToggleCallView={() => call.setCallView(!call.callView)}
         onLeaveCall={call.leaveCall}
         onOpenDevices={() => setPickingDevices(true)}

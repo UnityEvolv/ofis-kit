@@ -93,6 +93,7 @@ function device(deviceId: string, kind: DeviceKind = 'web'): PublicPresence['dev
     sharing: false,
     speaking: false,
     lastSpokeAt: null,
+    handRaisedAt: null,
   }
 }
 

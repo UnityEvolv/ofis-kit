@@ -2,7 +2,7 @@ import type { OfisClient } from '@unityevolv/ofiskit-realtime-client'
 import { callIn, you as yourPresence, yourRoom } from '@unityevolv/ofiskit-realtime-client'
 import { useAnnounce, usePersisted } from '@unityevolv/ofiskit-ui-map'
 import type { OfficeState } from '@unityevolv/ofiskit-realtime-client'
-import type { RoomCall } from '@unityevolv/ofiskit-realtime-client'
+import type { Reaction, RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import { useCallback } from 'react'
 
 /**
@@ -28,12 +28,16 @@ export interface CallControls {
   cameraOn: boolean
   sharing: boolean
   call: RoomCall | null
+  /** Your own hand, read from the office state like every other call signal. */
+  handRaised: boolean
   callView: boolean
   setCallView(next: boolean): void
 
   toggleMic(): void
   toggleCamera(): void
   toggleShare(): void
+  toggleHand(): void
+  react(reaction: Reaction): void
   leaveCall(): void
 }
 
@@ -68,6 +72,7 @@ export function useCallControls(
   const muted = mine?.muted ?? true
   const cameraOn = mine?.cameraOn ?? false
   const sharing = mine?.sharing ?? false
+  const handRaised = mine?.handRaisedAt != null
 
   /** Join with exactly what was pressed, and nothing else. */
   const joinWith = useCallback(
@@ -122,6 +127,33 @@ export function useCallControls(
     share()
   }, [announce, client, inCall, setCallView, sharing])
 
+  /**
+   * A hand up, or down. No media involved at either end.
+   *
+   * Which is the property worth keeping: it is a socket event, so it behaves the
+   * same on the built-in provider and on anybody else's, and it loads no provider
+   * SDK to do it. The office state is what says whether the hand is up, so the
+   * button can never disagree with what everybody else can see.
+   */
+  const toggleHand = useCallback(() => {
+    void client.raiseHand(!handRaised)
+  }, [client, handRaised])
+
+  /**
+   * React, and say so if the server refused.
+   *
+   * The refusal is the rate limit, which is the one thing somebody pressing this
+   * repeatedly needs told — a button that silently stops working looks broken.
+   */
+  const react = useCallback(
+    (reaction: Reaction) => {
+      void client.react(reaction).then((result) => {
+        if (!result.ok) announce(result.message, 'assertive')
+      })
+    },
+    [announce, client],
+  )
+
   const leaveCall = useCallback(() => {
     void client.leaveCall()
     // Back to the office. Staying in call view with no call in it is a blank
@@ -136,6 +168,7 @@ export function useCallControls(
     cameraOn,
     sharing,
     call,
+    handRaised,
     // Call view is only ever shown when there is a call to show. Otherwise the
     // remembered preference would open somebody into an empty grid.
     callView: callView && inCall,
@@ -143,6 +176,8 @@ export function useCallControls(
     toggleMic,
     toggleCamera,
     toggleShare,
+    toggleHand,
+    react,
     leaveCall,
   }
 }
