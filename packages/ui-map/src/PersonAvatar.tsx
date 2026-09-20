@@ -1,6 +1,6 @@
-import { Tooltip } from '@unityevolv/unitykit'
+import { Icon, Tooltip } from '@unityevolv/unitykit'
 import type { PublicPresence } from '@unityevolv/ofiskit-realtime-client'
-import { isPhoneOnly } from '@unityevolv/ofiskit-realtime-client'
+import { isMuted, isPhoneOnly, isSharing, isSpeaking } from '@unityevolv/ofiskit-realtime-client'
 
 import { StatusDot, describeStatus } from './status.js'
 
@@ -27,6 +27,8 @@ export interface PersonAvatarProps {
   deviceId?: string
   /** Linked to another avatar for the same person, so the pair reads as one. */
   linked?: boolean
+  /** Drops the pulse on the speaking ring. The ring itself stays. */
+  reducedMotion?: boolean
   onClick?(): void
 }
 
@@ -68,10 +70,22 @@ export function PersonAvatar({
   size,
   deviceId,
   linked = false,
+  reducedMotion = false,
   onClick,
 }: PersonAvatarProps) {
   const device = deviceId ? person.devices.find((one) => one.deviceId === deviceId) : undefined
   const reconnecting = person.status === 'reconnecting'
+
+  /*
+   * What the call looks like from the map.
+   *
+   * Per device where this avatar *is* a device, and across the person otherwise —
+   * somebody drawn once while in the call from a laptop and a phone is speaking if
+   * either of them is, and muted only if both are.
+   */
+  const speaking = device ? device.inCall && device.speaking : isSpeaking(person)
+  const microphoneOff = device ? device.inCall && device.muted : isMuted(person)
+  const sharing = device ? device.sharing : isSharing(person)
 
   const face = Math.round(size * 0.62)
   const description = describeStatus(person.status, person.custom)
@@ -88,6 +102,12 @@ export function PersonAvatar({
     description,
     linked ? `also here on another device${device ? ` (this one is ${device.kind})` : ''}` : '',
     isPhoneOnly(person) ? 'on a phone' : '',
+    // Every badge drawn in a corner of this avatar, said. A ring on a picture is
+    // invisible to a screen reader, and "who is talking" is most of what somebody
+    // wants from a room they cannot see.
+    sharing ? 'sharing their screen' : '',
+    microphoneOff ? 'microphone off' : '',
+    speaking ? 'speaking' : '',
   ]
     .filter(Boolean)
     .join(', ')
@@ -111,6 +131,23 @@ export function PersonAvatar({
           />
         )}
 
+        {/*
+          The speaking ring, drawn as a sibling rather than a border so it cannot
+          change the avatar's size and shift everything around it.
+
+          Reduced motion keeps the ring and drops the pulse: the information is in
+          the ring, and the pulsing is the part that makes some people feel unwell.
+        */}
+        {speaking && (
+          <span
+            aria-hidden="true"
+            className={[
+              'absolute -inset-1 rounded-full ring-2 ring-primary',
+              reducedMotion ? '' : 'animate-pulse',
+            ].join(' ')}
+          />
+        )}
+
         {person.photoUrl ? (
           <img
             src={person.photoUrl}
@@ -131,6 +168,38 @@ export function PersonAvatar({
             style={{ width: face, height: face, fontSize: Math.max(10, face * 0.38) }}
           >
             {initials(person.displayName)}
+          </span>
+        )}
+
+        {/*
+          Sharing, top right.
+
+          Worth knowing from outside the room: somebody presenting is mid-sentence
+          in a way somebody merely in a call is not.
+        */}
+        {sharing && (
+          <span
+            aria-hidden="true"
+            className="absolute -right-1 -top-1 rounded-full bg-base-100 p-0.5 leading-none text-primary"
+          >
+            <Icon name="share" size="xs" />
+          </span>
+        )}
+
+        {/*
+          The microphone, top left, and only ever when it is off.
+
+          A badge for "unmuted" would be on almost every avatar in a call and would
+          say nothing; the one worth drawing is the one that explains the silence.
+          Both of these are decoration — the label above says the same thing, which
+          is the half a ring on a picture cannot do.
+        */}
+        {microphoneOff && (
+          <span
+            aria-hidden="true"
+            className="absolute -left-1 -top-1 rounded-full bg-base-100 p-0.5 leading-none text-base-content/70"
+          >
+            <Icon name="mic-off" size="xs" />
           </span>
         )}
 

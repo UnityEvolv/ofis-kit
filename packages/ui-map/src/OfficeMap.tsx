@@ -1,6 +1,6 @@
 import { Icon, Popover } from '@unityevolv/unitykit'
 import type { OfficeState } from '@unityevolv/ofiskit-realtime-client'
-import { isLocked, occupancy, peopleIn, yourRoom } from '@unityevolv/ofiskit-realtime-client'
+import { callIn, isLocked, occupancy, peopleIn, yourRoom } from '@unityevolv/ofiskit-realtime-client'
 import { barRect, type Room, type Template } from '@unityevolv/ofiskit-template'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -138,6 +138,7 @@ export function OfficeMap(props: OfficeMapProps) {
             const capacity = capacityOf?.(room) ?? null
             const inside = room.id === yourRoomId
             const count = occupancy(state, room.id)
+            const call = callIn(state, room.id)
             const placement = placeInRoom(room, people, template.canvas, template.avatarSize)
             const bar = toPixels(barRect(room.rect, room.bar, template.canvas), canvas)
 
@@ -157,6 +158,14 @@ export function OfficeMap(props: OfficeMapProps) {
                   room.type === 'break' ? 'break room' : room.type,
                   `${count} ${count === 1 ? 'person' : 'people'}`,
                   capacity === null ? '' : `of ${capacity}`,
+                  // Announced while arrowing between rooms, which is how somebody
+                  // who cannot see the map decides where to go. Without it the call
+                  // is drawn on the bar and said nowhere.
+                  call
+                    ? `call with ${call.participants.length} ${
+                        call.participants.length === 1 ? 'person' : 'people'
+                      }${call.participants.length >= call.limit ? ', full' : ''}`
+                    : '',
                   locked ? 'locked' : 'open',
                   inside ? 'you are here' : locked ? 'press Enter to knock' : 'press Enter to join',
                 ]
@@ -187,6 +196,7 @@ export function OfficeMap(props: OfficeMapProps) {
                     capacity={capacity}
                     locked={locked}
                     inside={inside}
+                    call={call}
                     width={pixels.width}
                     onJoin={() => props.onJoin(room.id)}
                     onKnock={() => props.onKnock(room.id)}
@@ -218,6 +228,7 @@ export function OfficeMap(props: OfficeMapProps) {
                           size={cell.width}
                           {...(token.deviceId ? { deviceId: token.deviceId } : {})}
                           linked={token.linked}
+                          reducedMotion={reducedMotion}
                         />
                       </li>
                     )
@@ -282,6 +293,7 @@ export function OfficeMap(props: OfficeMapProps) {
 export function RoomListView(props: OfficeMapProps) {
   const { template, state, capacityOf } = props
   const yourRoomId = yourRoom(state)
+  const reducedMotion = useReducedMotion()
 
   if (!state.ready) {
     return (
@@ -309,6 +321,7 @@ export function RoomListView(props: OfficeMapProps) {
                 capacity={capacityOf?.(room) ?? null}
                 locked={locked}
                 inside={inside}
+                call={callIn(state, room.id)}
                 // Never compact: there is no room rectangle constraining it here,
                 // and this is the view somebody chose because they wanted words.
                 width={Number.MAX_SAFE_INTEGER}
@@ -322,7 +335,7 @@ export function RoomListView(props: OfficeMapProps) {
                 <ul className="mt-2 flex flex-wrap gap-3 px-1" aria-label={`People in ${room.name}`}>
                   {people.map((person) => (
                     <li key={person.userId}>
-                      <PersonAvatar person={person} size={56} />
+                      <PersonAvatar person={person} size={56} reducedMotion={reducedMotion} />
                     </li>
                   ))}
                 </ul>

@@ -1,4 +1,9 @@
-import type { DeviceKind, OfficeSnapshot, PublicPresence } from '@unityevolv/ofiskit-realtime-client'
+import type {
+  DeviceKind,
+  OfficeSnapshot,
+  PublicPresence,
+  RoomCall,
+} from '@unityevolv/ofiskit-realtime-client'
 import { emptyOffice, fromSnapshot } from '@unityevolv/ofiskit-realtime-client'
 import { createTemplate, type CanvasShape, type Template } from '@unityevolv/ofiskit-template'
 import { render, screen, within } from '@testing-library/react'
@@ -85,6 +90,7 @@ function draw(
     template?: Template
     people?: PublicPresence[]
     locks?: Array<{ roomId: string; lockedBy: string }>
+    calls?: RoomCall[]
     you?: string
     capacityOf?: OfficeMapProps['capacityOf']
     list?: boolean
@@ -96,7 +102,7 @@ function draw(
     seq: 1,
     people: options.people ?? [],
     locks: options.locks ?? [],
-    calls: [],
+    calls: options.calls ?? [],
     you: { userId: options.you ?? 'ada', deviceId: 'ada-laptop', manual: null },
   }
 
@@ -393,6 +399,99 @@ describe('the office map', () => {
 
     const bar = screen.getByTestId(`room-bar-${reception.id}`)
     expect(within(bar).queryByRole('button', { name: /lock/i })).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * A call, from a room you are not in.
+ *
+ * The whole point of drawing this on the bar is the decision somebody makes from
+ * outside: walking into a conversation is different from walking into a room, and
+ * a call with no seats left is different again.
+ */
+function callOf(roomId: string, userIds: string[], limit = 4): RoomCall {
+  return {
+    roomId,
+    provider: 'builtin',
+    startedAt: '2026-01-01T09:00:00.000Z',
+    participants: userIds.map((userId) => ({ userId, deviceId: `${userId}-laptop` })),
+    limit,
+  }
+}
+
+describe('a call seen from outside the room', () => {
+  it('shows on the room bar, with how many people are in it', () => {
+    const template = office()
+    const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+
+    draw({ template, calls: [callOf(workspace.id, ['grace', 'alan', 'ada'])] })
+
+    const bar = screen.getByTestId(`room-bar-${workspace.id}`)
+    expect(within(bar).getByRole('img', { name: 'Call with 3 people' })).toBeInTheDocument()
+    // The seats are the useful half: three of four says whether to bother.
+    expect(within(bar).getByText('3/4')).toBeInTheDocument()
+  })
+
+  it('is announced in the room’s own label, for somebody arrowing between rooms', () => {
+    // Drawn on the bar and said nowhere would leave the map's keyboard user with
+    // the one piece of state they most need before choosing a room.
+    const template = office()
+    const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+
+    draw({ template, calls: [callOf(workspace.id, ['grace'])] })
+
+    expect(
+      screen.getByRole('group', { name: /Workspace,.*call with 1 person, open/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('says the call is full without saying the room is', () => {
+    // Two different caps: the provider's on the call, the office's on the room.
+    // Saying "full" without saying which sends somebody away from a room they
+    // could have walked into.
+    const template = office()
+    const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+
+    draw({ template, calls: [callOf(workspace.id, ['grace', 'alan'], 2)] })
+
+    const bar = screen.getByTestId(`room-bar-${workspace.id}`)
+    expect(within(bar).getByRole('img', { name: 'Call with 2 people, full' })).toBeInTheDocument()
+    expect(within(bar).getByText(/call in Workspace is full\. You can still go in\./i)).toBeInTheDocument()
+    // Joining the room is a different act, and it is still available.
+    expect(within(bar).getByRole('button', { name: /join/i })).toBeEnabled()
+  })
+
+  it('shows nothing at all in a room where a call cannot happen', () => {
+    // Reception and the break room never host one. Given a call keyed to
+    // reception anyway, the bar draws nothing rather than a call nobody can join.
+    const template = office()
+    const reception = template.rooms.find((one) => one.type === 'reception')!
+
+    draw({ template, calls: [callOf(reception.id, ['grace'])] })
+
+    const bar = screen.getByTestId(`room-bar-${reception.id}`)
+    expect(within(bar).queryByRole('img', { name: /call with/i })).not.toBeInTheDocument()
+  })
+
+  it('is on the room with the call and on no other room', () => {
+    const template = office()
+    const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+
+    draw({ template, calls: [callOf(workspace.id, ['grace'])] })
+
+    expect(screen.getAllByRole('img', { name: /call with/i })).toHaveLength(1)
+    expect(screen.getByTestId(`room-call-${workspace.id}`)).toBeInTheDocument()
+  })
+
+  it('says the same thing in the list view', () => {
+    // The two views show the same state and offer the same actions, which is the
+    // only reason it is safe to offer the list at all.
+    const template = office()
+    const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+
+    draw({ template, list: true, calls: [callOf(workspace.id, ['grace', 'alan'])] })
+
+    expect(screen.getByRole('img', { name: 'Call with 2 people' })).toBeInTheDocument()
   })
 })
 

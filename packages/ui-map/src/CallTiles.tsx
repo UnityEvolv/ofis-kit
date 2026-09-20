@@ -2,6 +2,7 @@ import { Icon } from '@unityevolv/unitykit'
 import type { PublicPresence, RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import { useEffect, useRef, useState } from 'react'
 
+import { useReducedMotion } from './hooks.js'
 import { StatusDot } from './status.js'
 import type { CallMedia } from './useCall.js'
 
@@ -178,6 +179,15 @@ function Tile({
   const device = person?.devices.find((one) => one.deviceId === deviceId)
   const poor = quality !== null && (quality.packetLoss > 0.08 || quality.roundTripMs > 400)
 
+  /*
+   * The same ring as on the map, so "who is talking" looks like one thing
+   * wherever it appears — and the same rule about motion, which is that the ring
+   * carries the information and the pulse is what goes when somebody has asked
+   * for less of it.
+   */
+  const reducedMotion = useReducedMotion()
+  const speaking = device?.speaking ?? false
+
   return (
     <div
       className={[
@@ -187,10 +197,22 @@ function Tile({
           : placement === 'right'
             ? 'aspect-video w-full'
             : 'aspect-video h-24',
-        device?.speaking ? 'ring-2 ring-primary' : '',
+        speaking ? 'ring-2 ring-primary' : '',
       ].join(' ')}
       data-testid={`tile-${deviceId}`}
     >
+      {/*
+        The pulse is drawn as an overlay rather than on the tile itself: an
+        animation on the container fades the video underneath it, which looks like
+        a failing connection rather than like somebody talking.
+      */}
+      {speaking && !reducedMotion && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 animate-pulse rounded-lg ring-2 ring-primary ring-inset"
+        />
+      )}
+
       {stream ? (
         <video
           ref={video}
@@ -215,6 +237,12 @@ function Tile({
         {person && <StatusDot status={person.status} size={8} labelled={false} />}
         <span className="min-w-0 flex-1 truncate">
           {you ? 'You' : (person?.displayName ?? 'Someone')}
+          {/*
+            A ring is invisible to a screen reader, so the tile says it too. Read
+            straight after the name, which is the order somebody wants it in:
+            who, then what they are doing.
+          */}
+          {speaking && <span className="sr-only">, speaking</span>}
         </span>
 
         {device?.muted && (

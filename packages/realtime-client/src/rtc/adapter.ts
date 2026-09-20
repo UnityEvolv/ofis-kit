@@ -127,6 +127,57 @@ export const SCREEN_CEILING = { maxBitrate: 1_500_000, maxFramerate: 8 } as cons
 export const AUDIO_BITRATE = 32_000
 
 /**
+ * What counts as talking, and how long it goes on counting.
+ *
+ * The level is the root mean square of the waveform, which is volume — not the
+ * average across the frequency bins, which is volume divided by however much of
+ * the spectrum happens to be empty. A voice puts almost all of its energy below
+ * two kilohertz, so averaging it across twenty-four kilohertz of mostly silence
+ * gives a number an order of magnitude smaller than the sound actually is, and a
+ * threshold picked against that number is a threshold nobody normal crosses.
+ *
+ * `SPEAKING_HOLD_MS` is what stops the ring strobing. Speech is not continuous:
+ * there is a gap between every word and a longer one between sentences, and an
+ * indicator that follows the waveform exactly flickers all the way through a
+ * sentence. Holding it briefly after the level drops reads as "this is the person
+ * talking" rather than as a light fault, and it cuts what goes over the socket,
+ * because only a change is sent.
+ */
+export const SPEAKING_LEVEL = 0.05
+export const SPEAKING_HOLD_MS = 1_000
+/** How often the level is measured. Five times a second is under the eye's notice. */
+export const LEVEL_INTERVAL_MS = 200
+
+/**
+ * How loud the waveform is, between 0 and 1.
+ *
+ * Takes the bytes an `AnalyserNode` gives for the time domain, where 128 is
+ * silence and the distance either side of it is the amplitude. Pure and exported
+ * so the one number the speaking indicator depends on can be tested without a
+ * browser, an audio context or a microphone.
+ */
+export function rmsLevel(samples: Uint8Array): number {
+  if (samples.length === 0) return 0
+  let total = 0
+  for (const sample of samples) {
+    const amplitude = (sample - 128) / 128
+    total += amplitude * amplitude
+  }
+  return Math.sqrt(total / samples.length)
+}
+
+/**
+ * Whether this device counts as talking, now.
+ *
+ * `loudAt` is when the level was last above the threshold. Muting wins over the
+ * hold: a muted microphone is silent, and an indicator that says otherwise for a
+ * second afterwards is the one mistake this indicator must never make.
+ */
+export function speakingNow(state: { muted: boolean; loudAt: number; now: number }): boolean {
+  return !state.muted && state.now - state.loudAt < SPEAKING_HOLD_MS
+}
+
+/**
  * How long to try before giving up.
  *
  * Bounded on purpose. Some networks block UDP and the relay ports outright, and
