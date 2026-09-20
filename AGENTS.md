@@ -175,7 +175,8 @@ buttons, avatars, icons, tokens, and the two themes. Three rules:
 - **No colour is ever hard-coded.** Every one comes from a token, which is what
   makes both themes follow from the token layer rather than a second stylesheet.
 - **The kit's `Brand` component is not used here**, and this repository carries
-  no mark, favicon or app icon. See [the boundary](docs/architecture.md).
+  no mark, favicon or app icon. `npm run no-branding` fails if one appears. See
+  [the boundary](docs/architecture.md).
 
 Working against a local checkout of the kit:
 
@@ -212,6 +213,7 @@ npm run typecheck        # every package
 npm run build            # packages, then the app
 npm run budget           # bundle size against the budget
 npm run kit:styles       # the kit’s CSS really was generated
+npm run no-branding      # no logo, favicon or Brand has crept in
 ```
 
 ## Definition of done
