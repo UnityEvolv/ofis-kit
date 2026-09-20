@@ -44,6 +44,11 @@ function keyOf(change: OfficeChange): string {
     case 'person.moved':
     case 'person.left':
       return `person:${change.userId}`
+    // A room's own key, so locking and unlocking it twice in a window is one
+    // event about the door and does not collapse with the people behind it.
+    case 'room.locked':
+    case 'room.unlocked':
+      return `room:${change.roomId}`
   }
 }
 

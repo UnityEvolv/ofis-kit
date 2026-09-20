@@ -31,5 +31,8 @@ export type {
 } from './events.js'
 export { localEventBus, silentEventBus } from './events.js'
 
+export type { RateLimiter, RateLimitVerdict } from './rate-limit.js'
+export { memoryRateLimiter, unlimited } from './rate-limit.js'
+
 /** Re-exported so nothing has to import the template package to report an error. */
 export type { ErrorEnvelope } from '@unityevolv/ofiskit-template'

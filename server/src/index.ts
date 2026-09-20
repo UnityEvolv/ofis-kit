@@ -3,7 +3,11 @@ import { stat } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { extname, isAbsolute, join, normalize, relative, resolve } from 'node:path'
 
-import { fileTemplateSource, typedEmailIdentity } from '@unityevolv/ofiskit-adapters'
+import {
+  fileTemplateSource,
+  memoryRateLimiter,
+  typedEmailIdentity,
+} from '@unityevolv/ofiskit-adapters'
 import { MemoryPresenceStore } from '@unityevolv/ofiskit-presence-store'
 import { createLogger, createRealtimeServer } from '@unityevolv/ofiskit-realtime-core'
 
@@ -40,6 +44,9 @@ const realtime = createRealtimeServer({
   officeId: config.officeId,
   store,
   identity: typedEmailIdentity(),
+  // One process, so a Map is the whole answer. unityofis passes its own limiter,
+  // which counts somewhere every node can see.
+  limiter: memoryRateLimiter(),
   templates,
   logger,
   graceMs: config.graceMs,
