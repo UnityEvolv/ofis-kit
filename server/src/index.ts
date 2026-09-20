@@ -9,7 +9,11 @@ import {
   typedEmailIdentity,
 } from '@unityevolv/ofiskit-adapters'
 import { MemoryPresenceStore } from '@unityevolv/ofiskit-presence-store'
-import { createLogger, createRealtimeServer } from '@unityevolv/ofiskit-realtime-core'
+import {
+  builtInProvider,
+  createLogger,
+  createRealtimeServer,
+} from '@unityevolv/ofiskit-realtime-core'
 
 import { loadConfig, publicConfig } from './config.js'
 
@@ -47,6 +51,17 @@ const realtime = createRealtimeServer({
   // One process, so a Map is the whole answer. unityofis passes its own limiter,
   // which counts somewhere every node can see.
   limiter: memoryRateLimiter(),
+  /*
+   * Peer-to-peer, and the only provider here.
+   *
+   * Four participants, audio, video and screen share, no server-side recording —
+   * because there is no server to record on, which is exactly why it is the free
+   * tier. A host with an SFU passes its own plugin here and changes nothing else.
+   */
+  provider: builtInProvider(),
+  // No call hooks: there is no database to write a record to. unityofis binds
+  // them and gets a record per call and per leg without the engine knowing.
+
   templates,
   logger,
   graceMs: config.graceMs,

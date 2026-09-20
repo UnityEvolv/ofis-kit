@@ -8,10 +8,16 @@
 export {
   applyChange,
   applyDiff,
+  callDevices,
+  callIn,
+  callSeats,
   emptyOffice,
   fromSnapshot,
   isLocked,
+  isMuted,
   isPhoneOnly,
+  isSharing,
+  isSpeaking,
   lockedBy,
   occupancy,
   peopleIn,
@@ -21,6 +27,25 @@ export {
   type DiffOutcome,
   type OfficeState,
 } from './office-state.js'
+
+/**
+ * The provider interface, client half.
+ *
+ * Exported as types and constants only: the built-in implementation arrives with
+ * the signalling story, and an external provider's adapter is written against
+ * exactly this and nothing more.
+ */
+export {
+  AUDIO_BITRATE,
+  CONNECT_TIMEOUT_MS,
+  SCREEN_CEILING,
+  VIDEO_STEPS,
+  type JoinOptions,
+  type RtcClientAdapter,
+  type RtcEvent,
+  type RtcHandler,
+  type Signaller,
+} from './rtc/adapter.js'
 
 export {
   createOfisClient,
@@ -38,12 +63,16 @@ export {
  * the server. There is one definition; this is the door to it.
  */
 export type {
+  CallJoinRequest,
+  CallJoinResponse,
   CustomStatus,
   DeviceKind,
   ManualStatus,
   OfficeChange,
   OfficeDiff,
+  IceServer,
   OfficeSnapshot,
   PublicPresence,
+  RoomCall,
   Status,
 } from '@unityevolv/ofiskit-realtime-core/protocol'

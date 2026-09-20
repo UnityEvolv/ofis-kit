@@ -42,7 +42,22 @@ export interface PublicPresence {
    * be able to say what somebody is on. What each device is *doing* — in the
    * call, muted, sharing — arrives with the stories that give it meaning.
    */
-  devices: Array<{ deviceId: string; kind: DeviceKind }>
+  devices: Array<{
+    deviceId: string
+    kind: DeviceKind
+    /**
+     * Whether this device is in the room's call.
+     *
+     * Per device, not per person, because presence and the call are separate
+     * things and one person may be in the room from two devices with only one of
+     * them in the conversation.
+     */
+    inCall: boolean
+    muted: boolean
+    cameraOn: boolean
+    sharing: boolean
+    speaking: boolean
+  }>
   /**
    * Already resolved, so clients render it rather than working it out again.
    *
@@ -55,6 +70,31 @@ export interface PublicPresence {
   custom?: CustomStatus
   /** When they arrived in this room. Avatars are ordered by it, so they hold still. */
   arrivedAt: string
+}
+
+/**
+ * A call happening in a room.
+ *
+ * Separate from the people in the room on purpose: entering a room does not join
+ * its call, and somebody is in the room whether or not they are in the
+ * conversation happening in it. Joining is always explicit.
+ */
+export interface RoomCall {
+  roomId: string
+  /** Fixed when the call starts. A provider change applies to the next call. */
+  provider: string
+  startedAt: string
+  /** One entry per device leg, because a leg is a device and not a person. */
+  participants: Array<{ userId: string; deviceId: string }>
+  /** The provider's cap, so the UI can say "full" without knowing the provider. */
+  limit: number
+}
+
+/** One ICE server, in the shape a browser's RTCPeerConnection takes. */
+export interface IceServer {
+  urls: string | string[]
+  username?: string
+  credential?: string
 }
 
 /**
@@ -88,6 +128,8 @@ export interface OfficeSnapshot {
    * office so that nobody is surprised by a door that will not open.
    */
   locks: Array<{ roomId: string; lockedBy: string }>
+  /** Every call in progress. Visible from outside the room, so nobody walks in blind. */
+  calls: RoomCall[]
   /**
    * Who this client is, so it can find itself without matching on a name.
    *
@@ -119,6 +161,8 @@ export type OfficeChange =
   | { kind: 'person.left'; userId: string }
   | { kind: 'room.locked'; roomId: string; lockedBy: string }
   | { kind: 'room.unlocked'; roomId: string }
+  | { kind: 'call.updated'; call: RoomCall }
+  | { kind: 'call.ended'; roomId: string }
 
 export interface OfficeDiff {
   /**
@@ -145,6 +189,46 @@ export interface KnockRequest {
 
 export interface KnockReplyRequest {
   knockId: string
+}
+
+export interface CallJoinRequest {
+  /** Pressing the microphone joins with audio; pressing the camera joins with video. */
+  audio: boolean
+  video: boolean
+  /**
+   * What to do when this person is already in the call from another device.
+   *
+   * `move` drops the other device's media and leaves it in the room as presence
+   * only — the common case, and the default. `add` joins as a second leg, which
+   * counts against the room's capacity because it is a real leg in the mesh.
+   */
+  secondDevice?: 'move' | 'add'
+}
+
+export interface CallJoinResponse {
+  call: RoomCall
+  /** Whatever this provider's client adapter needs. Nothing else reads it. */
+  credentials: unknown
+  iceServers: IceServer[]
+  /** Who is already here, so a new peer knows who to connect to. */
+  participants: Array<{ userId: string; deviceId: string; displayName: string }>
+  /**
+   * Set when this join made an added device the primary, or moved the call here.
+   *
+   * The person is told, rather than finding out by their microphone having moved.
+   */
+  note?: 'moved' | 'added'
+}
+
+/** What one device is publishing. Reported by the adapter, after it actually did it. */
+export interface MediaStateRequest {
+  muted: boolean
+  cameraOn: boolean
+  sharing: boolean
+}
+
+export interface SpeakingRequest {
+  speaking: boolean
 }
 
 export interface StatusRequest {
@@ -227,6 +311,22 @@ export interface ClientEvents {
   ) => void
   'knock:admit': (request: KnockReplyRequest, ack: (result: Ack) => void) => void
   'knock:decline': (request: KnockReplyRequest, ack: (result: Ack) => void) => void
+
+  /** Joining is explicit: pressing the microphone or the camera is what does it. */
+  'call:join': (
+    request: CallJoinRequest,
+    ack: (result: Ack<{ call: CallJoinResponse }>) => void,
+  ) => void
+  'call:leave': (ack: (result: Ack) => void) => void
+  /** No acknowledgement: these arrive constantly and nobody waits on them. */
+  'call:media': (request: MediaStateRequest) => void
+  'call:speaking': (request: SpeakingRequest) => void
+  'call:quality': (request: {
+    peerDeviceId: string
+    relayed: boolean
+    packetLoss: number
+    roundTripMs: number
+  }) => void
   'status:manual': (request: StatusRequest, ack: (result: Ack) => void) => void
   'status:custom': (request: CustomStatusRequest, ack: (result: Ack) => void) => void
   'device:activity': (request: ActivityRequest) => void
@@ -320,6 +420,14 @@ export const Refusal = {
   ROOM_ALREADY_THERE: 'room.already_there',
   /** Closed to interruption. Knock to ask. */
   ROOM_LOCKED: 'room.locked',
+  /** Reception and the break room never have calls. */
+  ROOM_NO_CALLS: 'room.no_calls',
+  /** The call is at the provider's cap. Not the same as the room being full. */
+  CALL_FULL: 'call.full',
+  /** Asked to leave a call, or report media, while not in one. */
+  NOT_IN_CALL: 'call.not_in',
+  /** The provider cannot do what was asked: video, or a screen share. */
+  CALL_UNSUPPORTED: 'call.unsupported',
   /** Locking is for the people in the conversation, so you have to be in it. */
   ROOM_NOT_INSIDE: 'room.not_inside',
   /** Reception and the break room are open to everyone by design. */

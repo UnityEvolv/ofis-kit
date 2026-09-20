@@ -12,6 +12,7 @@ import { MemoryPresenceStore } from '@unityevolv/ofiskit-presence-store'
 import { createTemplate, type Template } from '@unityevolv/ofiskit-template'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { builtInProvider, type CallHooks, type RtcServerPlugin } from './calls.js'
 import { OfficeEngine } from './engine.js'
 import { Refusal, type OfficeChange, type OfficeDiff } from './protocol/index.js'
 import type { Transport } from './transport.js'
@@ -114,6 +115,9 @@ interface HarnessOptions {
    * test that is about the limit passes a real limiter.
    */
   limiter?: RateLimiter
+  /** Swapped by a test that is about what a provider declares, or about its hooks. */
+  provider?: RtcServerPlugin
+  callHooks?: CallHooks
 }
 
 function harness({
@@ -123,6 +127,8 @@ function harness({
   diffWindowMs = 10_000,
   knockTtlMs,
   limiter = unlimited(),
+  provider = builtInProvider(),
+  callHooks,
 }: HarnessOptions = {}): Harness {
   const template = office()
   const store = new MemoryPresenceStore()
@@ -137,7 +143,9 @@ function harness({
     transport: sent,
     events,
     limiter,
+    provider,
     diffWindowMs,
+    ...(callHooks ? { callHooks } : {}),
     ...(roomCapacity ? { roomCapacity } : {}),
     ...(graceMs === undefined ? {} : { graceMs }),
     ...(knockTtlMs === undefined ? {} : { knockTtlMs }),
@@ -1324,5 +1332,552 @@ describe('lock, knock and admit', () => {
     expect(changes(h.sent)).toContainEqual({ kind: 'room.unlocked', roomId: workspace })
     const outsider = await h.enter({ name: 'Alan' })
     expect((await h.engine.joinRoom(outsider, workspace)).ok).toBe(true)
+  })
+})
+
+describe('the provider interface', () => {
+  it('declares what the built-in provider can and cannot do', () => {
+    // Declared rather than assumed, because the UI disables what is unavailable
+    // and has to be able to say why.
+    const provider = builtInProvider()
+
+    expect(provider.name).toBe('builtin')
+    expect(provider.limits).toEqual({
+      // Four, because a full mesh has everybody sending their camera separately
+      // to everybody else. Five people is twenty streams.
+      maxParticipants: 4,
+      video: true,
+      screenShare: true,
+      // There is no server to record on, which is exactly why it is the free tier.
+      serverRecording: false,
+    })
+  })
+
+  it('declares a cost model, and no origins of its own', () => {
+    const provider = builtInProvider()
+
+    // Nothing here bills anyone. It is declared so a provider cannot be added
+    // without somebody having thought about what it costs.
+    expect(provider.cost.model).toBe('egress')
+    // It reaches only our own socket, so a host's content security policy needs
+    // nothing extra for it.
+    expect(provider.origins).toEqual([])
+  })
+
+  it('issues credentials the core never reads, and relay servers the host supplies', async () => {
+    const withRelay = builtInProvider({
+      iceServersFor: () => [{ urls: 'turn:relay.example', username: 'u', credential: 'c' }],
+    })
+
+    const credentials = await withRelay.credentialsFor({
+      officeId: OFFICE,
+      roomId: 'studio',
+      callId: 'c1',
+      userId: 'ada',
+      deviceId: 'laptop',
+      displayName: 'Ada',
+    })
+
+    // The mesh needs no token: the peers are each other. What it needs is a way
+    // through a corporate firewall.
+    expect(credentials.credentials).toEqual({ transport: 'mesh' })
+    expect(credentials.iceServers).toHaveLength(1)
+  })
+
+  it('is swappable: the engine takes the cap from whatever plugin it was given', async () => {
+    // The property the interface exists to have. A second provider means writing
+    // these methods and touching no call, presence or UI code.
+    const pair: RtcServerPlugin = {
+      ...builtInProvider(),
+      name: 'pair',
+      limits: { maxParticipants: 2, video: false, screenShare: false, serverRecording: false },
+    }
+    const h = harness({ provider: pair })
+    const workspace = h.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+
+    const ada = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(ada, workspace)
+
+    // Video is refused because this provider says it cannot do video, and the
+    // engine never asked what kind of provider it was.
+    const video = await h.engine.joinCall(ada, { audio: true, video: true })
+    expect(video.ok).toBe(false)
+    if (!video.ok) expect(video.code).toBe(Refusal.CALL_UNSUPPORTED)
+
+    const audio = await h.engine.joinCall(ada, { audio: true, video: false })
+    expect(audio.ok).toBe(true)
+    if (audio.ok) expect(audio.call.call.limit).toBe(2)
+  })
+})
+
+describe('joining and leaving a call', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = harness()
+  })
+
+  const named = (name: string) => h.template.rooms.find((room) => room.name === name)?.id ?? ''
+  const typed = (type: string) => h.template.rooms.find((room) => room.type === type)?.id ?? ''
+
+  /** Somebody in a room that can hold a call. */
+  async function inWorkspace(name: string) {
+    const socket = await h.enter({ name })
+    await h.engine.joinRoom(socket, named('Workspace'))
+    return socket
+  }
+
+  it('does not join the call just because somebody entered the room', async () => {
+    const socket = await inWorkspace('Ada')
+    await h.flush()
+
+    // Presence and the call are separate things. Being in the room is not being
+    // in the conversation happening in it.
+    expect((await h.engine.snapshot(socket)).calls).toHaveLength(0)
+    expect((await h.engine.snapshot(socket)).people[0]?.status).toBe('available')
+  })
+
+  it('starts the call on the first person turning on audio', async () => {
+    const socket = await inWorkspace('Ada')
+    const result = await h.engine.joinCall(socket, { audio: true, video: false })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.call.call).toMatchObject({ roomId: named('Workspace'), provider: 'builtin' })
+    expect(result.call.call.participants).toHaveLength(1)
+    // Nobody else is here yet, so there is nobody to connect to.
+    expect(result.call.participants).toHaveLength(0)
+  })
+
+  it('shows the call to the whole office, from outside the room', async () => {
+    const socket = await inWorkspace('Ada')
+    await h.flush()
+    h.sent.clear()
+
+    await h.engine.joinCall(socket, { audio: true, video: false })
+    await h.flush()
+
+    // Visible from outside, so nobody walks in on a conversation they did not
+    // know was happening.
+    const call = changes(h.sent).find((change) => change.kind === 'call.updated')
+    expect(call).toBeDefined()
+    expect((await h.engine.snapshot(socket)).calls).toHaveLength(1)
+  })
+
+  it('sets the status to in a call, and clears it on the way out', async () => {
+    const socket = await inWorkspace('Ada')
+
+    await h.engine.joinCall(socket, { audio: true, video: false })
+    expect((await h.engine.snapshot(socket)).people[0]?.status).toBe('in_call')
+
+    await h.engine.leaveCall(socket)
+    expect((await h.engine.snapshot(socket)).people[0]?.status).toBe('available')
+  })
+
+  it('outranks away, because somebody listening is not idle', async () => {
+    const socket = await inWorkspace('Ada')
+    await h.engine.joinCall(socket, { audio: true, video: false })
+
+    // Twenty minutes of not touching the keyboard, in a call. Every call product
+    // accepts that a muted person who walked away still reads as in a call.
+    await h.engine.setActivity(socket, { idle: true, foreground: true })
+
+    expect((await h.engine.snapshot(socket)).people[0]?.status).toBe('in_call')
+  })
+
+  it('tells the office which devices are in the call and what they are doing', async () => {
+    const socket = await inWorkspace('Ada')
+    await h.engine.joinCall(socket, { audio: true, video: true })
+
+    const device = (await h.engine.snapshot(socket)).people[0]?.devices[0]
+    expect(device).toMatchObject({ inCall: true, muted: false, cameraOn: true, sharing: false })
+
+    await h.engine.setMediaState(socket, { muted: true, cameraOn: false, sharing: true })
+    const after = (await h.engine.snapshot(socket)).people[0]?.devices[0]
+    expect(after).toMatchObject({ muted: true, cameraOn: false, sharing: true })
+  })
+
+  it('ends the call when the last person leaves it, and not before', async () => {
+    const ada = await inWorkspace('Ada')
+    const grace = await inWorkspace('Grace')
+    await h.engine.joinCall(ada, { audio: true, video: false })
+    await h.engine.joinCall(grace, { audio: true, video: false })
+
+    await h.engine.leaveCall(ada)
+    // Still a call: one person sitting quietly in it is still a call.
+    expect((await h.engine.snapshot(grace)).calls).toHaveLength(1)
+
+    await h.engine.leaveCall(grace)
+    expect((await h.engine.snapshot(grace)).calls).toHaveLength(0)
+  })
+
+  it('never has a call in reception or the break room', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+
+    // One is a thoroughfare and the other is where people go to not be in a
+    // conversation.
+    const reception = await h.engine.joinCall(socket, { audio: true, video: false })
+    expect(reception.ok).toBe(false)
+    if (!reception.ok) expect(reception.code).toBe(Refusal.ROOM_NO_CALLS)
+
+    await h.engine.joinRoom(socket, typed('break'))
+    const breakRoom = await h.engine.joinCall(socket, { audio: true, video: false })
+    expect(breakRoom.ok).toBe(false)
+    if (!breakRoom.ok) expect(breakRoom.code).toBe(Refusal.ROOM_NO_CALLS)
+  })
+
+  it('refuses a fifth participant with a message that says the number', async () => {
+    const workspace = named('Workspace')
+    for (const name of ['One', 'Two', 'Three', 'Four']) {
+      const socket = await h.enter({ name })
+      await h.engine.joinRoom(socket, workspace)
+      expect((await h.engine.joinCall(socket, { audio: true, video: false })).ok).toBe(true)
+    }
+
+    const fifth = await inWorkspace('Five')
+    const result = await h.engine.joinCall(fifth, { audio: true, video: false })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.code).toBe(Refusal.CALL_FULL)
+      expect(result.message).toContain('4')
+    }
+  })
+
+  it('refuses to leave a call nobody is in', async () => {
+    const socket = await inWorkspace('Ada')
+    const result = await h.engine.leaveCall(socket)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe(Refusal.NOT_IN_CALL)
+  })
+
+  it('asks the identity adapter whether this person may join a call', async () => {
+    const restricted = harness({
+      identity: {
+        ...typedEmailIdentity(),
+        async may({ permission }): Promise<Decision> {
+          if (permission === 'join_call') {
+            return { allowed: false, code: 'call.plan', message: 'Not on this plan.' }
+          }
+          return { allowed: true }
+        },
+      },
+    })
+    const workspace = restricted.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    const socket = await restricted.enter({ name: 'Ada' })
+    await restricted.engine.joinRoom(socket, workspace)
+
+    const result = await restricted.engine.joinCall(socket, { audio: true, video: false })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.message).toBe('Not on this plan.')
+  })
+
+  it('tells a new arrival who is already there, and never lists them to themselves', async () => {
+    const ada = await inWorkspace('Ada')
+    await h.engine.joinCall(ada, { audio: true, video: false })
+
+    const grace = await inWorkspace('Grace')
+    const joined = await h.engine.joinCall(grace, { audio: true, video: false })
+
+    expect(joined.ok).toBe(true)
+    if (!joined.ok) return
+    // A peer connecting to itself is the first bug a mesh ever has.
+    expect(joined.call.participants.map((one) => one.displayName)).toEqual(['Ada'])
+  })
+})
+
+describe('leaving the room leaves the call', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = harness()
+  })
+
+  const named = (name: string) => h.template.rooms.find((room) => room.name === name)?.id ?? ''
+
+  it('walks out of the conversation when it walks out of the room', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(socket, named('Workspace'))
+    await h.engine.joinCall(socket, { audio: true, video: false })
+
+    await h.engine.joinRoom(socket, h.template.rooms.find((room) => room.type === 'reception')!.id)
+
+    // The conversation belongs to the room, so the call is left behind and the
+    // status stops saying in a call.
+    const snapshot = await h.engine.snapshot(socket)
+    expect(snapshot.calls).toHaveLength(0)
+    expect(snapshot.people[0]?.status).toBe('available')
+  })
+
+  it('ends a screen share along with the call it belonged to', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(socket, named('Workspace'))
+    await h.engine.joinCall(socket, { audio: true, video: true })
+    await h.engine.setMediaState(socket, { muted: false, cameraOn: true, sharing: true })
+
+    await h.engine.leaveRoom(socket)
+
+    // A share belongs to the conversation rather than to the person, so it cannot
+    // follow them out.
+    const device = (await h.engine.snapshot(socket)).people[0]?.devices[0]
+    expect(device).toMatchObject({ inCall: false, sharing: false })
+  })
+
+  it('ends the leg when access is revoked, the same way leaving does', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    const userId = (await h.engine.snapshot(socket)).you.userId
+    await h.engine.joinRoom(socket, named('Workspace'))
+    await h.engine.joinCall(socket, { audio: true, video: false })
+    await h.flush()
+    h.sent.clear()
+
+    h.events.publish({ type: 'access.revoked', userId, reason: 'Your access ended.' })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await h.flush()
+
+    // One path out, so there is one place for it to be wrong.
+    expect(changes(h.sent)).toContainEqual({ kind: 'call.ended', roomId: named('Workspace') })
+  })
+})
+
+describe('a second device', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = harness()
+  })
+
+  const named = (name: string) => h.template.rooms.find((room) => room.name === name)?.id ?? ''
+
+  /** One person, two devices, both in the workspace. */
+  async function twoDevices() {
+    const laptop = await h.enter({ name: 'Ada', deviceId: 'laptop' })
+    const phone = await h.enter({
+      name: 'Ada',
+      deviceId: 'phone',
+      kind: 'mobile',
+      connectionId: 'socket-phone',
+    })
+    await h.engine.joinRoom(laptop, named('Workspace'))
+    return { laptop, phone }
+  }
+
+  it('moves the call to the new device by default, leaving the first as presence', async () => {
+    const { laptop, phone } = await twoDevices()
+    await h.engine.joinCall(laptop, { audio: true, video: false })
+
+    const moved = await h.engine.joinCall(phone, { audio: true, video: false })
+    expect(moved.ok).toBe(true)
+    if (!moved.ok) return
+
+    // The common case, and the default: two live microphones in one place feed
+    // back into each other.
+    expect(moved.call.note).toBe('moved')
+    expect(moved.call.call.participants.map((one) => one.deviceId)).toEqual(['phone'])
+
+    const devices = (await h.engine.snapshot(laptop)).people[0]?.devices ?? []
+    expect(devices.find((one) => one.deviceId === 'laptop')?.inCall).toBe(false)
+    expect(devices.find((one) => one.deviceId === 'phone')?.inCall).toBe(true)
+  })
+
+  it('adds the device when asked, counted as its own leg', async () => {
+    const { laptop, phone } = await twoDevices()
+    await h.engine.joinCall(laptop, { audio: true, video: false })
+
+    const added = await h.engine.joinCall(phone, { audio: true, video: true, secondDevice: 'add' })
+    expect(added.ok).toBe(true)
+    if (!added.ok) return
+
+    // A real leg in the mesh, so it counts against the cap like anybody else.
+    expect(added.call.note).toBe('added')
+    expect(added.call.call.participants).toHaveLength(2)
+  })
+
+  it('adds it with the microphone off, whatever was asked for', async () => {
+    const { laptop, phone } = await twoDevices()
+    await h.engine.joinCall(laptop, { audio: true, video: false })
+    await h.engine.joinCall(phone, { audio: true, video: true, secondDevice: 'add' })
+
+    // Two live audio paths in the same physical room feed back into each other,
+    // and the second device is almost always there for its camera.
+    const devices = (await h.engine.snapshot(phone)).people[0]?.devices ?? []
+    expect(devices.find((one) => one.deviceId === 'phone')).toMatchObject({
+      inCall: true,
+      muted: true,
+      cameraOn: true,
+    })
+  })
+
+  it('lets an added device unmute, because the person may have moved rooms', async () => {
+    const { laptop, phone } = await twoDevices()
+    await h.engine.joinCall(laptop, { audio: true, video: false })
+    await h.engine.joinCall(phone, { audio: false, video: true, secondDevice: 'add' })
+
+    // Allowed, with the warning belonging to the control rather than to a refusal
+    // here. The product should not decide for them.
+    await h.engine.setMediaState(phone, { muted: false, cameraOn: true, sharing: false })
+
+    const devices = (await h.engine.snapshot(phone)).people[0]?.devices ?? []
+    expect(devices.find((one) => one.deviceId === 'phone')?.muted).toBe(false)
+  })
+
+  it('counts one person with two legs as one person in the room', async () => {
+    const { laptop, phone } = await twoDevices()
+    await h.engine.joinCall(laptop, { audio: true, video: false })
+    await h.engine.joinCall(phone, { audio: false, video: true, secondDevice: 'add' })
+
+    // Presence is per user. The call counts legs; the room counts people.
+    const snapshot = await h.engine.snapshot(laptop)
+    expect(snapshot.people).toHaveLength(1)
+    expect(snapshot.calls[0]?.participants).toHaveLength(2)
+  })
+
+  it('leaves the call on both devices when the person leaves the room', async () => {
+    const { laptop, phone } = await twoDevices()
+    await h.engine.joinCall(laptop, { audio: true, video: false })
+    await h.engine.joinCall(phone, { audio: false, video: true, secondDevice: 'add' })
+
+    await h.engine.leaveRoom(laptop)
+
+    // Presence is per user, so leaving the room leaves on both.
+    expect((await h.engine.snapshot(laptop)).calls).toHaveLength(0)
+  })
+})
+
+describe('a connection that drops mid-call', () => {
+  const named = (h: Harness, name: string) =>
+    h.template.rooms.find((room) => room.name === name)?.id ?? ''
+
+  it('holds the seat so the room cannot fill past somebody coming back', async () => {
+    const h = harness({ graceMs: 5000 })
+    const workspace = named(h, 'Workspace')
+
+    const ada = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(ada, workspace)
+    await h.engine.joinCall(ada, { audio: true, video: false })
+
+    await h.engine.disconnected(ada)
+
+    // Still a participant: the leg is held, not dropped.
+    const others = await h.enter({ name: 'Grace' })
+    expect((await h.engine.snapshot(others)).calls[0]?.participants).toHaveLength(1)
+  })
+
+  it('rejoins in the state it left, without the person doing anything', async () => {
+    const h = harness({ graceMs: 5000 })
+    const workspace = named(h, 'Workspace')
+
+    const ada = await h.enter({ name: 'Ada', deviceId: 'laptop' })
+    await h.engine.joinRoom(ada, workspace)
+    await h.engine.joinCall(ada, { audio: true, video: true })
+    await h.engine.setMediaState(ada, { muted: true, cameraOn: true, sharing: true })
+
+    await h.engine.disconnected(ada)
+    const back = await h.enter({ name: 'Ada', deviceId: 'laptop', connectionId: 'socket-back' })
+    const rejoined = await h.engine.joinCall(back, { audio: true, video: false })
+
+    expect(rejoined.ok).toBe(true)
+    if (!rejoined.ok) return
+
+    // Same mute, same camera. The share is not restored: it belonged to a screen
+    // that is no longer there.
+    const devices = (await h.engine.snapshot(back)).people[0]?.devices ?? []
+    expect(devices.find((one) => one.deviceId === 'laptop')).toMatchObject({
+      inCall: true,
+      muted: true,
+      cameraOn: true,
+      sharing: false,
+    })
+  })
+
+  it('ends the leg once the grace period has gone', async () => {
+    const h = harness({ graceMs: 30 })
+    const workspace = named(h, 'Workspace')
+
+    const ada = await h.enter({ name: 'Ada' })
+    const grace = await h.enter({ name: 'Grace' })
+    await h.engine.joinRoom(ada, workspace)
+    await h.engine.joinCall(ada, { audio: true, video: false })
+
+    await h.engine.disconnected(ada)
+    await new Promise((resolve) => setTimeout(resolve, 80))
+
+    expect((await h.engine.snapshot(grace)).calls).toHaveLength(0)
+  })
+
+  it('drops only that screen’s leg when another device is still there', async () => {
+    const h = harness()
+    const workspace = named(h, 'Workspace')
+
+    const laptop = await h.enter({ name: 'Ada', deviceId: 'laptop' })
+    const phone = await h.enter({
+      name: 'Ada',
+      deviceId: 'phone',
+      kind: 'mobile',
+      connectionId: 'socket-phone',
+    })
+    await h.engine.joinRoom(laptop, workspace)
+    await h.engine.joinCall(laptop, { audio: true, video: false })
+    await h.engine.joinCall(phone, { audio: false, video: true, secondDevice: 'add' })
+
+    await h.engine.disconnected(laptop)
+
+    // The person is still here, and still in the call, from one device.
+    const snapshot = await h.engine.snapshot(phone)
+    expect(snapshot.people).toHaveLength(1)
+    expect(snapshot.calls[0]?.participants.map((one) => one.deviceId)).toEqual(['phone'])
+  })
+})
+
+describe('what a host can attach', () => {
+  it('reports a call, its participants and its end, without the engine knowing why', async () => {
+    const seen: string[] = []
+    const h = harness({
+      callHooks: {
+        onCallStarted: () => seen.push('call.started'),
+        onParticipantJoined: (context) => seen.push(`joined:${context.deviceId}`),
+        onParticipantLeft: (event) => seen.push(`left:${event.deviceId}`),
+        onCallEnded: () => seen.push('call.ended'),
+      },
+    })
+    const workspace = h.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+
+    const ada = await h.enter({ name: 'Ada', deviceId: 'laptop' })
+    await h.engine.joinRoom(ada, workspace)
+    await h.engine.joinCall(ada, { audio: true, video: false })
+    await h.engine.leaveCall(ada)
+
+    // Called by the call model rather than by the provider, so a provider cannot
+    // forget to report.
+    expect(seen).toEqual(['call.started', 'joined:laptop', 'left:laptop', 'call.ended'])
+  })
+
+  it('passes quality samples straight through, with the relayed flag that costs money', async () => {
+    const samples: Array<{ relayed: boolean; peerDeviceId: string }> = []
+    const h = harness({ callHooks: { onQualitySample: (event) => samples.push(event) } })
+    const workspace = h.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+
+    const ada = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(ada, workspace)
+    await h.engine.joinCall(ada, { audio: true, video: false })
+
+    await h.engine.reportQuality(ada, {
+      peerDeviceId: 'device-2',
+      relayed: true,
+      packetLoss: 0.02,
+      roundTripMs: 40,
+    })
+
+    expect(samples).toHaveLength(1)
+    expect(samples[0]).toMatchObject({ relayed: true, peerDeviceId: 'device-2' })
+  })
+
+  it('works with no hooks bound at all, which is how this app runs', async () => {
+    // The whole mechanism costs nothing when nobody is listening.
+    const h = harness()
+    const workspace = h.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+
+    const ada = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(ada, workspace)
+
+    expect((await h.engine.joinCall(ada, { audio: true, video: false })).ok).toBe(true)
+    expect((await h.engine.leaveCall(ada)).ok).toBe(true)
   })
 })

@@ -49,6 +49,13 @@ function keyOf(change: OfficeChange): string {
     case 'room.locked':
     case 'room.unlocked':
       return `room:${change.roomId}`
+    // And a call's own, because a call changes far more often than a door does —
+    // every mute, every camera, every person starting to speak — and collapsing
+    // the two would lose whichever of them arrived first.
+    case 'call.updated':
+      return `call:${change.call.roomId}`
+    case 'call.ended':
+      return `call:${change.roomId}`
   }
 }
 

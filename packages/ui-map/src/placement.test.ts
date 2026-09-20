@@ -14,6 +14,11 @@ function person(userId: string, devices = 1): PublicPresence {
     devices: Array.from({ length: devices }, (_, index) => ({
       deviceId: `${userId}-${index}`,
       kind: index === 0 ? ('web' as const) : ('mobile' as const),
+      inCall: false,
+      muted: true,
+      cameraOn: false,
+      sharing: false,
+      speaking: false,
     })),
     status: 'available',
     arrivedAt: `2026-01-01T09:0${userId.length}:00.000Z`,

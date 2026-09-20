@@ -4,6 +4,7 @@ import type {
   ManualStatus,
   OfficeSnapshot,
   PublicPresence,
+  RoomCall,
 } from '@unityevolv/ofiskit-realtime-core/protocol'
 
 /**
@@ -29,6 +30,14 @@ export interface OfficeState {
   people: Map<string, PublicPresence>
   /** roomId → who locked it. */
   locks: Map<string, string>
+  /**
+   * roomId → the call happening in it.
+   *
+   * Separate from the people in the room, exactly as it is on the server:
+   * entering a room does not join its call, and somebody is in the room whether
+   * or not they are in the conversation happening in it.
+   */
+  calls: Map<string, RoomCall>
   you: { userId: string; deviceId: string; manual: ManualStatus | null }
   /** False until the first snapshot lands, so the map can show its skeleton. */
   ready: boolean
@@ -40,6 +49,7 @@ export function emptyOffice(officeId = ''): OfficeState {
     seq: 0,
     people: new Map(),
     locks: new Map(),
+    calls: new Map(),
     you: { userId: '', deviceId: '', manual: null },
     ready: false,
   }
@@ -51,6 +61,7 @@ export function fromSnapshot(snapshot: OfficeSnapshot): OfficeState {
     seq: snapshot.seq,
     people: new Map(snapshot.people.map((person) => [person.userId, person])),
     locks: new Map(snapshot.locks.map((lock) => [lock.roomId, lock.lockedBy])),
+    calls: new Map(snapshot.calls.map((call) => [call.roomId, call])),
     you: snapshot.you,
     ready: true,
   }
@@ -126,6 +137,19 @@ export function applyChange(state: OfficeState, change: OfficeChange): OfficeSta
       locks.delete(change.roomId)
       return { ...state, locks }
     }
+
+    case 'call.updated': {
+      const calls = new Map(state.calls)
+      calls.set(change.call.roomId, change.call)
+      return { ...state, calls }
+    }
+
+    case 'call.ended': {
+      if (!state.calls.has(change.roomId)) return state
+      const calls = new Map(state.calls)
+      calls.delete(change.roomId)
+      return { ...state, calls }
+    }
   }
 }
 
@@ -176,6 +200,41 @@ export function yourRoom(state: OfficeState): string | null {
  */
 export function statusIsChosen(state: OfficeState): boolean {
   return state.you.manual !== null
+}
+
+/** The call in a room, or null when nobody is talking in it. */
+export function callIn(state: OfficeState, roomId: string): RoomCall | null {
+  return state.calls.get(roomId) ?? null
+}
+
+/**
+ * Seats a room's call is using.
+ *
+ * Counts device legs rather than people, because somebody who added a second
+ * device is two real connections in the mesh and takes two of the places.
+ */
+export function callSeats(state: OfficeState, roomId: string): number {
+  return callIn(state, roomId)?.participants.length ?? 0
+}
+
+/** The devices this person has in the call. Two means two tiles, one person. */
+export function callDevices(person: PublicPresence): PublicPresence['devices'] {
+  return person.devices.filter((device) => device.inCall)
+}
+
+/** True when any of this person's devices is speaking right now. */
+export function isSpeaking(person: PublicPresence): boolean {
+  return person.devices.some((device) => device.inCall && device.speaking)
+}
+
+/** True when they are in the call and every leg of theirs is muted. */
+export function isMuted(person: PublicPresence): boolean {
+  const legs = callDevices(person)
+  return legs.length > 0 && legs.every((device) => device.muted)
+}
+
+export function isSharing(person: PublicPresence): boolean {
+  return person.devices.some((device) => device.sharing)
 }
 
 /**
