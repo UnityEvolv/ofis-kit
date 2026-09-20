@@ -22,12 +22,14 @@ const distDir = join(here, '..', '..', 'app', 'dist')
 /**
  * Budgets in gzipped kilobytes, matched against a built file name.
  *
- * One budget per entry point. The builder gets its own when it arrives: it is
- * a separate download on purpose, so that somebody entering the office does not
- * pay for a drawing tool they have not opened.
+ * One budget per entry point. The builder has its own because it is a separate
+ * download on purpose: somebody entering the office does not pay for a drawing
+ * tool they have not opened, and somebody opening the builder does not download
+ * the office. If those two ever merge, the shell budget is what notices.
  */
 const BUDGETS = [
   { name: 'the app shell and the office', match: /^assets\/index-[\w-]+\.js$/, kb: 260 },
+  { name: 'the builder, loaded on demand', match: /^assets\/builder-[\w-]+\.js$/, kb: 60 },
   { name: 'styles', match: /^assets\/index-[\w-]+\.css$/, kb: 40 },
 ]
 

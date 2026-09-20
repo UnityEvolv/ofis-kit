@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "updated": "2026-09-20",
+  "note": "The canonical background-image prompt. The builder fetches and renders this, so improving the prompt reaches every author without releasing the builder. Keep `fixed` short and absolute: those rules are the ones that make a picture usable as an office.",
+  "canvases": {
+    "landscape": { "label": "Landscape 16:9", "ratio": "16:9", "resolution": "2560x1440" },
+    "square": { "label": "Square 1:1", "ratio": "1:1", "resolution": "1600x1600" },
+    "portrait": { "label": "Portrait 3:4", "ratio": "3:4", "resolution": "1536x2048" }
+  },
+  "slots": {
+    "theme": {
+      "label": "Theme",
+      "help": "What the place is. The single biggest decision, and the one a preset fills.",
+      "default": "a modern open-plan office"
+    },
+    "style": {
+      "label": "Style",
+      "help": "How it is drawn. Flat vector reads best at small sizes; painted illustration has more character.",
+      "default": "clean flat vector illustration, soft shadows, isometric-leaning top-down view"
+    },
+    "palette": {
+      "label": "Palette",
+      "help": "Keep it muted. The product draws avatars, room bars and status dots on top, and they need to win.",
+      "default": "muted warm neutrals with one cool accent"
+    },
+    "lighting": {
+      "label": "Lighting",
+      "help": "Even light keeps every room equally readable. Dramatic light makes half the office hard to use.",
+      "default": "even, diffuse daylight with no strong highlights"
+    },
+    "areaNames": {
+      "label": "Areas to draw",
+      "help": "Name the distinct areas you want, in the order you want them laid out. One reception and one break room are required.",
+      "default": "a reception by the entrance, a break room with a sofa and a coffee point, three work areas of different sizes, and two enclosed meeting rooms"
+    },
+    "entryEdge": {
+      "label": "Entry edge",
+      "help": "Which edge the front door sits on. Reception goes here, so people arrive where the picture says they arrive.",
+      "default": "the bottom edge"
+    }
+  },
+  "fixed": [
+    "Top-down floor plan of a single floor, seen from directly above, filling the whole frame edge to edge with no border, frame, margin or drop shadow around the image.",
+    "No text, no lettering, no numbers, no signage and no labels anywhere in the image. The product draws every room name itself, on top.",
+    "No people, no avatars and no figures. The product draws the people.",
+    "Draw the seats: chairs, sofas and stools where someone would sit, so the areas read as places to be rather than empty rectangles.",
+    "Nothing tall on desks or tables. No monitors standing up, no plants above seat height, no partitions that hide a seat from above, because an avatar has to sit on that surface and still be visible.",
+    "Areas are clearly separated by walls, floor colour or rugs, and are of deliberately different sizes: a big open area, some small ones.",
+    "Leave the floor inside each area relatively plain and uncluttered. Detail belongs at the edges, against the walls.",
+    "No vignette, no colour grading at the corners and no lens effects, because the product places rooms right up to the canvas edge."
+  ],
+  "template": "A {{shape}} ({{ratio}}) top-down floor plan of {{theme}}, at {{resolution}}.\n\nStyle: {{style}}.\nPalette: {{palette}}.\nLighting: {{lighting}}.\n\nLay out: {{areaNames}}. The entrance and reception are on {{entryEdge}}.\n\nRules:\n{{fixed}}",
+  "guidance": [
+    "Use this prompt with an image model, or hand it to an illustrator; either works, and the rules matter more than the tool.",
+    "One reception and one break room. Both are required, and a template starts with them already placed.",
+    "Make the areas different sizes. An office where every room is the same size is dull to look at and tells nobody anything.",
+    "Generate a light version first. If you want a dark one, ask for the same scene recoloured, never a different layout, because both images share one set of room coordinates.",
+    "Check the result by looking at the middle of each area: could an avatar with a name label sit there and still be read? If not, ask for less clutter on the floor."
+  ],
+  "presets": {
+    "modern-office": {
+      "label": "Modern office",
+      "theme": "a modern open-plan office with exposed ceilings and warm wood floors",
+      "style": "clean flat vector illustration, soft shadows, isometric-leaning top-down view",
+      "palette": "muted warm neutrals with one teal accent",
+      "lighting": "even, diffuse daylight with no strong highlights",
+      "areaNames": "a reception with a desk and two armchairs by the entrance, a break room with a sofa and a coffee point, three work areas of different sizes with desks and chairs, and two enclosed glass meeting rooms",
+      "entryEdge": "the bottom edge"
+    },
+    "space-station": {
+      "label": "Space station",
+      "theme": "a rotating space station deck with curved bulkheads and viewports onto starfield",
+      "style": "clean flat vector illustration with subtle panel linework, top-down view",
+      "palette": "cool graphite and off-white with cyan running lights",
+      "lighting": "even artificial light, faint cyan glow from the floor strips",
+      "areaNames": "an airlock reception at the entrance, a galley break area with a curved bench, three crew work bays of different sizes, and two enclosed briefing pods",
+      "entryEdge": "the left edge"
+    },
+    "rocket": {
+      "label": "Rocket",
+      "theme": "a cutaway of a crewed rocket interior across several decks",
+      "style": "flat vector cutaway, clean linework, top-down view",
+      "palette": "brushed metal greys with orange safety accents",
+      "lighting": "even interior light, no glare",
+      "areaNames": "a hatch reception at the base, a galley break deck, three crew decks of different sizes with couches and consoles, and two enclosed comms cabins",
+      "entryEdge": "the bottom edge"
+    },
+    "amoeba": {
+      "label": "Amoeba",
+      "theme": "the inside of a single cell, organelles as rooms, membrane as the outer wall",
+      "style": "soft flat vector biology illustration, rounded organic shapes, top-down view",
+      "palette": "translucent lilacs and greens with a coral accent",
+      "lighting": "even, softly glowing cytoplasm",
+      "areaNames": "a membrane pore reception, a vacuole break area with soft seating, three organelle work areas of different sizes, and two enclosed nucleus chambers",
+      "entryEdge": "the left edge"
+    },
+    "hilltop": {
+      "label": "Hilltop",
+      "theme": "a hilltop camp of open-sided pavilions joined by stone paths",
+      "style": "soft painted illustration with flat colour blocking, top-down view",
+      "palette": "sage, sand and terracotta",
+      "lighting": "even late-afternoon light with no long shadows",
+      "areaNames": "a gatehouse reception at the path head, a fire-pit break area with log benches, three pavilion work areas of different sizes with low tables and cushions, and two enclosed stone huts",
+      "entryEdge": "the bottom edge"
+    },
+    "college": {
+      "label": "College",
+      "theme": "a college quad with a library, a common room and seminar rooms off a cloister",
+      "style": "clean flat vector illustration, top-down view",
+      "palette": "warm stone, ink blue and brass",
+      "lighting": "even overcast daylight",
+      "areaNames": "a porter's lodge reception at the gate, a common room break area with armchairs, three study areas of different sizes with long tables, and two enclosed seminar rooms",
+      "entryEdge": "the bottom edge"
+    },
+    "space-war": {
+      "label": "Space war",
+      "theme": "a warship command deck with a plotting table and armoured compartments",
+      "style": "flat vector illustration with hard edges and panel linework, top-down view",
+      "palette": "gunmetal and deep navy with amber alert accents",
+      "lighting": "even low artificial light with amber floor glow",
+      "areaNames": "an armoured hatch reception, a mess break area with a long bench, three station areas of different sizes around the plotting table, and two enclosed war rooms",
+      "entryEdge": "the right edge"
+    },
+    "science-lab": {
+      "label": "Science lab",
+      "theme": "a research laboratory of benches, fume hoods and a clean room",
+      "style": "clean flat vector illustration, top-down view",
+      "palette": "white and pale grey with a lime accent",
+      "lighting": "even bright laboratory light",
+      "areaNames": "an airlock reception with a gowning bench, a break area with a kettle and stools, three bench areas of different sizes with stools, and two enclosed clean rooms",
+      "entryEdge": "the left edge"
+    },
+    "alien-hive": {
+      "label": "Alien hive",
+      "theme": "a chambered alien hive of resin walls and brood galleries",
+      "style": "soft flat vector illustration, organic rounded shapes, top-down view",
+      "palette": "deep violet and ochre with a bioluminescent teal accent",
+      "lighting": "even, faint bioluminescence from the walls",
+      "areaNames": "a tunnel mouth reception, a nectar break chamber with low mounds, three gallery areas of different sizes, and two enclosed brood chambers",
+      "entryEdge": "the bottom edge"
+    },
+    "bird-nest": {
+      "label": "Bird nest",
+      "theme": "an enormous woven nest in a tree crown, with woven platforms as rooms",
+      "style": "soft painted illustration with flat colour blocking, top-down view",
+      "palette": "straw, moss and eggshell with a robin-red accent",
+      "lighting": "even dappled daylight through leaves, no harsh patches",
+      "areaNames": "a branch landing reception, a feeding break area with a shallow bowl and perches, three woven platform areas of different sizes with perches, and two enclosed hollows",
+      "entryEdge": "the left edge"
+    }
+  }
+}

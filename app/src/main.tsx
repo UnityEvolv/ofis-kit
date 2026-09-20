@@ -2,6 +2,7 @@ import { ThemeProvider } from '@unityevolv/ofiskit-ui-map'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { App } from './App.js'
 import './styles.css'
 
 /**
@@ -18,9 +19,7 @@ if (!root) throw new Error('The page has no #root to mount into.')
 createRoot(root).render(
   <StrictMode>
     <ThemeProvider>
-      <main className="grid h-full place-items-center bg-base-100 text-base-content">
-        <p className="text-sm opacity-70">The office goes here.</p>
-      </main>
+      <App />
     </ThemeProvider>
   </StrictMode>,
 )
