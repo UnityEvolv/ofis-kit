@@ -78,20 +78,43 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           /**
-           * The builder is a separate entry on purpose.
+           * The builder is a separate download on purpose: somebody entering the
+           * office should not pay for a drawing tool they have not opened.
            *
-           * Somebody opening the builder should not download the call stack,
-           * and somebody entering the office should not download the builder.
-           * The bundle budget checks both, and it fails if these ever merge.
+           * That split comes from the dynamic `import()` in App.tsx and nothing
+           * else. It used to be a `manualChunks` rule naming anything from
+           * ui-builder, which inverted the whole arrangement — rollup put every
+           * shared dependency, React and the kit included, into the chunk that
+           * rule had named, and made the entry chunk import it. The budget then
+           * reported an app shell of 86 kB that could not run without another
+           * 52 kB of "builder", and opening the office downloaded both.
+           *
+           * So the chunk is named after what is actually in it, which keeps the
+           * budget's line about the builder honest and leaves the splitting to
+           * the one thing that gets it right.
            */
-          manualChunks(id) {
-            if (id.includes('ui-builder')) return 'builder'
-            return undefined
+          chunkFileNames(chunk) {
+            const builder = chunk.moduleIds.some((id) => id.includes('ui-builder'))
+            return builder ? 'assets/builder-[hash].js' : 'assets/[name]-[hash].js'
           },
-          chunkFileNames: 'assets/[name]-[hash].js',
         },
       },
     },
 
+    server: {
+      /*
+       * The server is a separate process in development, on a port of its own.
+       *
+       * In production the same origin serves both, so none of this applies and no
+       * origin is baked into the bundle — which is why the app asks `/config`
+       * where things are rather than being told at build time.
+       */
+      proxy: {
+        '/socket': { target: 'http://localhost:4000', ws: true },
+        '/config': 'http://localhost:4000',
+        '/office': 'http://localhost:4000',
+        '/v1': 'http://localhost:4000',
+      },
+    },
   }
 })

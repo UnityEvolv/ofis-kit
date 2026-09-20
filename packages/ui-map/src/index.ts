@@ -3,10 +3,55 @@
  *
  * React DOM, built on unitykit, and deliberately not platform-agnostic: this is
  * the package that holds the web-only half, so everything below it can run on a
- * phone. Its components arrive with the stories that build them.
+ * phone. In this app the map fills the window; in unityofis the same components
+ * render inside the app shell, which adds the header and the switchers and
+ * changes nothing here.
  *
  * Nothing here chooses a colour. Every surface is a kit component with a
  * theme-aware background, because the office background is whatever an author
  * generated and nothing legible can be guaranteed on top of it.
  */
 export { ThemeProvider, useTheme, type Theme, type ThemeChoice } from './theme.js'
+
+export { AnnouncerProvider, useAnnounce } from './Announcer.js'
+
+export {
+  MaximiseButton,
+  OfficeMap,
+  RoomListView,
+  ViewToggle,
+  useMaximised,
+  type OfficeMapProps,
+  type OfficeView,
+} from './OfficeMap.js'
+
+export { RoomBar, type RoomBarProps } from './RoomBar.js'
+export { PersonAvatar, type PersonAvatarProps } from './PersonAvatar.js'
+export { StatusDot, describeStatus, statusLabel, STATUS_LOOKS, type StatusDotProps } from './status.js'
+
+export {
+  useClientEvents,
+  useMeasured,
+  useMediaQuery,
+  useOffice,
+  usePersisted,
+  useReducedMotion,
+} from './hooks.js'
+
+export {
+  fitCanvas,
+  readingOrder,
+  roomInDirection,
+  tilePlacement,
+  toPixels,
+  type CanvasBox,
+} from './layout.js'
+
+export {
+  placeInRoom,
+  tokensFor,
+  type DevicesToDraw,
+  type PlacedAvatar,
+  type Placement,
+  type Token,
+} from './placement.js'
