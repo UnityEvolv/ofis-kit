@@ -1,6 +1,52 @@
+import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import react from '@vitejs/plugin-react'
 import tailwind from '@tailwindcss/vite'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const promptDocument = join(here, '..', 'docs', 'background-prompt.json')
+
+/**
+ * Serve the background prompt from the one copy of it.
+ *
+ * The prompt lives in `docs/` as a versioned document and the builder fetches
+ * it, so improving the prompt reaches every author and every host without
+ * releasing the builder. This plugin exists so that there is still only one
+ * copy: the alternative is a duplicate in `app/public` that drifts, and a
+ * drifted prompt is the one thing about this document that would make it
+ * worthless.
+ */
+function backgroundPrompt(): Plugin {
+  const served = '/background-prompt.json'
+
+  return {
+    name: 'ofiskit:background-prompt',
+
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        if (request.url !== served) return next()
+        void readFile(promptDocument, 'utf8').then(
+          (body) => {
+            response.setHeader('content-type', 'application/json')
+            response.end(body)
+          },
+          () => next(),
+        )
+      })
+    },
+
+    async generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'background-prompt.json',
+        source: await readFile(promptDocument, 'utf8'),
+      })
+    },
+  }
+}
 
 /**
  * Two builds from one app.
@@ -18,7 +64,7 @@ export default defineConfig(({ mode }) => {
   const pages = mode === 'pages'
 
   return {
-    plugins: [react(), tailwind()],
+    plugins: [react(), tailwind(), backgroundPrompt()],
     base: pages ? (process.env.PAGES_BASE ?? '/') : '/',
 
     define: {
