@@ -60,16 +60,59 @@ export interface PublicPresence {
 /**
  * The whole office.
  *
- * Sent on entry, and again whenever it changes. Sending the whole thing on
- * every change is the simple version and it is deliberately what lands first:
- * the snapshot-and-diffs story replaces it, and doing that before there is
- * anything to diff would be inventing the problem before having it.
+ * Sent **once**, on entry, so the map can render immediately — and again only
+ * when a client asks for it because it noticed a gap. Everything after the first
+ * one is a diff.
  */
 export interface OfficeSnapshot {
   officeId: string
+  /**
+   * The last event number this snapshot accounts for.
+   *
+   * A client keeps it and compares the next diff against it, which is the whole
+   * mechanism: a snapshot with no number cannot be told apart from a snapshot
+   * that is already stale by three events.
+   *
+   * Read as a floor rather than an exact instant. The snapshot may already
+   * contain changes that are still gathering into the next diff, so the first
+   * diff after it can restate what it already had. Every change is idempotent,
+   * so that costs nothing.
+   */
+  seq: number
   people: PublicPresence[]
   /** Who this client is, so it can find itself without matching on a name. */
   you: { userId: string; deviceId: string }
+}
+
+/**
+ * One thing that changed.
+ *
+ * Diffs, never the whole office again: a hundred people watching one person walk
+ * across the map is a hundred small events, not a hundred copies of the office.
+ *
+ * `person.moved` is deliberately narrower than `person.updated` — a move is the
+ * commonest change by a wide margin, and sending a whole person to say they
+ * walked through a door is most of what made the full-state broadcast expensive.
+ */
+export type OfficeChange =
+  | { kind: 'person.entered'; presence: PublicPresence }
+  | { kind: 'person.moved'; userId: string; roomId: string; arrivedAt: string }
+  | { kind: 'person.updated'; presence: PublicPresence }
+  | { kind: 'person.left'; userId: string }
+
+export interface OfficeDiff {
+  /**
+   * Per office, and strictly increasing.
+   *
+   * A client that receives seq 12 having last seen 10 knows it missed one and
+   * asks for a snapshot, rather than drawing state that is quietly wrong and
+   * staying wrong until somebody reloads. It covers more than a dropped packet:
+   * there is a sliver between a client being sent its snapshot and being
+   * subscribed to the office, and a change landing in it is found this way
+   * rather than being prevented by locking something.
+   */
+  seq: number
+  changes: OfficeChange[]
 }
 
 export interface MoveRequest {
@@ -132,6 +175,13 @@ export interface ClientEvents {
     ack: (result: Ack<{ snapshot: OfficeSnapshot }>) => void,
   ) => void
   'office:leave': (ack: (result: Ack) => void) => void
+  /**
+   * "I have lost track — tell me everything again."
+   *
+   * Sent when a diff's sequence number skips, and after a reconnect. A client
+   * asking for this is the only reason the whole office is ever sent twice.
+   */
+  'office:resync': (ack: (result: Ack<{ snapshot: OfficeSnapshot }>) => void) => void
   'room:join': (request: MoveRequest, ack: (result: Ack) => void) => void
   'room:leave': (ack: (result: Ack) => void) => void
   'status:manual': (request: StatusRequest, ack: (result: Ack) => void) => void
@@ -144,7 +194,16 @@ export interface ClientEvents {
 
 /** What the server sends. */
 export interface ServerEvents {
-  'office:state': (snapshot: OfficeSnapshot) => void
+  /**
+   * One small event per thing that changed, and the only thing the office is
+   * ever sent.
+   *
+   * The whole office is not here on purpose: a snapshot only ever arrives as the
+   * acknowledgement to `office:enter` or `office:resync`, which is to say
+   * because a client asked. Pushing one would mean deciding on the server that
+   * somebody has lost track, and the server cannot know that.
+   */
+  'office:diff': (diff: OfficeDiff) => void
   /** The template on disk changed; re-read it. */
   'template:changed': (event: { officeId: string }) => void
   /** Your credential is about to stop working. Send a fresh one on this socket. */

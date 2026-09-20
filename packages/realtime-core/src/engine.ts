@@ -18,6 +18,7 @@ import {
 } from '@unityevolv/ofiskit-presence-store'
 import type { Room, Template } from '@unityevolv/ofiskit-template'
 
+import { Broadcaster, DIFF_WINDOW_MS } from './broadcast.js'
 import { silentLogger, type Logger } from './logger.js'
 import {
   Refusal,
@@ -94,6 +95,15 @@ export interface OfficeEngineOptions {
    * all and returns null for everything.
    */
   roomCapacity?: (room: Room) => number | null
+  /**
+   * How long changes are gathered before they go out as one diff.
+   *
+   * Fifty milliseconds by default, which collapses a drag and nobody notices.
+   * Configurable because a test wants to flush by hand rather than wait, and
+   * because a very large office may prefer to trade a little latency for fewer
+   * events.
+   */
+  diffWindowMs?: number
 }
 
 export class OfficeEngine {
@@ -102,6 +112,7 @@ export class OfficeEngine {
   readonly #transport: Transport
   readonly #logger: Logger
   readonly #now: () => number
+  readonly #broadcaster: Broadcaster
 
   readonly #connections = new Map<string, Connection>()
   /** userId → the connections that person has open. Presence is per user. */
@@ -116,6 +127,11 @@ export class OfficeEngine {
     this.#transport = options.transport
     this.#logger = options.logger ?? silentLogger()
     this.#now = options.now ?? (() => Date.now())
+    this.#broadcaster = new Broadcaster(
+      options.store,
+      options.transport,
+      options.diffWindowMs ?? DIFF_WINDOW_MS,
+    )
 
     this.#unsubscribe =
       options.events?.subscribe((event) => {
@@ -227,7 +243,17 @@ export class OfficeEngine {
         }
 
     await this.#store.put(presence)
-    await this.#broadcast(officeId)
+
+    // A rejoin is an update, not an arrival: the office already knows about
+    // somebody who never appeared to leave, and announcing them again would
+    // make a reconnect look like a person walking in.
+    const seen = toPublic(presence, this.#now())
+    this.#broadcaster.queue(
+      officeId,
+      existing
+        ? { kind: 'person.updated', presence: seen }
+        : { kind: 'person.entered', presence: seen },
+    )
 
     this.#logger.info(existing ? 'rejoined' : 'entered office', {
       userId: identity.id,
@@ -325,16 +351,24 @@ export class OfficeEngine {
     if (devices.length > 0) {
       // Another device is still there, so nothing about the person changed
       // except which screens they are on.
-      await this.#store.put({ ...presence, devices })
-      await this.#broadcast(officeId)
+      const remaining = { ...presence, devices }
+      await this.#store.put(remaining)
+      this.#broadcaster.queue(officeId, {
+        kind: 'person.updated',
+        presence: toPublic(remaining, this.#now()),
+      })
       return
     }
 
     const graceMs = this.#options.graceMs ?? DISCONNECT_GRACE_MS
     const until = new Date(this.#now() + graceMs).toISOString()
 
-    await this.#store.put({ ...presence, devices: [], reconnectingUntil: until })
-    await this.#broadcast(officeId)
+    const reconnecting = { ...presence, devices: [], reconnectingUntil: until }
+    await this.#store.put(reconnecting)
+    this.#broadcaster.queue(officeId, {
+      kind: 'person.updated',
+      presence: toPublic(reconnecting, this.#now()),
+    })
 
     // An in-memory timer on the socket, with the store's TTL as the backstop
     // for a node that dies mid-timer. There is no scheduler anywhere.
@@ -422,7 +456,18 @@ export class OfficeEngine {
     )
 
     await this.#store.put(moved)
-    await this.#broadcast(officeId)
+
+    // Almost always the small event. The exception is the break room, which
+    // changes the status on the way in and back on the way out: a bare
+    // `person.moved` carries no status, so that one move has to send the person.
+    const at = this.#now()
+    const statusChanged = resolveStatus(moved, at) !== resolveStatus(presence, at)
+    this.#broadcaster.queue(
+      officeId,
+      statusChanged
+        ? { kind: 'person.updated', presence: toPublic(moved, at) }
+        : { kind: 'person.moved', userId: presence.userId, roomId, arrivedAt },
+    )
 
     // The host is told, so unityofis can remember the last office and room on
     // the membership and put somebody back there next time they sign in.
@@ -454,12 +499,16 @@ export class OfficeEngine {
       return fail(Refusal.MALFORMED, 'That is not a status.')
     }
 
-    await this.#store.put({
+    const chosen: Presence = {
       ...presence,
       manual,
       manualFrom: manual === null ? null : 'user',
+    }
+    await this.#store.put(chosen)
+    this.#broadcaster.queue(officeId, {
+      kind: 'person.updated',
+      presence: toPublic(chosen, this.#now()),
     })
-    await this.#broadcast(officeId)
     return done()
   }
 
@@ -488,8 +537,12 @@ export class OfficeEngine {
       }
     }
 
-    await this.#store.put({ ...presence, custom })
-    await this.#broadcast(officeId)
+    const said: Presence = { ...presence, custom }
+    await this.#store.put(said)
+    this.#broadcaster.queue(officeId, {
+      kind: 'person.updated',
+      presence: toPublic(said, this.#now()),
+    })
     return done()
   }
 
@@ -513,13 +566,22 @@ export class OfficeEngine {
         : device,
     )
 
-    const before = resolveStatus(presence, this.#now())
-    const after = resolveStatus({ ...presence, devices }, this.#now())
-    await this.#store.put({ ...presence, devices })
+    const at = this.#now()
+    const active: Presence = { ...presence, devices }
+    const before = resolveStatus(presence, at)
+    const after = resolveStatus(active, at)
+    await this.#store.put(active)
 
     // Only tell the office when the answer actually changed. Idle flags arrive
-    // constantly and almost none of them mean anything to anybody else.
-    if (before !== after) await this.#broadcast(connection.officeId)
+    // constantly and almost none of them mean anything to anybody else — which
+    // matters more now that a change costs an event rather than being swept up
+    // by the next full broadcast.
+    if (before !== after) {
+      this.#broadcaster.queue(connection.officeId, {
+        kind: 'person.updated',
+        presence: toPublic(active, at),
+      })
+    }
   }
 
   /**
@@ -561,16 +623,55 @@ export class OfficeEngine {
   async snapshot(connectionId: string): Promise<OfficeSnapshot> {
     const connection = this.#connections.get(connectionId)
     const officeId = connection?.officeId ?? this.#options.officeId
-    const people = await this.#store.list(officeId)
+
+    // Deliberately *not* flushed first. Flushing would make the snapshot exactly
+    // the state after `seq` — tidier to describe, and it would mean firing a
+    // full office diff every time anybody walked in, which is the coalescing
+    // this story exists to do, undone.
+    //
+    // So a snapshot is "everything up to `seq`, and possibly a little more": the
+    // store already has changes the office has not been told about, and the diff
+    // that follows restates them. Every change is idempotent by construction —
+    // entered and updated set a person, moved sets their room, left removes
+    // somebody who may already be gone — so the client applies it to no effect.
+    const [people, seq] = await Promise.all([
+      this.#store.list(officeId),
+      this.#store.currentSequence(officeId),
+    ])
+    const at = this.#now()
 
     return {
       officeId,
-      people: people.map((presence) => toPublic(presence)),
+      seq,
+      people: people.map((presence) => toPublic(presence, at)),
       you: {
         userId: connection?.identity?.id ?? '',
         deviceId: connection?.deviceId ?? '',
       },
     }
+  }
+
+  /**
+   * A client noticed a gap and wants the whole office again.
+   *
+   * The only thing that ever re-sends it, and the reason a missed diff is a
+   * recoverable hiccup rather than a screen that stays wrong until somebody
+   * reloads. It costs a full send, which is exactly why a client asks for it
+   * rather than being given one.
+   */
+  async resync(connectionId: string): Promise<Ack<{ snapshot: OfficeSnapshot }>> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    return { ok: true, snapshot: await this.snapshot(connectionId) }
+  }
+
+  /**
+   * Send every pending diff immediately.
+   *
+   * For shutdown, and for a test that would rather not wait out the window.
+   */
+  async flush(officeId: string = this.#options.officeId): Promise<void> {
+    await this.#broadcaster.flush(officeId)
   }
 
   /**
@@ -584,16 +685,6 @@ export class OfficeEngine {
   }
 
   // ------------------------------------------------------------------ helpers
-
-  /** Tell everyone in the office what it looks like now. */
-  async #broadcast(officeId: string): Promise<void> {
-    const people = await this.#store.list(officeId)
-    this.#transport.toOffice(officeId, 'office:state', {
-      officeId,
-      people: people.map((presence) => toPublic(presence)),
-      you: { userId: '', deviceId: '' },
-    })
-  }
 
   /**
    * Resolve a connection to everything a handler needs, or the refusal.
@@ -642,7 +733,7 @@ export class OfficeEngine {
       roomId: null,
     })
 
-    await this.#broadcast(officeId)
+    this.#broadcaster.queue(officeId, { kind: 'person.left', userId })
     this.#logger.info('left office', { userId, officeId })
   }
 
@@ -671,6 +762,11 @@ export class OfficeEngine {
 
   /** Stop everything, so nothing outlives the server. */
   async close(): Promise<void> {
+    // Everything pending goes out first. A diff lost to shutdown leaves every
+    // client that was connected holding state one event behind, and they would
+    // only find out on the next change.
+    await this.#broadcaster.flush(this.#options.officeId)
+    this.#broadcaster.dispose()
     for (const timer of this.#graceTimers.values()) clearTimeout(timer)
     this.#graceTimers.clear()
     this.#unsubscribe?.()

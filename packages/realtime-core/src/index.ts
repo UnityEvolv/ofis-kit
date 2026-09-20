@@ -22,6 +22,12 @@ export {
 
 export type { Transport } from './transport.js'
 
+/**
+ * Exported because a host running many nodes wants to tune the window, and
+ * because unityofis's tests assert on coalescing without standing up a socket.
+ */
+export { Broadcaster, DIFF_WINDOW_MS } from './broadcast.js'
+
 export { createLogger, silentLogger, type LogFields, type LogLevel, type Logger } from './logger.js'
 
 /**
