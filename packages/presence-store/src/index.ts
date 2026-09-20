@@ -1,8 +1,25 @@
 /**
- * @unityevolv/ofiskit-presence-store
+ * Where who-is-where lives: the interface, and the in-memory implementation.
  *
- * The package exists here so that the workspace is complete and every story
- * after this one has a known place to land. Its contents arrive with the story
- * that owns them.
+ * Apache-2.0, like the other interface packages, so that writing a presence
+ * store for some other backing store is not a licensing decision. The engine
+ * talks only to the interface; the free office uses the memory store and
+ * unityofis uses a Redis one, with no other difference between them.
  */
-export {}
+export type {
+  AutomaticStatus,
+  CustomStatus,
+  DeviceKind,
+  DevicePresence,
+  Instant,
+  Knock,
+  ManualStatus,
+  Presence,
+  RoomLock,
+  Status,
+} from './types.js'
+
+export type { PresenceStore } from './store.js'
+export { DISCONNECT_GRACE_MS, PRESENCE_TTL_MS } from './store.js'
+
+export { MemoryPresenceStore } from './memory.js'
