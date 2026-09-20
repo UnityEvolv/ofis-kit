@@ -21,12 +21,21 @@ import {
 import { hostsCalls, newId, type Room, type Template } from '@unityevolv/ofiskit-template'
 
 import { Broadcaster, DIFF_WINDOW_MS } from './broadcast.js'
+import {
+  CallRegistry,
+  type CallHooks,
+  type CallLeg,
+  type RtcServerPlugin,
+} from './calls.js'
 import { silentLogger, type Logger } from './logger.js'
 import {
   Refusal,
   type Ack,
   type ActivityRequest,
+  type CallJoinRequest,
+  type CallJoinResponse,
   type EnterOfficeRequest,
+  type MediaStateRequest,
   type OfficeSnapshot,
   type PublicPresence,
   type Refused,
@@ -96,6 +105,24 @@ export interface OfficeEngineOptions {
    * in-memory one; unityofis passes its own.
    */
   limiter: RateLimiter
+  /**
+   * Who carries the media.
+   *
+   * The server half of the provider interface. The free office passes the
+   * built-in peer-to-peer one and has no other; a host with an SFU passes its
+   * plugin and changes nothing else, which is the property the interface exists
+   * to have.
+   */
+  provider: RtcServerPlugin
+  /**
+   * Where a host attaches call records, usage and cost.
+   *
+   * Unbound here: the free office has no database to write a record to, and the
+   * whole mechanism costs nothing when nobody is listening. None of these hooks
+   * can refuse anything — a hook that could say no would be a permission check
+   * hiding outside the identity adapter.
+   */
+  callHooks?: CallHooks
   /**
    * The one way in from outside the socket.
    *
@@ -167,6 +194,8 @@ export class OfficeEngine {
    * again, which is the right outcome.
    */
   readonly #admissions = new Set<string>()
+  /** The calls happening right now, which are not presence and never merged into it. */
+  readonly #calls: CallRegistry
   #unsubscribe: (() => void) | null = null
 
   constructor(options: OfficeEngineOptions) {
@@ -180,6 +209,7 @@ export class OfficeEngine {
       options.transport,
       options.diffWindowMs ?? DIFF_WINDOW_MS,
     )
+    this.#calls = new CallRegistry(options.provider, options.callHooks ?? {}, this.#now)
 
     this.#unsubscribe =
       options.events?.subscribe((event) => {
@@ -295,7 +325,7 @@ export class OfficeEngine {
     // A rejoin is an update, not an arrival: the office already knows about
     // somebody who never appeared to leave, and announcing them again would
     // make a reconnect look like a person walking in.
-    const seen = toPublic(presence, this.#now())
+    const seen = this.#public(presence, this.#now())
     this.#broadcaster.queue(
       officeId,
       existing
@@ -397,13 +427,15 @@ export class OfficeEngine {
     const devices = presence.devices.filter((device) => device.connectionId !== connectionId)
 
     if (devices.length > 0) {
-      // Another device is still there, so nothing about the person changed
-      // except which screens they are on.
+      // Another device is still there, so nothing about the person changed except
+      // which screens they are on — but this screen's call leg goes, because there
+      // is nothing behind it any more.
+      await this.#leaveCallLeg(officeId, presence.roomId, connection.deviceId)
       const remaining = { ...presence, devices }
       await this.#store.put(remaining)
       this.#broadcaster.queue(officeId, {
         kind: 'person.updated',
-        presence: toPublic(remaining, this.#now()),
+        presence: this.#public(remaining, this.#now()),
       })
       return
     }
@@ -411,11 +443,21 @@ export class OfficeEngine {
     const graceMs = this.#options.graceMs ?? DISCONNECT_GRACE_MS
     const until = new Date(this.#now() + graceMs).toISOString()
 
+    /*
+     * The call leg keeps its seat while the connection is away.
+     *
+     * A device that drops mid-call and comes back within the grace period rejoins
+     * in the state it left — same mute, same camera — and the seat being held is
+     * what stops the room filling past somebody who is still on their way back.
+     * The share is not restored: it belonged to a screen that is no longer there.
+     */
+    this.#calls.hold(officeId, presence.roomId, connection.deviceId, until)
+
     const reconnecting = { ...presence, devices: [], reconnectingUntil: until }
     await this.#store.put(reconnecting)
     this.#broadcaster.queue(officeId, {
       kind: 'person.updated',
-      presence: toPublic(reconnecting, this.#now()),
+      presence: this.#public(reconnecting, this.#now()),
     })
 
     // An in-memory timer on the socket, with the store's TTL as the backstop
@@ -507,26 +549,39 @@ export class OfficeEngine {
     // Read before the move, because afterwards the lock may already be gone.
     const leftLocked = await this.#isLocked(officeId, presence.roomId)
 
+    /*
+     * Leaving a room leaves its call, on every device.
+     *
+     * The conversation belongs to the room, so walking out of the room is walking
+     * out of the conversation — and any screen share goes with it, because a share
+     * belongs to the conversation rather than to the person.
+     */
+    await this.#leaveCallEverywhere(officeId, presence.roomId, presence.userId)
+
     // Entering the break room is do not disturb, and leaving it clears that
     // again — unless the person chose a status for themselves, which survives.
     const moved = await this.#withBreakRoomStatus(
       officeId,
-      { ...presence, roomId, arrivedAt },
+      // Out of the call as well as out of the room, which is what makes the
+      // status stop saying "in a call" on the way out.
+      { ...presence, roomId, arrivedAt, inCall: false },
       roomId,
       presence.roomId,
     )
 
     await this.#store.put(moved)
 
-    // Almost always the small event. The exception is the break room, which
-    // changes the status on the way in and back on the way out: a bare
-    // `person.moved` carries no status, so that one move has to send the person.
+    // Almost always the small event. The exceptions are the break room, which
+    // changes the status on the way in and back on the way out, and leaving a
+    // call behind — a bare `person.moved` carries neither, so those moves have to
+    // send the person.
     const at = this.#now()
-    const statusChanged = resolveStatus(moved, at) !== resolveStatus(presence, at)
+    const statusChanged =
+      resolveStatus(moved, at) !== resolveStatus(presence, at) || presence.inCall !== moved.inCall
     this.#broadcaster.queue(
       officeId,
       statusChanged
-        ? { kind: 'person.updated', presence: toPublic(moved, at) }
+        ? { kind: 'person.updated', presence: this.#public(moved, at) }
         : { kind: 'person.moved', userId: presence.userId, roomId, arrivedAt },
     )
 
@@ -776,6 +831,312 @@ export class OfficeEngine {
     return done()
   }
 
+  // -------------------------------------------------------------------- calls
+
+  /** What this provider can do, so a host can build a policy around it. */
+  get provider(): RtcServerPlugin {
+    return this.#calls.provider
+  }
+
+  /**
+   * Join the call in the room you are standing in, starting it if nobody has.
+   *
+   * Presence and the call are separate: entering a room does not join its call,
+   * and this is the explicit act that does. Pressing the microphone joins with
+   * audio; pressing the camera joins with video.
+   */
+  async joinCall(
+    connectionId: string,
+    request: CallJoinRequest,
+  ): Promise<Ack<{ call: CallJoinResponse }>> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { identity, officeId, presence } = resolved
+
+    const connection = this.#connections.get(connectionId)
+    if (!connection) return fail(Refusal.NOT_AUTHENTICATED, 'This connection is not open.')
+
+    const template = await this.#options.templates.get(officeId)
+    const room = template?.rooms.find((candidate) => candidate.id === presence.roomId)
+    if (!room) return fail(Refusal.ROOM_UNKNOWN, 'There is no such room.')
+
+    // Reception and the break room never have calls. One is a thoroughfare and
+    // the other is where people go to not be in a conversation.
+    if (!hostsCalls(room.type)) {
+      return fail(Refusal.ROOM_NO_CALLS, `There are no calls in ${room.name}.`)
+    }
+
+    if (request?.video && !this.#calls.provider.limits.video) {
+      return fail(Refusal.CALL_UNSUPPORTED, 'This office does not do video.')
+    }
+
+    const permitted = await this.#options.identity.may({
+      permission: 'join_call',
+      identity,
+      officeId,
+      roomId: room.id,
+    })
+    if (!permitted.allowed) return fail(permitted.code, permitted.message)
+
+    /*
+     * Already in this call from another device.
+     *
+     * `move` is the common case and the default: the other device drops its media
+     * and stays in the room as presence only, because two live microphones in one
+     * place feed back into each other. `add` keeps both, counted separately
+     * because each is a real leg in the mesh.
+     */
+    const mine = this.#calls.legsOf(officeId, room.id, identity.id)
+    const elsewhere = mine.filter((leg) => leg.deviceId !== connection.deviceId)
+    const rejoining = mine.find((leg) => leg.deviceId === connection.deviceId)
+    const second = request?.secondDevice ?? 'move'
+
+    if (elsewhere.length > 0 && second === 'move') {
+      for (const leg of elsewhere) await this.#calls.leave(officeId, room.id, leg.deviceId)
+    }
+
+    // The cap is the provider's, and counts legs rather than people. A leg being
+    // held through a reconnect still counts, so a room cannot fill past somebody
+    // on their way back.
+    if (!rejoining && this.#calls.isFull(officeId, room.id)) {
+      return fail(
+        Refusal.CALL_FULL,
+        `The call in ${room.name} is full (${this.#calls.provider.limits.maxParticipants} people).`,
+      )
+    }
+
+    /*
+     * An added device joins with its microphone off.
+     *
+     * Two live audio paths in the same physical room feed back into each other,
+     * and the second device is almost always there for its camera or a screen
+     * share. Unmuting it is allowed — the person may have moved rooms — and the
+     * warning belongs to the control, not to a refusal here.
+     *
+     * A device coming back from a dropped connection rejoins in the state it
+     * left, which is the whole point of having held its seat.
+     */
+    const audio = rejoining
+      ? !rejoining.muted
+      : elsewhere.length > 0 && second === 'add'
+        ? false
+        : Boolean(request?.audio)
+    const video = rejoining ? rejoining.cameraOn : Boolean(request?.video)
+
+    const { call, credentials } = await this.#calls.join(
+      officeId,
+      room.id,
+      {
+        userId: identity.id,
+        deviceId: connection.deviceId,
+        displayName: identity.displayName,
+      },
+      { audio, video },
+    )
+
+    // In a call is presence, so it goes on the record the office reads. It
+    // outranks automatic away: somebody listening is not idle, whatever their
+    // keyboard has been doing.
+    await this.#setInCall(officeId, identity.id, true)
+    this.#announceCall(officeId, call.roomId)
+
+    return {
+      ok: true,
+      call: {
+        call: this.#calls.toPublic(call),
+        credentials: credentials.credentials,
+        iceServers: credentials.iceServers,
+        // Everyone else, so a new peer knows who to connect to. Itself excluded:
+        // a peer connecting to itself is the first bug a mesh ever has.
+        participants: [...call.legs.values()]
+          .filter((leg) => leg.deviceId !== connection.deviceId)
+          .map((leg) => ({
+            userId: leg.userId,
+            deviceId: leg.deviceId,
+            displayName: leg.displayName,
+          })),
+        ...(elsewhere.length > 0 ? { note: second === 'add' ? 'added' : 'moved' } : {}),
+      },
+    }
+  }
+
+  /** Leave the call, and stay in the room. They are different things. */
+  async leaveCall(connectionId: string): Promise<Ack> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { identity, officeId, presence } = resolved
+
+    const connection = this.#connections.get(connectionId)
+    if (!connection) return fail(Refusal.NOT_AUTHENTICATED, 'This connection is not open.')
+
+    const left = await this.#leaveCallLeg(officeId, presence.roomId, connection.deviceId)
+    if (!left) return fail(Refusal.NOT_IN_CALL, 'You are not in a call.')
+
+    await this.#refreshInCall(officeId, identity.id, presence.roomId)
+    return done()
+  }
+
+  /**
+   * What this device is publishing, as reported by the adapter.
+   *
+   * After the fact, deliberately: the adapter says what it actually managed to
+   * do, not what it was asked to do, so a camera that failed to start does not
+   * show as on to the whole office.
+   */
+  async setMediaState(connectionId: string, state: MediaStateRequest): Promise<void> {
+    const connection = this.#connections.get(connectionId)
+    if (!connection?.identity || !connection.officeId) return
+    const presence = await this.#store.get(connection.officeId, connection.identity.id)
+    if (!presence) return
+
+    const call = this.#calls.setMedia(connection.officeId, presence.roomId, connection.deviceId, {
+      muted: Boolean(state?.muted),
+      cameraOn: Boolean(state?.cameraOn),
+      sharing: Boolean(state?.sharing),
+    })
+    if (!call) return
+
+    this.#announceCall(connection.officeId, presence.roomId)
+    await this.#announcePerson(connection.officeId, presence)
+  }
+
+  /**
+   * Speaking, from the adapter's own audio level.
+   *
+   * Sent by the provider's client half so that ordering and indicators are the
+   * same whichever provider is behind them — the tiles never measure audio
+   * themselves.
+   */
+  async setSpeaking(connectionId: string, speaking: boolean): Promise<void> {
+    const connection = this.#connections.get(connectionId)
+    if (!connection?.identity || !connection.officeId) return
+    const presence = await this.#store.get(connection.officeId, connection.identity.id)
+    if (!presence) return
+
+    const call = this.#calls.setMedia(connection.officeId, presence.roomId, connection.deviceId, {
+      speaking: Boolean(speaking),
+    })
+    if (!call) return
+
+    this.#announceCall(connection.officeId, presence.roomId)
+    await this.#announcePerson(connection.officeId, presence)
+  }
+
+  /**
+   * Connection quality, straight through to the host's hook.
+   *
+   * Nothing here reads it. Relayed legs are the ones that cost money, and this is
+   * how unityofis finds out about them without the engine knowing what money is.
+   */
+  async reportQuality(
+    connectionId: string,
+    sample: { peerDeviceId: string; relayed: boolean; packetLoss: number; roundTripMs: number },
+  ): Promise<void> {
+    const connection = this.#connections.get(connectionId)
+    if (!connection?.identity || !connection.officeId) return
+
+    const call = this.#calls.findByDevice(connection.deviceId)
+    if (!call) return
+
+    this.#calls.sample({
+      callId: call.callId,
+      officeId: call.officeId,
+      userId: connection.identity.id,
+      deviceId: connection.deviceId,
+      peerDeviceId: String(sample?.peerDeviceId ?? ''),
+      relayed: Boolean(sample?.relayed),
+      packetLoss: Number(sample?.packetLoss) || 0,
+      roundTripMs: Number(sample?.roundTripMs) || 0,
+    })
+  }
+
+  /** A call that could not connect at all. Reported, never retried forever. */
+  async reportCallFailure(connectionId: string, reason: string): Promise<void> {
+    const connection = this.#connections.get(connectionId)
+    if (!connection?.identity) return
+    const call = this.#calls.findByDevice(connection.deviceId)
+    if (!call) return
+
+    this.#calls.failed({
+      callId: call.callId,
+      officeId: call.officeId,
+      userId: connection.identity.id,
+      deviceId: connection.deviceId,
+      reason,
+    })
+    this.#logger.warn('call connection failed', {
+      officeId: call.officeId,
+      roomId: call.roomId,
+      userId: connection.identity.id,
+      code: reason,
+    })
+  }
+
+  /**
+   * Take one device out of a call and tell the office.
+   *
+   * The single path out, used by leaving a call, leaving a room, a dropped
+   * connection whose grace expired, and access being revoked. One path means one
+   * place for it to be wrong.
+   */
+  async #leaveCallLeg(officeId: string, roomId: string, deviceId: string): Promise<boolean> {
+    const before = this.#calls.get(officeId, roomId)
+    if (!before?.legs.has(deviceId)) return false
+
+    const after = await this.#calls.leave(officeId, roomId, deviceId)
+
+    if (after) this.#announceCall(officeId, roomId)
+    else this.#broadcaster.queue(officeId, { kind: 'call.ended', roomId })
+
+    return true
+  }
+
+  /** Every leg of this person's, wherever they were, gone. */
+  async #leaveCallEverywhere(officeId: string, roomId: string, userId: string): Promise<void> {
+    for (const leg of this.#calls.legsOf(officeId, roomId, userId)) {
+      await this.#leaveCallLeg(officeId, roomId, leg.deviceId)
+    }
+  }
+
+  /** In a call, on the presence record, so `resolveStatus` can see it. */
+  async #setInCall(officeId: string, userId: string, inCall: boolean): Promise<void> {
+    const presence = await this.#store.get(officeId, userId)
+    if (!presence || presence.inCall === inCall) return
+    const next = { ...presence, inCall }
+    await this.#store.put(next)
+    await this.#announcePerson(officeId, next)
+  }
+
+  /** Still in a call? Only if some device of theirs still has a leg. */
+  async #refreshInCall(officeId: string, userId: string, roomId: string): Promise<void> {
+    const remaining = this.#calls.legsOf(officeId, roomId, userId)
+    await this.#setInCall(officeId, userId, remaining.length > 0)
+  }
+
+  #announceCall(officeId: string, roomId: string): void {
+    const call = this.#calls.get(officeId, roomId)
+    if (call) this.#broadcaster.queue(officeId, { kind: 'call.updated', call: this.#calls.toPublic(call) })
+  }
+
+  /** Re-send one person, because their device state is part of how they are drawn. */
+  async #announcePerson(officeId: string, presence: Presence): Promise<void> {
+    this.#broadcaster.queue(officeId, {
+      kind: 'person.updated',
+      presence: this.#public(presence, this.#now()),
+    })
+  }
+
+  /** A presence record as everyone sees it, with this person's call legs folded in. */
+  #public(presence: Presence, at: number = this.#now()): PublicPresence {
+    const call = this.#calls.get(presence.officeId, presence.roomId)
+    const legs = new Map(
+      [...(call?.legs.values() ?? [])]
+        .filter((leg) => leg.userId === presence.userId)
+        .map((leg) => [leg.deviceId, leg] as const),
+    )
+    return toPublic(presence, at, legs)
+  }
+
   // ------------------------------------------------------------------- status
 
   /**
@@ -803,7 +1164,7 @@ export class OfficeEngine {
     await this.#store.put(chosen)
     this.#broadcaster.queue(officeId, {
       kind: 'person.updated',
-      presence: toPublic(chosen, this.#now()),
+      presence: this.#public(chosen, this.#now()),
     })
     return done()
   }
@@ -837,7 +1198,7 @@ export class OfficeEngine {
     await this.#store.put(said)
     this.#broadcaster.queue(officeId, {
       kind: 'person.updated',
-      presence: toPublic(said, this.#now()),
+      presence: this.#public(said, this.#now()),
     })
     return done()
   }
@@ -875,7 +1236,7 @@ export class OfficeEngine {
     if (before !== after) {
       this.#broadcaster.queue(connection.officeId, {
         kind: 'person.updated',
-        presence: toPublic(active, at),
+        presence: this.#public(active, at),
       })
     }
   }
@@ -941,8 +1302,11 @@ export class OfficeEngine {
     return {
       officeId,
       seq,
-      people: people.map((presence) => toPublic(presence, at)),
+      people: people.map((presence) => this.#public(presence, at)),
       locks: locks.map((lock) => ({ roomId: lock.roomId, lockedBy: lock.lockedBy })),
+      // Every call in progress. Visible from outside the room, so nobody walks in
+      // on a conversation they did not know was happening.
+      calls: this.#calls.all(officeId).map((call) => this.#calls.toPublic(call)),
       you: {
         userId: connection?.identity?.id ?? '',
         deviceId: connection?.deviceId ?? '',
@@ -1096,6 +1460,10 @@ export class OfficeEngine {
     // lock and there is no way to tell that this is what did it.
     const leftLocked = presence ? await this.#isLocked(officeId, presence.roomId) : false
 
+    // Anything that removes somebody from a room ends their call leg the same way
+    // leaving does, and if that empties the call, the call ends.
+    if (presence) await this.#leaveCallEverywhere(officeId, presence.roomId, userId)
+
     await this.#store.remove(officeId, userId)
 
     // However they went — a clean exit, a closed tab, a crashed browser, or a
@@ -1170,7 +1538,18 @@ const admissionKey = (officeId: string, roomId: string, userId: string): string 
  * timestamps. None of that is anybody else's business, and sending it would
  * mean broadcasting the whole office on every heartbeat.
  */
-function toPublic(presence: Presence, at: number = Date.now()): PublicPresence {
+function toPublic(
+  presence: Presence,
+  at: number = Date.now(),
+  /**
+   * This person's legs in the call in their room, keyed by device.
+   *
+   * Passed in rather than looked up, because the call lives in its own registry
+   * and this function is about the presence record. A device with no leg is in
+   * the room and not in the conversation, which is the ordinary case.
+   */
+  legs: ReadonlyMap<string, CallLeg> = new Map(),
+): PublicPresence {
   const custom = liveCustomStatus(presence, at)
 
   return {
@@ -1183,10 +1562,18 @@ function toPublic(presence: Presence, at: number = Date.now()): PublicPresence {
     // should not have to.
     status: resolveStatus(presence, at),
     ...(custom ? { custom } : {}),
-    devices: presence.devices.map((device) => ({
-      deviceId: device.deviceId,
-      kind: device.kind,
-    })),
+    devices: presence.devices.map((device) => {
+      const leg = legs.get(device.deviceId)
+      return {
+        deviceId: device.deviceId,
+        kind: device.kind,
+        inCall: leg !== undefined,
+        muted: leg?.muted ?? true,
+        cameraOn: leg?.cameraOn ?? false,
+        sharing: leg?.sharing ?? false,
+        speaking: leg?.speaking ?? false,
+      }
+    }),
     arrivedAt: presence.arrivedAt,
   }
 }

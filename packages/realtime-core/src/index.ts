@@ -28,6 +28,29 @@ export type { Transport } from './transport.js'
  */
 export { Broadcaster, DIFF_WINDOW_MS } from './broadcast.js'
 
+/**
+ * The provider interface, server half, and the call model.
+ *
+ * A host passes a plugin and binds whatever hooks it has a database for. The
+ * built-in peer-to-peer provider is the reference implementation, and adding a
+ * second one means writing these methods and a client adapter and touching no
+ * call, presence or UI code.
+ */
+export {
+  CallRegistry,
+  builtInProvider,
+  type BuiltInProviderOptions,
+  type CallContext,
+  type CallHooks,
+  type CallLeg,
+  type LiveCall,
+  type ParticipantContext,
+  type ParticipantCredentials,
+  type ProviderCost,
+  type ProviderLimits,
+  type RtcServerPlugin,
+} from './calls.js'
+
 export { createLogger, silentLogger, type LogFields, type LogLevel, type Logger } from './logger.js'
 
 /**

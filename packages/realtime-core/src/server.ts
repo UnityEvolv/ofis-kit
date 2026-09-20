@@ -206,6 +206,44 @@ function bind(socket: Socket, engine: OfficeEngine, officeId: string, logger: Lo
     handle(ack, () => engine.decline(id, String(request?.knockId ?? '')), 'knock:decline'),
   )
 
+  socket.on('call:join', (request, ack) =>
+    handle(
+      ack,
+      () =>
+        engine.joinCall(id, {
+          audio: Boolean(request?.audio),
+          video: Boolean(request?.video),
+          ...(request?.secondDevice === 'add' ? { secondDevice: 'add' as const } : {}),
+        }),
+      'call:join',
+    ),
+  )
+  socket.on('call:leave', (ack) => handle(ack, () => engine.leaveCall(id), 'call:leave'))
+
+  // No acknowledgement on any of these: they arrive many times a second while
+  // somebody is talking, and nobody waits on them.
+  socket.on('call:media', (request) => {
+    void engine.setMediaState(id, {
+      muted: Boolean(request?.muted),
+      cameraOn: Boolean(request?.cameraOn),
+      sharing: Boolean(request?.sharing),
+    })
+  })
+  socket.on('call:speaking', (request) => {
+    void engine.setSpeaking(id, Boolean(request?.speaking))
+  })
+  socket.on('call:quality', (request) => {
+    void engine.reportQuality(id, {
+      peerDeviceId: String(request?.peerDeviceId ?? ''),
+      relayed: Boolean(request?.relayed),
+      packetLoss: Number(request?.packetLoss) || 0,
+      roundTripMs: Number(request?.roundTripMs) || 0,
+    })
+  })
+  socket.on('call:failed', (request) => {
+    void engine.reportCallFailure(id, String(request?.reason ?? 'unknown'))
+  })
+
   socket.on('status:manual', (request, ack) =>
     handle(ack, () => engine.setManualStatus(id, request?.manual ?? null), 'status:manual'),
   )

@@ -1,4 +1,4 @@
-import type { OfficeSnapshot, PublicPresence } from '@unityevolv/ofiskit-realtime-core/protocol'
+import type { DeviceKind, OfficeSnapshot, PublicPresence } from '@unityevolv/ofiskit-realtime-core/protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createOfisClient, type ClientEvent, type SocketLike } from './client.js'
@@ -76,11 +76,30 @@ function fakeSocket(): Fake {
   return socket
 }
 
+/**
+ * A device with nothing happening on it, which is the ordinary case.
+ *
+ * A helper because the call fields are required and almost never the point of the
+ * test: a fixture spelling out five falses is noise around the one field that
+ * matters.
+ */
+function device(deviceId: string, kind: DeviceKind = 'web'): PublicPresence['devices'][number] {
+  return {
+    deviceId,
+    kind,
+    inCall: false,
+    muted: true,
+    cameraOn: false,
+    sharing: false,
+    speaking: false,
+  }
+}
+
 function person(overrides: Partial<PublicPresence> & { userId: string }): PublicPresence {
   return {
     displayName: overrides.userId,
     roomId: 'reception',
-    devices: [{ deviceId: `${overrides.userId}-laptop`, kind: 'web' }],
+    devices: [device(`${overrides.userId}-laptop`)],
     status: 'available',
     arrivedAt: '2026-01-01T09:00:00.000Z',
     ...overrides,
@@ -93,6 +112,7 @@ function snapshot(overrides: Partial<OfficeSnapshot> = {}): OfficeSnapshot {
     seq: 1,
     people: [person({ userId: 'ada' })],
     locks: [],
+    calls: [],
     you: { userId: 'ada', deviceId: 'ada-laptop', manual: null },
     ...overrides,
   }

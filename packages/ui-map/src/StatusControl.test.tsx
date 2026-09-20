@@ -19,7 +19,17 @@ function person(overrides: Partial<PublicPresence> = {}): PublicPresence {
     userId: 'ada',
     displayName: 'Ada',
     roomId: 'reception',
-    devices: [{ deviceId: 'laptop', kind: 'web' }],
+    devices: [
+      {
+        deviceId: 'laptop',
+        kind: 'web',
+        inCall: false,
+        muted: true,
+        cameraOn: false,
+        sharing: false,
+        speaking: false,
+      },
+    ],
     status: 'available',
     arrivedAt: '2026-01-01T09:00:00.000Z',
     ...overrides,

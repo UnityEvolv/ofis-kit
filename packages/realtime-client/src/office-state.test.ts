@@ -1,4 +1,4 @@
-import type { OfficeSnapshot, PublicPresence } from '@unityevolv/ofiskit-realtime-core/protocol'
+import type { DeviceKind, OfficeSnapshot, PublicPresence } from '@unityevolv/ofiskit-realtime-core/protocol'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -13,11 +13,30 @@ import {
   yourRoom,
 } from './office-state.js'
 
+/**
+ * A device with nothing happening on it, which is the ordinary case.
+ *
+ * A helper because the call fields are required and almost never the point of the
+ * test: a fixture spelling out five falses is noise around the one field that
+ * matters.
+ */
+function device(deviceId: string, kind: DeviceKind = 'web'): PublicPresence['devices'][number] {
+  return {
+    deviceId,
+    kind,
+    inCall: false,
+    muted: true,
+    cameraOn: false,
+    sharing: false,
+    speaking: false,
+  }
+}
+
 function person(overrides: Partial<PublicPresence> & { userId: string }): PublicPresence {
   return {
     displayName: overrides.userId,
     roomId: 'reception',
-    devices: [{ deviceId: `${overrides.userId}-laptop`, kind: 'web' }],
+    devices: [device(`${overrides.userId}-laptop`)],
     status: 'available',
     arrivedAt: '2026-01-01T09:00:00.000Z',
     ...overrides,
@@ -30,6 +49,7 @@ function snapshot(overrides: Partial<OfficeSnapshot> = {}): OfficeSnapshot {
     seq: 4,
     people: [person({ userId: 'ada' })],
     locks: [],
+    calls: [],
     you: { userId: 'ada', deviceId: 'ada-laptop', manual: null },
     ...overrides,
   }
@@ -194,8 +214,8 @@ describe('the office on the client', () => {
             userId: 'ada',
             roomId: 'studio',
             devices: [
-              { deviceId: 'laptop', kind: 'web' },
-              { deviceId: 'phone', kind: 'mobile' },
+              device('laptop'),
+              device('phone', 'mobile'),
             ],
           }),
         ],
@@ -208,7 +228,7 @@ describe('the office on the client', () => {
   it('badges somebody who is only on a phone, and nobody who is not', () => {
     // The badge is the only way to tell, since presence is per user. With a
     // laptop among their devices it would say nothing useful.
-    expect(isPhoneOnly(person({ userId: 'ada', devices: [{ deviceId: 'p', kind: 'mobile' }] }))).toBe(
+    expect(isPhoneOnly(person({ userId: 'ada', devices: [device('p', 'mobile')] }))).toBe(
       true,
     )
     expect(
@@ -216,8 +236,8 @@ describe('the office on the client', () => {
         person({
           userId: 'ada',
           devices: [
-            { deviceId: 'p', kind: 'mobile' },
-            { deviceId: 'l', kind: 'web' },
+            device('p', 'mobile'),
+            device('l'),
           ],
         }),
       ),

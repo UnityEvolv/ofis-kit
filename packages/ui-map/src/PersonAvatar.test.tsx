@@ -1,4 +1,4 @@
-import type { PublicPresence, Status } from '@unityevolv/ofiskit-realtime-client'
+import type { DeviceKind, PublicPresence, Status } from '@unityevolv/ofiskit-realtime-client'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
@@ -13,11 +13,30 @@ import { STATUS_LOOKS, StatusDot, describeStatus, statusLabel } from './status.j
  * somebody decides whether to walk into a room. So these tests read the label.
  */
 
+/**
+ * A device with nothing happening on it, which is the ordinary case.
+ *
+ * A helper because the call fields are required and almost never the point of the
+ * test: a fixture spelling out five falses is noise around the one field that
+ * matters.
+ */
+function device(deviceId: string, kind: DeviceKind = 'web'): PublicPresence['devices'][number] {
+  return {
+    deviceId,
+    kind,
+    inCall: false,
+    muted: true,
+    cameraOn: false,
+    sharing: false,
+    speaking: false,
+  }
+}
+
 function person(overrides: Partial<PublicPresence> & { userId: string }): PublicPresence {
   return {
     displayName: overrides.userId,
     roomId: 'studio',
-    devices: [{ deviceId: `${overrides.userId}-laptop`, kind: 'web' }],
+    devices: [device(`${overrides.userId}-laptop`)],
     status: 'available',
     arrivedAt: '2026-01-01T09:00:00.000Z',
     ...overrides,
@@ -54,7 +73,7 @@ describe('one person on the map', () => {
     // The badge is the only way to tell, because presence is per user.
     render(
       <PersonAvatar
-        person={person({ userId: 'ada', devices: [{ deviceId: 'p', kind: 'mobile' }] })}
+        person={person({ userId: 'ada', devices: [device('p', 'mobile')] })}
         size={64}
       />,
     )
@@ -68,8 +87,8 @@ describe('one person on the map', () => {
         person={person({
           userId: 'ada',
           devices: [
-            { deviceId: 'p', kind: 'mobile' },
-            { deviceId: 'l', kind: 'web' },
+            device('p', 'mobile'),
+            device('l'),
           ],
         })}
         size={64}
@@ -108,8 +127,8 @@ describe('one person on the map', () => {
         person={person({
           userId: 'ada',
           devices: [
-            { deviceId: 'laptop', kind: 'web' },
-            { deviceId: 'phone', kind: 'mobile' },
+            device('laptop'),
+            device('phone', 'mobile'),
           ],
         })}
         size={64}
