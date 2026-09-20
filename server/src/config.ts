@@ -38,6 +38,15 @@ export interface Config {
   /** The office: two files, and changing them changes the office. */
   templatePath: string
   configDir: string
+  /**
+   * The built web app, served from this same process.
+   *
+   * One origin for the app and the socket, which is what lets the bundle contain
+   * no hostname at all and ask `/config` where things are instead. A separate
+   * static host would mean the app had to be told its socket's address at build
+   * time, and then a fork could not be deployed without rebuilding it.
+   */
+  appDir: string
   /** Re-read the template when it changes, which is what you want in development. */
   watchTemplate: boolean
 
@@ -80,6 +89,7 @@ export function loadConfig(): Config {
 
     templatePath: resolve(text('TEMPLATE_PATH', resolve(configDir, 'template.json'))),
     configDir,
+    appDir: resolve(text('APP_DIR', resolve(here, '..', '..', 'app', 'dist'))),
     watchTemplate:
       text('WATCH_TEMPLATE', process.env.NODE_ENV === 'production' ? 'false' : 'true') === 'true',
 

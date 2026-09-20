@@ -29,7 +29,10 @@ const distDir = join(here, '..', '..', 'app', 'dist')
  */
 const BUDGETS = [
   { name: 'the app shell and the office', match: /^assets\/index-[\w-]+\.js$/, kb: 260 },
-  { name: 'the builder, loaded on demand', match: /^assets\/builder-[\w-]+\.js$/, kb: 60 },
+  // Tight on purpose: the builder is its own code and nothing else, because the
+  // shell it loads on top of already has React and the kit. A jump here means a
+  // dependency escaped into it, or the chunk split has inverted again.
+  { name: 'the builder, loaded on demand', match: /^assets\/builder-[\w-]+\.js$/, kb: 20 },
   { name: 'styles', match: /^assets\/index-[\w-]+\.css$/, kb: 40 },
 ]
 

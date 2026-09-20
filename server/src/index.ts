@@ -105,6 +105,22 @@ async function serve(request: IncomingMessage, response: ServerResponse): Promis
     return file(response, config.configDir, url.pathname.slice('/office/'.length))
   }
 
+  // The built app, from this same origin as everything above it.
+  const asset = url.pathname === '/' ? 'index.html' : url.pathname.slice(1)
+  if (await file(response, config.appDir, asset, { quiet: true })) return
+
+  /*
+   * Anything else is the app's own routing.
+   *
+   * `/builder` is a path the client knows what to do with and the server has
+   * never heard of, so it gets index.html and the app takes it from there. An
+   * asset request is excluded by its extension: a missing script answered with a
+   * page of HTML is a confusing failure, and a 404 is the honest one.
+   */
+  if (!extname(url.pathname)) {
+    if (await file(response, config.appDir, 'index.html', { quiet: true })) return
+  }
+
   json(response, 404, { code: 'not_found', message: 'Nothing here.' })
 }
 
