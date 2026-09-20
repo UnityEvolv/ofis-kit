@@ -41,6 +41,15 @@ export interface Config {
   /** Re-read the template when it changes, which is what you want in development. */
   watchTemplate: boolean
 
+  /**
+   * How long somebody stays in their room after their last device drops.
+   *
+   * Thirty seconds is right for people. It is configurable because an
+   * end-to-end test cannot wait that long to watch somebody disappear, and a
+   * deployment on a flakier network may want longer.
+   */
+  graceMs: number
+
   /** Origins allowed to open a socket. Empty means same-origin only. */
   allowedOrigins: string[]
 
@@ -71,10 +80,11 @@ export function loadConfig(): Config {
 
     templatePath: resolve(text('TEMPLATE_PATH', resolve(configDir, 'template.json'))),
     configDir,
-    watchTemplate: text('WATCH_TEMPLATE', process.env.NODE_ENV === 'production' ? 'false' : 'true') === 'true',
+    watchTemplate:
+      text('WATCH_TEMPLATE', process.env.NODE_ENV === 'production' ? 'false' : 'true') === 'true',
 
+    graceMs: number('PRESENCE_GRACE_MS', 30_000),
     allowedOrigins: list('ALLOWED_ORIGINS'),
-
 
     demo: {
       enabled: text('DEMO', 'false') === 'true',

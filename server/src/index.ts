@@ -42,6 +42,7 @@ const realtime = createRealtimeServer({
   identity: typedEmailIdentity(),
   templates,
   logger,
+  graceMs: config.graceMs,
   ...(config.allowedOrigins.length > 0 ? { allowedOrigins: config.allowedOrigins } : {}),
 
 })

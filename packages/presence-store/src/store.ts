@@ -107,3 +107,14 @@ export interface PresenceStore {
 
 /** How long a presence record survives without a heartbeat. */
 export const PRESENCE_TTL_MS = 90 * 1000
+
+/**
+ * How long somebody stays in their room after their last device drops.
+ *
+ * Long enough to cover a laptop sleeping, a train tunnel and a wifi handover;
+ * short enough that somebody who really has gone does not haunt a room. It
+ * lives beside the TTL because the two are the same idea at different scales:
+ * this one is the timer, the TTL is the backstop for when the timer's process
+ * is no longer there to fire it.
+ */
+export const DISCONNECT_GRACE_MS = 30 * 1000
