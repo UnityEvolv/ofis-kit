@@ -1,0 +1,21 @@
+{
+  "name": "ofiskit-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The single-office host: the engine wired to the memory presence store, the typed-email identity adapter and config/template.json.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "dev": "node --watch dist/index.js"
+  },
+  "dependencies": {
+    "@unityevolv/ofiskit-adapters": "0.1.0",
+    "@unityevolv/ofiskit-presence-store": "0.1.0",
+    "@unityevolv/ofiskit-realtime-core": "0.1.0",
+    "@unityevolv/ofiskit-template": "0.1.0"
+  }
+}

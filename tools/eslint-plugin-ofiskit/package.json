@@ -1,0 +1,15 @@
+{
+  "name": "eslint-plugin-ofiskit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The repo's boundary rules, as lint. Every rule here exists because a story asked for it.",
+  "license": "AGPL-3.0-only",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "scripts": {
+    "test": "vitest run"
+  }
+}
