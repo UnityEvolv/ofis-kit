@@ -49,16 +49,22 @@ export default tseslint.config(
       globals: { ...globals.node },
     },
     rules: {
+      // The conventions story asks for no `any` without a comment saying why.
+      // An error here is exactly that: the only way past it is a disable
+      // comment, which is the comment.
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-console': 'off',
 
       // Repo rules that apply everywhere.
       'ofiskit/no-hostname-literal': 'error',
       'ofiskit/no-provider-sdk-outside-adapter': 'error',
+      'ofiskit/no-pii-in-logs': 'error',
     },
   },
 
@@ -78,6 +84,7 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      'ofiskit/no-lucide-direct': 'error',
     },
   },
 
@@ -106,6 +113,8 @@ export default tseslint.config(
     ],
     rules: {
       'ofiskit/no-hostname-literal': 'off',
+      'ofiskit/no-pii-in-logs': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 )

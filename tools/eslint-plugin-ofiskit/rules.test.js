@@ -100,3 +100,38 @@ tester.run('no-provider-sdk-outside-adapter', plugin.rules['no-provider-sdk-outs
     },
   ],
 })
+
+tester.run('no-lucide-direct', plugin.rules['no-lucide-direct'], {
+  valid: [{ code: "import { Icon } from '@unityevolv/unitykit'\nexport { Icon }" }],
+  invalid: [
+    {
+      code: "import { Lock } from 'lucide-react'\nexport { Lock }",
+      errors: [{ messageId: 'direct' }],
+    },
+  ],
+})
+
+tester.run('no-pii-in-logs', plugin.rules['no-pii-in-logs'], {
+  valid: [
+    { code: 'logger.info({ userId: user.id, roomId }, "joined room")' },
+    { code: 'console.warn("move refused", { reason, roomId })' },
+    { code: 'logger.debug({ user: user.id }, "reconnected")' },
+    // Not a log call at all.
+    { code: 'render({ email: user.email })' },
+  ],
+  invalid: [
+    {
+      code: 'logger.info({ email: user.email }, "entered office")',
+      errors: [{ messageId: 'piiField' }],
+    },
+    {
+      code: 'console.log(`knock from ${user.displayName}`)',
+      errors: [{ messageId: 'piiField' }],
+    },
+    {
+      // The whole identity, whose shape the rule cannot see, so all of it.
+      code: 'logger.error({ user }, "adapter refused")',
+      errors: [{ messageId: 'piiObject' }],
+    },
+  ],
+})

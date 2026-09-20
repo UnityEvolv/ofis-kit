@@ -21,7 +21,7 @@
     "build": "npm run build --workspaces --if-present",
     "build:packages": "tsc -b packages/template packages/presence-store packages/adapters packages/realtime-core packages/realtime-client packages/ui-map packages/ui-builder",
     "dev": "node scripts/dev.mjs",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -34,7 +34,9 @@
     "release": "npm run build:packages && changeset publish",
     "build:pages": "npm run build:packages && npm run --workspace ofiskit-app build:pages",
     "test:a11y": "playwright test --project=a11y",
-    "watch:packages": "tsc -b packages/template packages/presence-store packages/adapters packages/realtime-core packages/realtime-client packages/ui-map packages/ui-builder server --watch --preserveWatchOutput"
+    "watch:packages": "tsc -b packages/template packages/presence-store packages/adapters packages/realtime-core packages/realtime-client packages/ui-map packages/ui-builder server --watch --preserveWatchOutput",
+    "kit:styles": "node tools/kit-styles/check.mjs",
+    "no-branding": "node tools/no-branding/check.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

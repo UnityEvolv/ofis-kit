@@ -1,0 +1,68 @@
+name: Bug report
+description: Something in the office does not work the way it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not report a security vulnerability here. Email
+        security@unityevolv.com instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, and what the office did instead.
+      placeholder: |
+        Two of us locked Room 3. A third person knocked and nobody inside saw it.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      description: Which part, as best you can tell.
+      options:
+        - The office map
+        - The call (audio, video, screen share)
+        - Lock, knock or admit
+        - Presence or status
+        - The office builder
+        - Running it (compose, config, template.json)
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: browsers
+    attributes:
+      label: Browser and version
+      placeholder: Firefox 140, Chrome 141
+    validations:
+      required: true
+  - type: dropdown
+    id: theme
+    attributes:
+      label: Theme
+      description: Several bugs only show in one theme, so it is worth saying.
+      options:
+        - Light
+        - Dark
+        - Both
+        - Not relevant
+  - type: textarea
+    id: template
+    attributes:
+      label: Your template.json, if the layout is involved
+      description: Paste it, or the room it happens in. The background image is not needed.
+      render: json
+  - type: textarea
+    id: console
+    attributes:
+      label: Anything in the browser console or the server log
+      description: Please remove any email addresses before pasting.
+      render: text

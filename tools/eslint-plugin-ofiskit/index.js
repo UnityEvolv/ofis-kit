@@ -13,6 +13,8 @@
 import noDomInAgnostic from './rules/no-dom-in-agnostic.js'
 import noHostnameLiteral from './rules/no-hostname-literal.js'
 import noProviderSdkOutsideAdapter from './rules/no-provider-sdk-outside-adapter.js'
+import noPiiInLogs from './rules/no-pii-in-logs.js'
+import noLucideDirect from './rules/no-lucide-direct.js'
 
 export default {
   meta: { name: 'eslint-plugin-ofiskit', version: '0.0.0' },
@@ -20,5 +22,7 @@ export default {
     'no-dom-in-agnostic': noDomInAgnostic,
     'no-hostname-literal': noHostnameLiteral,
     'no-provider-sdk-outside-adapter': noProviderSdkOutsideAdapter,
+    'no-pii-in-logs': noPiiInLogs,
+    'no-lucide-direct': noLucideDirect,
   },
 }
