@@ -19,6 +19,7 @@ function person(userId: string, devices = 1): PublicPresence {
       cameraOn: false,
       sharing: false,
       speaking: false,
+      lastSpokeAt: null,
     })),
     status: 'available',
     arrivedAt: `2026-01-01T09:0${userId.length}:00.000Z`,

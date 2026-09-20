@@ -65,6 +65,7 @@ function device(deviceId: string, kind: DeviceKind = 'web'): PublicPresence['dev
     cameraOn: false,
     sharing: false,
     speaking: false,
+    lastSpokeAt: null,
   }
 }
 

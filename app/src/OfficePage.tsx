@@ -4,6 +4,7 @@ import { statusIsChosen, you as yourPresence, yourRoom } from '@unityevolv/ofisk
 import {
   CallAudio,
   CallControls,
+  CallTiles,
   DevicePanel,
   KnockDock,
   OfficeMap,
@@ -16,6 +17,8 @@ import {
   useIdleReporting,
   useOffice,
   usePersisted,
+  useCallMedia,
+  useSpeakerOrder,
   useTheme,
   type OfficeView,
 } from '@unityevolv/ofiskit-ui-map'
@@ -113,6 +116,15 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
     [announce, client, template.rooms],
   )
 
+  /**
+   * The streams and the order the tiles draw from.
+   *
+   * Both come from the adapter's events and the office state, so the tiles never
+   * know whether a mesh or an SFU is behind them.
+   */
+  const media = useCallMedia(client)
+  const order = useSpeakerOrder(call.call?.participants ?? [], state.people)
+
   const knocks = useKnocks(client, template)
 
   const props = {
@@ -129,16 +141,26 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
     <div className="flex h-full flex-col">
       <div className={['flex min-h-0 flex-1', tiles === 'top' ? 'flex-col' : 'flex-row'].join(' ')}>
         {/*
-          Where the call tiles will be. Empty until the call stories land, and
-          reserved from the start so the map is not resized the first time a call
-          begins.
+          The tiles: a strip across the top of a landscape office, a column down
+          the right of a square or portrait one. The canvas shape decides, because
+          a landscape office has width to spare and height at a premium.
+
+          Present only while there is a call, and absent rather than empty: an
+          always-reserved strip is a permanent band of nothing at the top of the
+          office, which is worse than the map resizing once when a call starts.
         */}
-        <div
-          aria-hidden="true"
-          className={tiles === 'top' ? 'h-0 shrink-0' : 'w-0 shrink-0'}
-          data-testid="tile-strip"
-          data-placement={tiles}
-        />
+        {call.call && !call.callView && (
+          <CallTiles
+            call={call.call}
+            people={state.people}
+            order={order}
+            media={media}
+            you={state.you}
+            placement={tiles}
+            onMuteForMe={media.muteForMe}
+            onVisibleChange={(deviceIds) => client.rtc.setVideoSubscriptions(deviceIds)}
+          />
+        )}
 
         {/*
           Positioned so the knock cards sit over the office rather than pushing it
@@ -155,16 +177,19 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
             The tiles themselves land with their own story; what is here is the
             space they fill.
           */}
-          {call.callView ? (
-            <section
-              aria-label="Call"
-              data-testid="call-view"
-              className="grid h-full w-full place-items-center bg-base-300 p-4"
-            >
-              <p className="text-sm text-base-content/70">
-                The call fills this space. Press the call view button to bring the office back.
-              </p>
-            </section>
+          {call.callView && call.call ? (
+            <div data-testid="call-view" className="h-full w-full">
+              <CallTiles
+                call={call.call}
+                people={state.people}
+                order={order}
+                media={media}
+                you={state.you}
+                placement="grid"
+                onMuteForMe={media.muteForMe}
+                onVisibleChange={(deviceIds) => client.rtc.setVideoSubscriptions(deviceIds)}
+              />
+            </div>
           ) : view === 'map' ? (
             <OfficeMap {...props} />
           ) : (
@@ -272,6 +297,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
       {/* The voices. A stream nothing is attached to is a stream nobody hears. */}
       <CallAudio
         client={client}
+        mutedForMe={media.mutedForMe}
         {...(devices.speakerDeviceId ? { speakerDeviceId: devices.speakerDeviceId } : {})}
       />
 

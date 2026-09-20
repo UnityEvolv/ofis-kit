@@ -23,6 +23,15 @@ export interface CallAudioProps {
   client: OfisClient
   /** The chosen speaker. Empty follows the operating system. */
   speakerDeviceId?: string
+  /**
+   * Peers this person has muted for themselves only.
+   *
+   * Applied here rather than on a tile, because it has to hold when that tile is
+   * paged out of the visible five: somebody silenced for being noisy must not
+   * come back the moment they stop being on screen. Nobody else is affected and
+   * the person is not told.
+   */
+  mutedForMe?: ReadonlySet<string>
 }
 
 /**
@@ -39,7 +48,7 @@ function routeTo(element: HTMLAudioElement, speakerDeviceId: string): void {
   void element.setSinkId(speakerDeviceId).catch(() => {})
 }
 
-export function CallAudio({ client, speakerDeviceId }: CallAudioProps) {
+export function CallAudio({ client, speakerDeviceId, mutedForMe }: CallAudioProps) {
   const [streams, setStreams] = useState<Map<string, MediaStream>>(new Map())
   const elements = useRef(new Map<string, HTMLAudioElement>())
 
@@ -84,9 +93,14 @@ export function CallAudio({ client, speakerDeviceId }: CallAudioProps) {
         <audio
           key={deviceId}
           autoPlay
-          // Never muted, and never `controls`: this is not a player, it is the
-          // reason the call is audible. A muted audio element is the single
-          // easiest way to ship a call nobody can hear.
+          // Silencing somebody for yourself is exactly this and nothing else: their
+          // audio muted on your side. A prop rather than a mutation, so React owns
+          // it and it cannot drift from what was chosen.
+          muted={mutedForMe?.has(deviceId) ?? false}
+          // Never `controls`: this is not a player, it is the reason the call is
+          // audible. Muted only when the person looking at it chose to silence
+          // this one peer — a muted-by-default audio element is the single easiest
+          // way to ship a call nobody can hear.
           data-testid={`call-audio-${deviceId}`}
           ref={(element) => {
             if (!element) {
