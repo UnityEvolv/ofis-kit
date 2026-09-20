@@ -101,6 +101,16 @@ tester.run('no-provider-sdk-outside-adapter', plugin.rules['no-provider-sdk-outs
   ],
 })
 
+tester.run('no-lucide-direct', plugin.rules['no-lucide-direct'], {
+  valid: [{ code: "import { Icon } from '@unityevolv/unitykit'\nexport { Icon }" }],
+  invalid: [
+    {
+      code: "import { Lock } from 'lucide-react'\nexport { Lock }",
+      errors: [{ messageId: 'direct' }],
+    },
+  ],
+})
+
 tester.run('no-pii-in-logs', plugin.rules['no-pii-in-logs'], {
   valid: [
     { code: 'logger.info({ userId: user.id, roomId }, "joined room")' },

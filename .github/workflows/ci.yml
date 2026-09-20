@@ -48,6 +48,11 @@ jobs:
       - name: Build packages and app
         run: npm run build
 
+      # Tailwind does not scan node_modules, so a wrong @source path leaves the
+      # kit's components with their classes and none of their CSS — silently.
+      - name: The kit's classes actually generated CSS
+        run: npm run kit:styles
+
       - name: Bundle budget
         run: npm run budget
 

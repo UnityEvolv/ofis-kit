@@ -164,6 +164,42 @@ belongs in the config module, which is the one place the lint rule is relaxed.
 Never hand-edit one. `npm run brand:check` fails if the icons have drifted from
 the source SVG, and the build regenerates them.
 
+## The design system
+
+Everything visible is built from [unitykit](https://github.com/UnityEvolv/unity-kit):
+buttons, avatars, icons, tokens, and the two themes. Three rules:
+
+- **Icons come from the kit's `Icon`.** A direct `lucide-react` import fails
+  lint: the kit fixes the size, the stroke and the accessible naming, and an
+  icon imported around it is a different weight from every other icon.
+- **No colour is ever hard-coded.** Every one comes from a token, which is what
+  makes both themes follow from the token layer rather than a second stylesheet.
+- **The kit's `Brand` component is not used here**, and this repository carries
+  no mark, favicon or app icon. See [the boundary](docs/architecture.md).
+
+Working against a local checkout of the kit:
+
+```
+cd ../unity-kit && npm run dev     # the kit, rebuilding on change
+cd ofis-kit && npm link ../unity-kit
+```
+
+Unlink before committing — CI installs from the registry, with no local link
+present, which is what proves a clean install works.
+
+### The one thing that goes wrong
+
+Tailwind does not scan `node_modules` when it looks for class names, so the
+kit's classes generate **no CSS at all** unless `app/src/styles.css` points at
+it with `@source`. There is no error and no warning: components render with
+every class in the markup and none of the styles, and it looks like the kit is
+broken.
+
+The paths matter — npm hoists workspace packages to the repository root, not to
+`app/node_modules`, and a path that looks right and resolves to nothing fails
+exactly the same way as no path at all. `npm run kit:styles` checks the built
+stylesheet for classes that can only come from that scan.
+
 ## Commands
 
 ```
@@ -175,6 +211,7 @@ npm run lint             # every rule above
 npm run typecheck        # every package
 npm run build            # packages, then the app
 npm run budget           # bundle size against the budget
+npm run kit:styles       # the kit’s CSS really was generated
 ```
 
 ## Definition of done
