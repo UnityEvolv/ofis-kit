@@ -28,6 +28,21 @@ export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecti
 
 /** Things that happen *to* you, which the UI announces rather than only draws. */
 export type ClientEvent =
+  /** Somebody is at the door of the room you are in. */
+  | {
+      type: 'knock'
+      knockId: string
+      roomId: string
+      userId: string
+      displayName: string
+      photoUrl?: string
+      /** True when everybody inside is on do not disturb: it arrived silently. */
+      silent: boolean
+    }
+  /** A knock is over, one way or another — including nobody answering. */
+  | { type: 'knock.resolved'; knockId: string; outcome: 'admitted' | 'declined' | 'expired' }
+  /** You were let in. An invitation to move, not a reservation. */
+  | { type: 'admitted'; roomId: string; byUserId: string }
   | { type: 'template.changed' }
   /** A move or an action the server refused, with the reason to show. */
   | { type: 'refused'; action: string; code: string; message: string }
@@ -86,6 +101,9 @@ export interface OfisClient {
   lock(roomId: string): Promise<Ack>
   unlock(roomId: string): Promise<Ack>
   knock(roomId: string): Promise<Ack<{ knockId: string; silent: boolean }>>
+  /** Let one person in, without unlocking the room for anybody else. */
+  admit(knockId: string): Promise<Ack>
+  decline(knockId: string): Promise<Ack>
 
   /** A status the person chose. null puts them back on automatic. */
   setStatus(manual: ManualStatus | null): Promise<Ack>
@@ -187,6 +205,28 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
     if (outcome.kind === 'applied') publish(outcome.state)
     else if (outcome.kind === 'resync') void resync()
   })
+
+  socket.on(
+    'knock:received',
+    (event: {
+      knockId: string
+      roomId: string
+      userId: string
+      displayName: string
+      photoUrl?: string
+      silent: boolean
+    }) => emit({ type: 'knock', ...event }),
+  )
+
+  socket.on(
+    'knock:resolved',
+    (event: { knockId: string; outcome: 'admitted' | 'declined' | 'expired' }) =>
+      emit({ type: 'knock.resolved', ...event }),
+  )
+
+  socket.on('knock:admitted', (event: { roomId: string; byUserId: string }) =>
+    emit({ type: 'admitted', ...event }),
+  )
 
   socket.on('template:changed', () => emit({ type: 'template.changed' }))
 
@@ -304,6 +344,8 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
     lock: (roomId) => ask('room:lock', { roomId }),
     unlock: (roomId) => ask('room:unlock', { roomId }),
     knock: (roomId) => ask<{ knockId: string; silent: boolean }>('room:knock', { roomId }),
+    admit: (knockId) => ask('knock:admit', { knockId }),
+    decline: (knockId) => ask('knock:decline', { knockId }),
 
     /**
      * Set, or clear, a status the person chose.
