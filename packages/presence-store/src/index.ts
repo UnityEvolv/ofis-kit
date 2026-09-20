@@ -23,3 +23,13 @@ export type { PresenceStore } from './store.js'
 export { DISCONNECT_GRACE_MS, PRESENCE_TTL_MS } from './store.js'
 
 export { MemoryPresenceStore } from './memory.js'
+
+export type { CustomStatusDuration } from './status.js'
+export {
+  CUSTOM_STATUS_DURATIONS,
+  IDLE_AFTER_MS,
+  isCustomStatusLive,
+  liveCustomStatus,
+  resolveStatus,
+  suppressesInterruption,
+} from './status.js'

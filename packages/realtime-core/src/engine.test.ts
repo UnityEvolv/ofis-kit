@@ -498,7 +498,7 @@ describe('disconnecting, waiting, and coming back', () => {
     const snapshot = await h.engine.snapshot(socket)
     expect(snapshot.people).toHaveLength(1)
     expect(snapshot.people[0]?.roomId).toBe(workspace)
-    expect(snapshot.people[0]?.reconnecting).toBe(true)
+    expect(snapshot.people[0]?.status).toBe('reconnecting')
   })
 
   it('removes them once the grace period passes with nobody back', async () => {
@@ -527,7 +527,7 @@ describe('disconnecting, waiting, and coming back', () => {
     const back = await h.engine.snapshot(again)
     expect(back.people).toHaveLength(1)
     expect(back.people[0]?.roomId).toBe(workspace)
-    expect(back.people[0]?.reconnecting).toBe(false)
+    expect(back.people[0]?.status).not.toBe('reconnecting')
 
     // And the timer really was cancelled, rather than firing later and
     // removing somebody who is sitting right there.
@@ -557,6 +557,123 @@ describe('disconnecting, waiting, and coming back', () => {
     // The phone is still there, so there was never anything to wait for.
     const snapshot = await h.engine.snapshot('socket-phone')
     expect(snapshot.people).toHaveLength(1)
-    expect(snapshot.people[0]?.reconnecting).toBe(false)
+    expect(snapshot.people[0]?.status).not.toBe('reconnecting')
+  })
+})
+
+describe('status', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = harness()
+  })
+
+  const roomOfType = (type: string) => h.template.rooms.find((room) => room.type === type)?.id ?? ''
+  const statusOf = async (socket: string) => (await h.engine.snapshot(socket)).people[0]?.status
+
+  it('is available with one active device', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    expect(await statusOf(socket)).toBe('available')
+  })
+
+  it('sets do not disturb on entering the break room, and clears it on leaving', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+
+    await h.engine.joinRoom(socket, roomOfType('break'))
+    expect(await statusOf(socket)).toBe('dnd')
+
+    await h.engine.joinRoom(socket, roomOfType('workspace'))
+    expect(await statusOf(socket)).toBe('available')
+  })
+
+  it('goes away when every device is idle, and comes back on any input', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+
+    await h.engine.setActivity(socket, { idle: true, foreground: true })
+    expect(await statusOf(socket)).toBe('away')
+
+    await h.engine.setActivity(socket, { idle: false, foreground: true })
+    expect(await statusOf(socket)).toBe('available')
+  })
+
+  it('keeps somebody available on their laptop while their phone is backgrounded', async () => {
+    const laptop = await h.enter({ name: 'Ada', deviceId: 'laptop' })
+    const phone = await h.enter({
+      name: 'Ada',
+      deviceId: 'phone',
+      kind: 'mobile',
+      connectionId: 'socket-phone',
+    })
+
+    // Resolves to the most active device: idle on one is not away.
+    await h.engine.setActivity(phone, { idle: false, foreground: false })
+    expect(await statusOf(laptop)).toBe('available')
+
+    await h.engine.setActivity(laptop, { idle: true, foreground: true })
+    expect(await statusOf(laptop)).toBe('away')
+  })
+
+  it('lets a chosen status survive the break room and going idle', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    expect((await h.engine.setManualStatus(socket, 'available')).ok).toBe(true)
+
+    await h.engine.joinRoom(socket, roomOfType('break'))
+    await h.engine.setActivity(socket, { idle: true, foreground: true })
+
+    // They chose it. Nothing automatic gets to overrule that.
+    expect(await statusOf(socket)).toBe('available')
+  })
+
+  it('clears what the break room set, but only what the break room set', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+
+    // Room-imposed: cleared on the way out.
+    await h.engine.joinRoom(socket, roomOfType('break'))
+    await h.engine.joinRoom(socket, roomOfType('workspace'))
+    expect(await statusOf(socket)).toBe('available')
+
+    // Chosen: survives the same round trip.
+    await h.engine.setManualStatus(socket, 'dnd')
+    await h.engine.joinRoom(socket, roomOfType('break'))
+    await h.engine.joinRoom(socket, roomOfType('workspace'))
+    expect(await statusOf(socket)).toBe('dnd')
+  })
+
+  it('shows reconnecting during the grace period', async () => {
+    const graced = harness(typedEmailIdentity(), undefined, 300)
+    const socket = await graced.enter({ name: 'Ada' })
+
+    await graced.engine.disconnected(socket)
+
+    expect((await graced.engine.snapshot(socket)).people[0]?.status).toBe('reconnecting')
+  })
+
+  it('carries a custom status, and drops it at its expiry with nothing running', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+
+    await h.engine.setCustomStatus(socket, {
+      text: 'Lunch',
+      emoji: '🥪',
+      expiresAt: new Date(Date.now() + 40).toISOString(),
+    })
+    expect((await h.engine.snapshot(socket)).people[0]?.custom?.text).toBe('Lunch')
+
+    await new Promise((resolve) => setTimeout(resolve, 60))
+
+    // Nothing swept it. It is gone because somebody read it.
+    expect((await h.engine.snapshot(socket)).people[0]?.custom).toBeUndefined()
+  })
+
+  it('refuses a custom status with no words, and one that is far too long', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+
+    expect((await h.engine.setCustomStatus(socket, { text: '   ' })).ok).toBe(false)
+    expect((await h.engine.setCustomStatus(socket, { text: 'x'.repeat(200) })).ok).toBe(false)
+  })
+
+  it('refuses a status that is not one of the three', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    const result = await h.engine.setManualStatus(socket, 'asleep' as never)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe(Refusal.MALFORMED)
   })
 })

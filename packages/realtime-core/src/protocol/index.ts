@@ -1,4 +1,9 @@
-import type { DeviceKind } from '@unityevolv/ofiskit-presence-store'
+import type {
+  CustomStatus,
+  DeviceKind,
+  ManualStatus,
+  Status,
+} from '@unityevolv/ofiskit-presence-store'
 import type { ErrorEnvelope } from '@unityevolv/ofiskit-template'
 
 /**
@@ -15,7 +20,7 @@ import type { ErrorEnvelope } from '@unityevolv/ofiskit-template'
  * indistinguishable from a message that went missing.
  */
 
-export type { DeviceKind }
+export type { CustomStatus, DeviceKind, ManualStatus, Status }
 
 /**
  * A person as everyone else sees them.
@@ -39,12 +44,15 @@ export interface PublicPresence {
    */
   devices: Array<{ deviceId: string; kind: DeviceKind }>
   /**
-   * Their last device dropped and they have not come back yet.
+   * Already resolved, so clients render it rather than working it out again.
    *
-   * Shown on the person rather than as a leave, so a laptop sleeping for ten
-   * seconds does not make somebody vanish from a room and reappear in it.
+   * This replaces the `reconnecting` flag the disconnect story added:
+   * reconnecting is one of the values a status can have, and two fields that
+   * can disagree about the same thing is one field too many.
    */
-  reconnecting: boolean
+  status: Status
+  /** Absent once it has expired, because expiry is checked as it is read. */
+  custom?: CustomStatus
   /** When they arrived in this room. Avatars are ordered by it, so they hold still. */
   arrivedAt: string
 }
@@ -66,6 +74,29 @@ export interface OfficeSnapshot {
 
 export interface MoveRequest {
   roomId: string
+}
+
+export interface StatusRequest {
+  /** null puts the person back on automatic. */
+  manual: ManualStatus | null
+}
+
+export interface CustomStatusRequest {
+  /**
+   * null clears it.
+   *
+   * `expiresAt` is an absolute instant worked out by the client, because where
+   * "today" and "this week" land depends on the viewer's time zone and the
+   * server never computes a date in anybody's zone.
+   */
+  custom: CustomStatus | null
+}
+
+/** One device's own signals. Never a conclusion about the person. */
+export interface ActivityRequest {
+  idle: boolean
+  /** Mobile only; ignored elsewhere. */
+  foreground: boolean
 }
 
 /** What a client sends to say who it is. */
@@ -103,6 +134,9 @@ export interface ClientEvents {
   'office:leave': (ack: (result: Ack) => void) => void
   'room:join': (request: MoveRequest, ack: (result: Ack) => void) => void
   'room:leave': (ack: (result: Ack) => void) => void
+  'status:manual': (request: StatusRequest, ack: (result: Ack) => void) => void
+  'status:custom': (request: CustomStatusRequest, ack: (result: Ack) => void) => void
+  'device:activity': (request: ActivityRequest) => void
   /** A refreshed credential, over the socket that is already open. */
   'auth:refresh': (request: { credentials: unknown }, ack: (result: Ack) => void) => void
   heartbeat: (ack: (result: Ack) => void) => void
