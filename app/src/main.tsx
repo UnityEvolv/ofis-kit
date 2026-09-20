@@ -1,3 +1,4 @@
+import { ThemeProvider } from '@unityevolv/ofiskit-ui-map'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
@@ -8,10 +9,18 @@ import './styles.css'
  *
  * One office and nothing else: no header, no navigation, no product identity.
  * The map fills the window and the controls bar sits at the bottom. All of that
- * arrives with the stories that build it; this is the entry point, so the
- * directory is real and the workspace builds.
+ * arrives with the stories that build it; what is here is the entry point and
+ * the theme, which every unitykit component follows.
  */
 const root = document.getElementById('root')
 if (!root) throw new Error('The page has no #root to mount into.')
 
-createRoot(root).render(<StrictMode />)
+createRoot(root).render(
+  <StrictMode>
+    <ThemeProvider>
+      <main className="grid h-full place-items-center bg-base-100 text-base-content">
+        <p className="text-sm opacity-70">The office goes here.</p>
+      </main>
+    </ThemeProvider>
+  </StrictMode>,
+)

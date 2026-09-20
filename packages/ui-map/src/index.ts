@@ -1,8 +1,12 @@
 /**
- * @unityevolv/ofiskit-ui-map
+ * The office you can see.
  *
- * The package exists here so that the workspace is complete and every story
- * after this one has a known place to land. Its contents arrive with the story
- * that owns them.
+ * React DOM, built on unitykit, and deliberately not platform-agnostic: this is
+ * the package that holds the web-only half, so everything below it can run on a
+ * phone. Its components arrive with the stories that build them.
+ *
+ * Nothing here chooses a colour. Every surface is a kit component with a
+ * theme-aware background, because the office background is whatever an author
+ * generated and nothing legible can be guaranteed on top of it.
  */
-export {}
+export { ThemeProvider, useTheme, type Theme, type ThemeChoice } from './theme.js'

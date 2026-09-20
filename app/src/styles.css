@@ -1,14 +1,60 @@
 /*
  * The one stylesheet.
  *
- * Tailwind only, for now. Wiring unitykit into it — the theme, the tokens and
- * the source directives that make the kit's classes actually generate CSS — is
- * its own story, and the part most likely to go wrong.
+ * The @source line is the single most important thing in this file and the most
+ * likely thing to go wrong in the whole setup. Tailwind does not scan
+ * node_modules when it looks for class names, so without it every kit component
+ * renders completely unstyled — with no error, no warning and nothing in the
+ * console. It looks like the components are broken. They are not; the CSS for
+ * their classes was simply never generated.
  */
 @import "tailwindcss";
+@import "@unityevolv/unitykit/theme.css";
+
+/*
+ * Three sources, and the paths are load-bearing.
+ *
+ * npm hoists workspace packages to the repository root, so these are NOT under
+ * app/node_modules — a path that looks right and resolves to nothing produces
+ * exactly the silent failure above: components render with their class names in
+ * the markup and no CSS behind them.
+ *
+ * The two ofiskit packages are sourced from `src` rather than `dist` on
+ * purpose. Same class names, and it works before the packages have been built,
+ * so a fresh clone does not get an unstyled office the first time.
+ */
+@source "../../node_modules/@unityevolv/unitykit/dist";
+@source "../../packages/ui-map/src";
+@source "../../packages/ui-builder/src";
+
+/* theme.css already carries the raw brand tokens, so tokens.css would be a
+   second copy of the same custom properties. */
 
 html,
 body,
 #root {
   height: 100%;
+}
+
+/* Visually hidden, but still announced. Used by the live regions. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
