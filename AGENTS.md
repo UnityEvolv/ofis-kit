@@ -93,9 +93,70 @@ import cannot quietly double the app.
 
 ## Conventions
 
-The decisions every part of this repository would otherwise make differently —
-ids, timestamps, the error envelope, dates and time zones, hostnames, logging
-and the code style — are made once and written down here by UO-166.
+### Names and shapes on the wire
+
+- **IDs are UUIDv7**: time-ordered, so they sort and index well, and opaque, so
+  nothing is guessable. `newId()` in `realtime-core` is the only place they are
+  made.
+- **Timestamps are ISO 8601 in UTC with the zone explicit.** The server never
+  formats a date for a person to read. The client formats, in the viewer's zone.
+- **One error envelope**, for HTTP and for socket refusals alike: a stable
+  machine `code`, a `message` safe to show, and an optional `fields` map for
+  validation errors. Codes are documented and permanent; messages are for people
+  and are never parsed.
+- **Pagination is cursor-based** with a page size cap, never offset, so a list
+  stays correct while rows arrive.
+- **Every create accepts an idempotency key** and returns the same result for a
+  retry with the same key. A retried network call must never make a second
+  anything.
+- **Versioning by URL prefix** (`/v1/...`). A breaking change is a new version,
+  never a quiet one.
+- **snake_case in JSON**, plural resource names, verbs only for actions that are
+  not CRUD. Socket event names are `noun:verb` in lower case (`room:knock`).
+
+### Dates and time zones
+
+- Instants travel as ISO 8601 with the zone explicit and are compared in UTC.
+  Retention and expiry checks never depend on anyone's zone.
+- Date-only values stay dates, with the zone they are read in named alongside.
+  Never midnight-in-some-zone standing in for a day.
+- Time zones are IANA names (`Asia/Kolkata`), never offsets, so a schedule set in
+  March still fires at the right hour in November.
+- This repo has one zone that matters: the viewer's, taken from the browser. The
+  org zone and the schedules that use it are the wrapper's.
+
+### Hostnames and URLs
+
+No hostname, origin or absolute product URL is ever a literal. Every one comes
+from configuration derived from a single base hostname, and every link the
+product emits is built by the one URL helper from that configuration. A default
+belongs in the config module, which is the one place the lint rule is relaxed.
+
+### Data
+
+- Nothing here is persisted, so there is no soft delete to get wrong. In the
+  wrapper: soft delete only where a record must stay referenceable, hard delete
+  for everything transient.
+- **No personal data in logs, ever.** User IDs are fine and are what you want
+  when reading a log anyway. Display names, emails and photo URLs are not.
+- Money is integer minor units with a currency code, never a float. Nothing here
+  charges anyone; the rule is written down so the wrapper inherits it.
+
+### Code
+
+- **TypeScript strict**, in every package. `noUncheckedIndexedAccess` is on, so
+  an array read is `T | undefined` and you handle it.
+- **No `any` without a comment saying why.** `no-explicit-any` is an error, so
+  the only way past it is a disable comment, which is the comment.
+- `import type` for types, so the build erases them and a type import can never
+  drag a runtime dependency along.
+- Errors carry context and are never swallowed. Anything doing I/O takes a
+  timeout or an abort signal.
+- Tests live beside the code they test. A story is not done without them.
+- Commits are conventional (`feat:`, `fix:`, `docs:`, `chore:`), so the changelog
+  writes itself. A user-visible change to a published package needs a changeset:
+  `npm run changeset`.
+- Pull requests are small, name their story, and pass every check before review.
 
 ### Generated files
 
