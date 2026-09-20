@@ -81,5 +81,11 @@ jobs:
       - name: The boundary rules fail on the mistakes they catch
         run: npx vitest run tools/eslint-plugin-ofiskit/rules.test.js
 
+      # The engine carries no identity of its own, and this is the rule most
+      # likely to be broken with good intentions: a missing favicon looks like
+      # an oversight rather than a decision.
+      - name: No branding in the engine
+        run: npm run no-branding
+
       - name: No secret is available to this workflow
         run: node .github/scripts/assert-no-secrets.mjs
