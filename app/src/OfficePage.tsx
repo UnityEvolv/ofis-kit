@@ -1,7 +1,9 @@
 import { Button, Icon, Select } from '@unityevolv/unitykit'
-import type { OfisClient } from '@unityevolv/ofiskit-realtime-client'
+import type { DeviceChoice, OfisClient } from '@unityevolv/ofiskit-realtime-client'
 import { statusIsChosen, you as yourPresence, yourRoom } from '@unityevolv/ofiskit-realtime-client'
 import {
+  CallAudio,
+  DevicePanel,
   KnockDock,
   OfficeMap,
   OutgoingKnock,
@@ -18,7 +20,7 @@ import {
 } from '@unityevolv/ofiskit-ui-map'
 import { tilePlacement } from '@unityevolv/ofiskit-ui-map'
 import { hostsCalls, type Template } from '@unityevolv/ofiskit-template'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 
 import { officeImageUrl } from './config.js'
 import { useKnocks } from './useKnocks.js'
@@ -48,6 +50,15 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   const announce = useAnnounce()
   const { choice, setChoice } = useTheme()
   const [view, setView] = usePersisted<OfficeView>('ofiskit:view', 'map')
+  const [pickingDevices, setPickingDevices] = useState(false)
+  /**
+   * The chosen microphone, camera and speaker, remembered.
+   *
+   * Per device rather than per person: somebody with a USB headset on their desk
+   * should not pick it again every morning, and the headset is a property of the
+   * desk rather than of them.
+   */
+  const [devices, setDevices] = usePersisted<DeviceChoice>('ofiskit:devices', {})
 
   const roomId = yourRoom(state)
   const room = template.rooms.find((one) => one.id === roomId)
@@ -170,6 +181,30 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
             <Icon name="chevron-left" size="sm" /> Back to {reception.name}
           </Button>
         )}
+
+        {/*
+          The device picker, reachable whether or not a call is running.
+
+          Before a call it is the pre-join preview: a camera and a level meter, so
+          nobody joins with the wrong device or a dead microphone. During one it
+          swaps the device in place, because changing a headset mid-call should not
+          interrupt the conversation.
+        */}
+        <Button size="sm" variant="ghost" onClick={() => setPickingDevices(true)}>
+          <Icon name="settings" size="sm" /> Devices
+        </Button>
+
+        {/* The voices. A stream nothing is attached to is a stream nobody hears. */}
+        <CallAudio client={client} {...(devices.speakerDeviceId ? { speakerDeviceId: devices.speakerDeviceId } : {})} />
+
+        <DevicePanel
+          open={pickingDevices}
+          onClose={() => setPickingDevices(false)}
+          choice={devices}
+          onChoose={setDevices}
+          onApply={(choice) => void client.rtc.useDevices(choice)}
+          preview
+        />
 
         {/*
           The smallest thing that lets the provider be used at all.
