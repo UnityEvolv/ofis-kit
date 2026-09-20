@@ -240,6 +240,15 @@ function bind(socket: Socket, engine: OfficeEngine, officeId: string, logger: Lo
       roundTripMs: Number(request?.roundTripMs) || 0,
     })
   })
+  // The signalling relay. The core reads the address and nothing else.
+  socket.on('signal', (message) => {
+    void engine.signal(id, {
+      to: String(message?.to ?? ''),
+      type: message?.type,
+      payload: message?.payload,
+    })
+  })
+
   socket.on('call:failed', (request) => {
     void engine.reportCallFailure(id, String(request?.reason ?? 'unknown'))
   })

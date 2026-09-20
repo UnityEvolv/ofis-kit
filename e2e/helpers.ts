@@ -16,9 +16,20 @@ export interface Person {
 }
 
 /** Open a browser as somebody, walk in, and wait until the office is drawn. */
-export async function walkIn(browser: Browser, name: string): Promise<Person> {
+export async function walkIn(
+  browser: Browser,
+  name: string,
+  /**
+   * Something to do to the page before it loads.
+   *
+   * The call test uses it to watch every peer connection the page makes, which has
+   * to be installed before the app's own script runs.
+   */
+  options: { before?: (page: Page) => Promise<void> } = {},
+): Promise<Person> {
   const context = await browser.newContext({ permissions: ['microphone', 'camera'] })
   const page = await context.newPage()
+  await options.before?.(page)
 
   await page.goto('/')
   await page.getByLabel('Email').fill(`${name.toLowerCase()}@example.com`)

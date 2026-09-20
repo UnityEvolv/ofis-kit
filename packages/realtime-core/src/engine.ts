@@ -38,6 +38,7 @@ import {
   type MediaStateRequest,
   type OfficeSnapshot,
   type PublicPresence,
+  type SignalMessage,
   type Refused,
 } from './protocol/index.js'
 import type { Transport } from './transport.js'
@@ -1047,6 +1048,47 @@ export class OfficeEngine {
       relayed: Boolean(sample?.relayed),
       packetLoss: Number(sample?.packetLoss) || 0,
       roundTripMs: Number(sample?.roundTripMs) || 0,
+    })
+  }
+
+  /**
+   * Relay one signalling message between two legs of a call.
+   *
+   * The core reads the address and nothing else. It never sees a byte of media,
+   * and it does not look inside the payload — which is what keeps the built-in
+   * provider cheap enough to be the free tier.
+   *
+   * **Scoped to the call**, which is the security of the whole arrangement: a
+   * message addressed to a device that is not in the sender's own call goes
+   * nowhere, so nothing crosses between rooms and an offer cannot be sent to
+   * somebody who is not in a conversation with you.
+   */
+  async signal(connectionId: string, message: SignalMessage): Promise<void> {
+    const connection = this.#connections.get(connectionId)
+    if (!connection?.identity || !connection.officeId) return
+
+    const presence = await this.#store.get(connection.officeId, connection.identity.id)
+    if (!presence) return
+
+    const call = this.#calls.get(connection.officeId, presence.roomId)
+    const to = String(message?.to ?? '')
+    // Both ends have to be in this call: the sender, because otherwise anybody in
+    // the office could signal into a conversation, and the recipient, because
+    // otherwise the address is a way to reach an arbitrary socket.
+    if (!call || !call.legs.has(connection.deviceId) || !call.legs.has(to)) return
+
+    const target = [...this.#connections.values()].find(
+      (candidate) => candidate.deviceId === to && candidate.officeId === connection.officeId,
+    )
+    if (!target) return
+
+    this.#transport.toConnection(target.connectionId, 'signal', {
+      // Filled in here rather than trusted from the sender, so nobody can claim
+      // to be somebody else's camera.
+      from: connection.deviceId,
+      to,
+      type: message.type,
+      payload: message.payload,
     })
   }
 

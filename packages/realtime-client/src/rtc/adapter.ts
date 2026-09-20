@@ -1,4 +1,4 @@
-import type { IceServer } from '@unityevolv/ofiskit-realtime-core/protocol'
+import type { IceServer, SignalMessage } from '@unityevolv/ofiskit-realtime-core/protocol'
 
 /**
  * The RTC provider interface, client half.
@@ -72,8 +72,8 @@ export interface JoinOptions {
  * our socket; an external one would not need this at all.
  */
 export interface Signaller {
-  send(message: unknown): void
-  receive(handler: (message: unknown) => void): () => void
+  send(message: SignalMessage): void
+  receive(handler: (message: SignalMessage & { from: string }) => void): () => void
 }
 
 export interface RtcClientAdapter {

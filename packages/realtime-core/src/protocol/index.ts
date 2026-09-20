@@ -220,6 +220,25 @@ export interface CallJoinResponse {
   note?: 'moved' | 'added'
 }
 
+/**
+ * One signalling message, relayed between two legs of a call.
+ *
+ * Addressed by **device**, not by person: a mesh connects screens to each other,
+ * and somebody with a laptop and a phone in the same call is two peers.
+ *
+ * The core reads `to` and nothing else. The payload is an opaque SDP or ICE
+ * candidate, and the core never looks inside it — which is what makes it cheap
+ * enough to be the free tier, and the reason it can carry a future provider's
+ * signalling without knowing what that provider says.
+ */
+export interface SignalMessage {
+  to: string
+  /** Filled in by the server on the way out, so nobody can claim to be somebody. */
+  from?: string
+  type: 'offer' | 'answer' | 'candidate'
+  payload: unknown
+}
+
 /** What one device is publishing. Reported by the adapter, after it actually did it. */
 export interface MediaStateRequest {
   muted: boolean
@@ -321,6 +340,7 @@ export interface ClientEvents {
   /** No acknowledgement: these arrive constantly and nobody waits on them. */
   'call:media': (request: MediaStateRequest) => void
   'call:speaking': (request: SpeakingRequest) => void
+  signal: (message: SignalMessage) => void
   'call:quality': (request: {
     peerDeviceId: string
     relayed: boolean
@@ -347,6 +367,8 @@ export interface ServerEvents {
    * somebody has lost track, and the server cannot know that.
    */
   'office:diff': (diff: OfficeDiff) => void
+  /** A signalling message from another leg, with `from` filled in by the server. */
+  signal: (message: SignalMessage & { from: string }) => void
   /**
    * Somebody is knocking.
    *

@@ -1,10 +1,12 @@
 import type {
   Ack,
+  CallJoinResponse,
   CustomStatus,
   DeviceKind,
   ManualStatus,
   OfficeDiff,
   OfficeSnapshot,
+  SignalMessage,
 } from '@unityevolv/ofiskit-realtime-core/protocol'
 import { io, type Socket } from 'socket.io-client'
 
@@ -15,6 +17,8 @@ import {
   fromSnapshot,
   type OfficeState,
 } from './office-state.js'
+import type { RtcClientAdapter, RtcEvent, Signaller } from './rtc/adapter.js'
+import { meshAdapter } from './rtc/mesh.js'
 
 /**
  * The office, on the client.
@@ -48,6 +52,8 @@ export type ClientEvent =
   | { type: 'refused'; action: string; code: string; message: string }
   | { type: 'status'; status: ConnectionStatus }
   | { type: 'closed'; code: string; message: string }
+  /** Everything the provider's client half reports, in one shape. */
+  | { type: 'rtc'; event: RtcEvent }
 
 /**
  * The little of Socket.IO this client actually uses.
@@ -76,6 +82,14 @@ export interface OfisClientOptions {
   kind?: DeviceKind
   /** How often to tell the server we are still here. */
   heartbeatMs?: number
+  /**
+   * The provider's client half.
+   *
+   * The built-in mesh unless a host swaps it, which is the other half of what
+   * makes a provider replaceable: a plugin on the server and an adapter here, and
+   * no UI change between them.
+   */
+  rtc?: (signaller: Signaller) => RtcClientAdapter
   /**
    * How to open the socket. Socket.IO unless somebody says otherwise.
    *
@@ -110,6 +124,23 @@ export interface OfisClient {
   setCustomStatus(custom: CustomStatus | null): Promise<Ack>
   /** One device's own signals. Never a conclusion about the person. */
   setActivity(activity: { idle: boolean; foreground: boolean }): void
+
+  /**
+   * Join the call in your room, and start publishing.
+   *
+   * Two things in one, deliberately: the server's answer carries the credentials
+   * and the participant list the adapter needs, and a caller that had to sequence
+   * them itself would be a caller that could get the order wrong.
+   */
+  joinCall(options: {
+    audio: boolean
+    video: boolean
+    secondDevice?: 'move' | 'add'
+  }): Promise<Ack<{ call: CallJoinResponse }>>
+  leaveCall(): Promise<Ack>
+
+  /** The provider's client half. What the controls bar and the tiles talk to. */
+  rtc: RtcClientAdapter
 }
 
 /** Socket.IO, which is what every real deployment uses. */
@@ -229,6 +260,63 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
   )
 
   socket.on('template:changed', () => emit({ type: 'template.changed' }))
+
+  /**
+   * How the adapter reaches the other legs.
+   *
+   * Over the socket that is already open, which is the whole of the built-in
+   * provider's signalling. An external provider's adapter would not use this at
+   * all — it would talk to its own servers, and our socket would carry only call
+   * state.
+   */
+  const signaller: Signaller = {
+    send(message) {
+      socket.emit('signal', message)
+    },
+    receive(handler) {
+      const wrapped = (message: SignalMessage & { from: string }) => handler(message)
+      socket.on('signal', wrapped as (...args: never[]) => void)
+      return () => socket.off('signal', wrapped as (...args: never[]) => void)
+    },
+  }
+
+  const rtc = (options.rtc ?? meshAdapter)(signaller)
+
+  /*
+   * The adapter's events are the only thing the UI hears about the call — and
+   * three of them have to reach the server as well.
+   *
+   * Speaking drives the indicators for everybody else, so it cannot stay local.
+   * Media state is reported *after* the adapter did it, so a camera that failed to
+   * start never shows as on. Quality feeds the host's usage hook, and the relayed
+   * flag in it is the number that costs money.
+   */
+  rtc.on((event) => {
+    if (event.type === 'speaking') {
+      socket.emit('call:speaking', { speaking: event.speaking })
+    }
+    if (event.type === 'state') {
+      socket.emit('call:media', {
+        muted: event.muted,
+        cameraOn: event.cameraOn,
+        sharing: event.sharing,
+      })
+    }
+    if (event.type === 'quality') {
+      socket.emit('call:quality', {
+        peerDeviceId: event.deviceId,
+        relayed: event.relayed,
+        packetLoss: event.packetLoss,
+        roundTripMs: event.roundTripMs,
+      })
+    }
+    // A call that could not connect at all, reported once so a host can see how
+    // often its network requirements are the problem.
+    if (event.type === 'failed' && !event.deviceId) {
+      socket.emit('call:failed', { reason: event.reason })
+    }
+    emit({ type: 'rtc', event })
+  })
 
   socket.on('disconnected', (reason: { code: string; message: string }) => {
     // Told why, rather than just going quiet. The client stops retrying, because
@@ -367,5 +455,36 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
       // No acknowledgement: these arrive constantly and nobody waits on them.
       socket.emit('device:activity', activity)
     },
+
+    async joinCall(wanted) {
+      const result = await ask<{ call: CallJoinResponse }>('call:join', wanted)
+      if (!result.ok) {
+        emit({ type: 'refused', action: 'call:join', code: result.code, message: result.message })
+        return result
+      }
+
+      // The server's answer first, then the media. The other order would mean
+      // publishing to a call that might refuse us.
+      await rtc.join({
+        callId: result.call.call.roomId,
+        deviceId: state.you.deviceId || options.deviceId,
+        credentials: result.call.credentials,
+        iceServers: result.call.iceServers,
+        participants: result.call.participants,
+        audio: wanted.audio,
+        video: wanted.video,
+      })
+
+      return result
+    },
+
+    async leaveCall() {
+      // The media first: tearing down locally before telling the server means
+      // nobody is left looking at a tile for a camera that has already stopped.
+      await rtc.leave()
+      return ask('call:leave')
+    },
+
+    rtc,
   }
 }
