@@ -3,6 +3,7 @@ import type { DeviceChoice, OfisClient } from '@unityevolv/ofiskit-realtime-clie
 import { statusIsChosen, you as yourPresence, yourRoom } from '@unityevolv/ofiskit-realtime-client'
 import {
   CallAudio,
+  CallControls,
   DevicePanel,
   KnockDock,
   OfficeMap,
@@ -23,6 +24,7 @@ import { hostsCalls, type Template } from '@unityevolv/ofiskit-template'
 import { useCallback, useState } from 'react'
 
 import { officeImageUrl } from './config.js'
+import { useCallControls } from './useCallControls.js'
 import { useKnocks } from './useKnocks.js'
 
 /**
@@ -65,15 +67,16 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   const reception = template.rooms.find((one) => one.type === 'reception')
   const tiles = tilePlacement(template.canvas)
 
-  /*
-   * Whether this device is in the room's call.
+  /**
+   * Everything the bar does when it is pressed.
    *
-   * Per device, not per person: somebody in the room from a laptop and a phone may
-   * have only one of them in the conversation.
+   * Held here rather than in the bar, because pressing the microphone when you are
+   * not in a call is a different act from pressing it when you are, and that rule
+   * belongs in one place.
    */
-  const inCall = Boolean(
-    yourPresence(state)?.devices.find((device) => device.deviceId === state.you.deviceId)?.inCall,
-  )
+  const call = useCallControls(client, state, {
+    available: Boolean(room && hostsCalls(room.type)),
+  })
 
   /*
    * This device's own signals, suspended while in a call.
@@ -81,7 +84,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
    * Somebody listening is not idle even though they have not touched anything for
    * twenty minutes, and the server would resolve them as away.
    */
-  useIdleReporting(client, { enabled: !inCall })
+  useIdleReporting(client, { enabled: !call.inCall })
 
   /**
    * A refusal is said out loud, not only drawn.
@@ -143,7 +146,30 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
           else was about to click.
         */}
         <main className="relative min-h-0 min-w-0 flex-1">
-          {view === 'map' ? <OfficeMap {...props} /> : <RoomListView {...props} />}
+          {/*
+            Call view drops the map and gives the whole space to the call.
+
+            The office is still there and still being kept up to date — this is a
+            different view of the same state rather than a different place, which is
+            why the toggle brings it back instantly and why a knock still arrives.
+            The tiles themselves land with their own story; what is here is the
+            space they fill.
+          */}
+          {call.callView ? (
+            <section
+              aria-label="Call"
+              data-testid="call-view"
+              className="grid h-full w-full place-items-center bg-base-300 p-4"
+            >
+              <p className="text-sm text-base-content/70">
+                The call fills this space. Press the call view button to bring the office back.
+              </p>
+            </section>
+          ) : view === 'map' ? (
+            <OfficeMap {...props} />
+          ) : (
+            <RoomListView {...props} />
+          )}
 
           <KnockDock knocks={knocks.incoming} onAdmit={knocks.admit} onDecline={knocks.decline} />
 
@@ -162,113 +188,101 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
       </div>
 
       {/*
-        The controls bar. The call half of it arrives with the call stories; what
-        is here is everything that is about the office rather than about a call.
+        The controls bar, and the only chrome in this app.
+        
+        The bar is always there; the *call* controls come and go, because reception
+        and the break room never have calls. What surrounds them is everything about
+        the office rather than about a call, in the slots the component leaves for a
+        host — which is how the same bar sits inside unityofis's app shell.
       */}
-      <footer className="flex flex-wrap items-center gap-2 border-t border-base-300 bg-base-100 px-3 py-2">
-        <span className="text-sm">
-          {room ? (
-            <>
-              You are in <span className="font-medium">{room.name}</span>
-            </>
-          ) : (
-            'Finding your desk…'
-          )}
-        </span>
+      <CallControls
+        available={call.available}
+        inCall={call.inCall}
+        muted={call.muted}
+        cameraOn={call.cameraOn}
+        sharing={call.sharing}
+        callView={call.callView}
+        call={call.call}
+        onToggleMic={call.toggleMic}
+        onToggleCamera={call.toggleCamera}
+        onToggleShare={call.toggleShare}
+        onToggleCallView={() => call.setCallView(!call.callView)}
+        onLeaveCall={call.leaveCall}
+        onOpenDevices={() => setPickingDevices(true)}
+        leading={
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="truncate text-sm">
+              {room ? (
+                <>
+                  You are in <span className="font-medium">{room.name}</span>
+                </>
+              ) : (
+                'Finding your desk…'
+              )}
+            </span>
 
-        {room && reception && room.id !== reception.id && (
-          <Button size="sm" variant="ghost" onClick={() => void client.leaveRoom()}>
-            <Icon name="chevron-left" size="sm" /> Back to {reception.name}
-          </Button>
-        )}
+            {room && reception && room.id !== reception.id && (
+              <Button size="sm" variant="ghost" onClick={() => void client.leaveRoom()}>
+                <Icon name="chevron-left" size="sm" /> Back to {reception.name}
+              </Button>
+            )}
+          </div>
+        }
+        trailing={
+          <div className="flex items-center gap-1">
+            {/*
+              In the bar, because this app has no header. unityofis puts the same
+              component in the app shell's header and adds its org presets — which
+              is the whole of the difference.
+            */}
+            <StatusControl
+              you={yourPresence(state)}
+              chosen={statusIsChosen(state)}
+              fromBreakRoom={!statusIsChosen(state) && room?.type === 'break'}
+              onSetStatus={(manual) => void client.setStatus(manual)}
+              onSetCustom={(custom) => void client.setCustomStatus(custom)}
+            />
 
-        {/*
-          The device picker, reachable whether or not a call is running.
+            <ViewToggle view={view} onChange={setView} />
 
-          Before a call it is the pre-join preview: a camera and a level meter, so
-          nobody joins with the wrong device or a dead microphone. During one it
-          swaps the device in place, because changing a headset mid-call should not
-          interrupt the conversation.
-        */}
-        <Button size="sm" variant="ghost" onClick={() => setPickingDevices(true)}>
-          <Icon name="settings" size="sm" /> Devices
-        </Button>
+            {/*
+              Theme is per person, so two people in the same room may be looking at
+              different background images over identical geometry.
+            */}
+            <Select
+              // Named for assistive technology without a visible label, because the
+              // three options say what it is and a bar is not the place for a
+              // heading over a control that is two words wide.
+              aria-label="Theme"
+              value={choice}
+              onChange={(event) => setChoice(event.target.value as typeof choice)}
+            >
+              <option value="system">System theme</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </Select>
 
-        {/* The voices. A stream nothing is attached to is a stream nobody hears. */}
-        <CallAudio client={client} {...(devices.speakerDeviceId ? { speakerDeviceId: devices.speakerDeviceId } : {})} />
+            <Button size="sm" variant="ghost" onClick={onLeave}>
+              <Icon name="log-out" size="sm" /> Leave
+            </Button>
+          </div>
+        }
+      />
 
-        <DevicePanel
-          open={pickingDevices}
-          onClose={() => setPickingDevices(false)}
-          choice={devices}
-          onChoose={setDevices}
-          onApply={(choice) => void client.rtc.useDevices(choice)}
-          preview
-        />
+      {/* The voices. A stream nothing is attached to is a stream nobody hears. */}
+      <CallAudio
+        client={client}
+        {...(devices.speakerDeviceId ? { speakerDeviceId: devices.speakerDeviceId } : {})}
+      />
 
-        {/*
-          The smallest thing that lets the provider be used at all.
-
-          A provider with no way to start a call cannot be shown to work, and the
-          call controls story replaces this with the real bar — device pickers,
-          camera, screen share, the lot. What is here is a microphone, because
-          pressing it is the act that joins a call.
-        */}
-        {room && hostsCalls(room.type) && (
-          <Button
-            size="sm"
-            variant={inCall ? 'primary' : 'ghost'}
-            onClick={() => {
-              void (inCall
-                ? client.leaveCall()
-                : client.joinCall({ audio: true, video: false }).then((result) => {
-                    if (!result.ok) announce(result.message, 'assertive')
-                  }))
-            }}
-          >
-            <Icon name={inCall ? 'leave-call' : 'mic'} size="sm" />
-            {inCall ? 'Leave call' : 'Join call'}
-          </Button>
-        )}
-
-        <div className="ml-auto flex items-center gap-2">
-          {/*
-            In the controls bar, because this app has no header. unityofis puts
-            the same component in the app shell's header and adds its org presets
-            — which is the whole of the difference.
-          */}
-          <StatusControl
-            you={yourPresence(state)}
-            chosen={statusIsChosen(state)}
-            fromBreakRoom={!statusIsChosen(state) && room?.type === 'break'}
-            onSetStatus={(manual) => void client.setStatus(manual)}
-            onSetCustom={(custom) => void client.setCustomStatus(custom)}
-          />
-
-          <ViewToggle view={view} onChange={setView} />
-
-          {/*
-            Theme is per person, so two people in the same room may be looking at
-            different background images over identical geometry.
-          */}
-          <Select
-            // Named for assistive technology without a visible label, because the
-            // three options say what it is and a footer is not the place for a
-            // heading over a control that is two words wide.
-            aria-label="Theme"
-            value={choice}
-            onChange={(event) => setChoice(event.target.value as typeof choice)}
-          >
-            <option value="system">System theme</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </Select>
-
-          <Button size="sm" variant="ghost" onClick={onLeave}>
-            <Icon name="log-out" size="sm" /> Leave
-          </Button>
-        </div>
-      </footer>
+      <DevicePanel
+        open={pickingDevices}
+        onClose={() => setPickingDevices(false)}
+        choice={devices}
+        onChoose={setDevices}
+        onApply={(choice) => void client.rtc.useDevices(choice)}
+        preview
+      />
     </div>
   )
 }
