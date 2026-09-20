@@ -1,6 +1,8 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { hasTurn } from '@unityevolv/ofiskit-realtime-core'
+
 /**
  * Everything this process needs to know, read from the environment once.
  *
@@ -63,6 +65,22 @@ export interface Config {
   allowedOrigins: string[]
 
   /**
+   * The relay, which is what makes calls work on a corporate network.
+   *
+   * All three are configuration. The URLs are addresses a **browser** has to be
+   * able to reach, which is not the same as an address this process can reach, so
+   * they cannot be worked out here. Empty means no relay: calls still work
+   * between people on the same network, and the entry screen says so rather than
+   * letting somebody find out mid-call.
+   */
+  turn: {
+    secret: string
+    urls: string[]
+    stunUrls: string[]
+    ttlSeconds: number
+  }
+
+  /**
    * Public demo mode.
    *
    * Anyone with the link can walk in, so the ceiling and the limits exist to
@@ -96,6 +114,16 @@ export function loadConfig(): Config {
     graceMs: number('PRESENCE_GRACE_MS', 30_000),
     allowedOrigins: list('ALLOWED_ORIGINS'),
 
+    turn: {
+      // No default. A shared secret with a default value is a shared secret
+      // everybody has, and the compose file supplies one for a laptop where that
+      // is exactly as private as it needs to be.
+      secret: text('TURN_SECRET', ''),
+      urls: list('TURN_URLS'),
+      stunUrls: list('STUN_URLS'),
+      ttlSeconds: number('TURN_TTL_SECONDS', 12 * 60 * 60),
+    },
+
     demo: {
       enabled: text('DEMO', 'false') === 'true',
       maxPresent: process.env.MAX_PRESENT ? number('MAX_PRESENT', 40) : null,
@@ -115,5 +143,14 @@ export function publicConfig(config: Config) {
     officeId: config.officeId,
     socketPath: '/socket',
     demo: config.demo.enabled,
+    /**
+     * Whether a relay is configured.
+     *
+     * The entry screen says so when there is none, because "calls may not connect
+     * across a corporate firewall" is worth knowing before a call rather than
+     * during one. Never the secret, and never the URLs — the client is handed
+     * those, with a credential, only when it actually joins a call.
+     */
+    hasTurn: hasTurn(config.turn),
   }
 }

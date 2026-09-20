@@ -37,6 +37,16 @@ export { Broadcaster, DIFF_WINDOW_MS } from './broadcast.js'
  * call, presence or UI code.
  */
 export {
+  DEFAULT_TURN_TTL_SECONDS,
+  hasTurn,
+  iceServersFor,
+  mintTurnCredential,
+  verifyTurnCredential,
+  type TurnCredential,
+  type TurnOptions,
+} from './turn.js'
+
+export {
   CallRegistry,
   builtInProvider,
   type BuiltInProviderOptions,

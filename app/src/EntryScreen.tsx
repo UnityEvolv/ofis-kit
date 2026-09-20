@@ -14,10 +14,12 @@ export interface EntryScreenProps {
   onEnter(entry: { email: string; name: string }): Promise<string | null>
   /** True on the public demo, which anybody with the link can walk into. */
   demo: boolean
+  /** False when no relay is configured; calls then fail on strict networks. */
+  hasTurn: boolean
   initial?: { email: string; name: string } | null
 }
 
-export function EntryScreen({ onEnter, demo, initial }: EntryScreenProps) {
+export function EntryScreen({ onEnter, demo, hasTurn, initial }: EntryScreenProps) {
   const [email, setEmail] = useState(initial?.email ?? '')
   const [name, setName] = useState(initial?.name ?? '')
   const [problem, setProblem] = useState<string | null>(null)
@@ -69,6 +71,17 @@ export function EntryScreen({ onEnter, demo, initial }: EntryScreenProps) {
             {busy ? 'Opening the door…' : 'Walk in'}
           </Button>
         </form>
+
+        {/*
+          Said before a call rather than during one. A call that will not connect
+          is the worst thing to find out about while somebody is waiting.
+        */}
+        {!hasTurn && (
+          <p className="mt-4 text-xs text-base-content/60">
+            No relay server is configured. Calls will work between people on the same network, and
+            may not connect across a corporate firewall.
+          </p>
+        )}
 
         <p className="mt-6 text-center text-xs text-base-content/60">
           No accounts, no chat, no database. You land in reception.

@@ -180,7 +180,14 @@ function Office({ onBuilder }: { onBuilder(): void }) {
   }
 
   if (!entered) {
-    return <EntryScreen onEnter={enter} demo={config.demo} initial={remembered} />
+    return (
+      <EntryScreen
+        onEnter={enter}
+        demo={config.demo}
+        hasTurn={config.hasTurn}
+        initial={remembered}
+      />
+    )
   }
 
   return (

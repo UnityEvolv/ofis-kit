@@ -78,8 +78,22 @@ services:
       - --denied-peer-ip=192.168.0.0-192.168.255.255
       - --denied-peer-ip=169.254.0.0-169.254.255.255
       - --denied-peer-ip=127.0.0.0-127.255.255.255
-      # A small box carries a surprising amount of relayed audio; video is what
-      # costs. Sized for a free tier, and written down so it can be argued with.
+      # Sized for the free tier, and written down so it can be argued with.
+      #
+      # Relayed media crosses this server twice — in from the sender, out to the
+      # receiver — so a relayed stream costs twice its bitrate in egress. The
+      # numbers below are per-second ceilings in units of 1000 bits.
+      #
+      #   audio is ~32 kbit/s, so a relayed audio leg is ~64 kbit/s of egress
+      #   video at the 360p step is ~300 kbit/s, so a leg is ~600 kbit/s
+      #
+      # 1 Mbit/s per session and 12 sessions per user is enough for one person's
+      # four-way call with video and a share. 1200 in total is the ceiling that
+      # matters: about 100 concurrent relayed video legs, which on a 20 TB/month
+      # allowance is roughly 50 people in relayed video calls all day.
+      #
+      # Most legs never relay at all. This is the bill for the ones on networks
+      # that block everything else.
       - --max-bps=1000000
       - --user-quota=12
       - --total-quota=1200

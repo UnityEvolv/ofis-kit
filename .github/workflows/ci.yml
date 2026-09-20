@@ -89,3 +89,46 @@ jobs:
 
       - name: No secret is available to this workflow
         run: node .github/scripts/assert-no-secrets.mjs
+
+  relay:
+    name: The relay relays, and its credentials expire
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # A real coturn, started with a secret invented here. It is not a secret in
+    # the GitHub sense and must not be: this job runs on a fork's pull request
+    # like any other, and there is nothing in it worth having.
+    services:
+      coturn:
+        image: coturn/coturn:4.6-alpine
+        ports:
+          - 3478:3478/udp
+        options: >-
+          --entrypoint turnserver
+          --
+          --listening-port=3478
+          --listening-ip=0.0.0.0
+          --realm=ofiskit
+          --use-auth-secret
+          --static-auth-secret=ci-relay-secret
+          --fingerprint
+          --no-cli
+          --no-multicast-peers
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Speaks STUN and TURN on the wire, with no browser involved. The check
+      # worth having is the third one: an expired credential being refused, which
+      # is a claim rather than a fact until something has watched it happen.
+      - name: Synthetic relayed connection
+        run: npm run turn:check
+        env:
+          TURN_SECRET: ci-relay-secret
+          TURN_HOST: 127.0.0.1
+          TURN_PORT: 3478

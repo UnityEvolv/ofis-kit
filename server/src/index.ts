@@ -13,6 +13,7 @@ import {
   builtInProvider,
   createLogger,
   createRealtimeServer,
+  iceServersFor,
 } from '@unityevolv/ofiskit-realtime-core'
 
 import { loadConfig, publicConfig } from './config.js'
@@ -58,7 +59,22 @@ const realtime = createRealtimeServer({
    * because there is no server to record on, which is exactly why it is the free
    * tier. A host with an SFU passes its own plugin here and changes nothing else.
    */
-  provider: builtInProvider(),
+  provider: builtInProvider({
+    /*
+     * The relay, minted per call join.
+     *
+     * The provider asks for ICE servers rather than knowing about a relay, which
+     * is what keeps "what carries the media" and "how a client gets through a
+     * firewall" as two separate decisions — an SFU provider would supply its own
+     * and this line would be the only thing that changed.
+     *
+     * The identifier goes into the credential's username, so a relay log ties
+     * back to a call leg without this process keeping a table of who was issued
+     * what. There is no such table, because there is no database.
+     */
+    iceServersFor: (context) =>
+      iceServersFor(config.turn, `${context.callId}:${context.deviceId}`),
+  }),
   // No call hooks: there is no database to write a record to. unityofis binds
   // them and gets a record per call and per leg without the engine knowing.
 

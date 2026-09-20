@@ -15,6 +15,14 @@ export interface PublicConfig {
   socketPath: string
   /** True on the public demo, which says so on screen. */
   demo: boolean
+  /**
+   * False when no relay is configured.
+   *
+   * Worth knowing before a call rather than during one: without a relay, calls
+   * work between people on the same network and may not connect across a
+   * corporate firewall.
+   */
+  hasTurn: boolean
 }
 
 /** True in the Pages build, which has the builder but no office. */
