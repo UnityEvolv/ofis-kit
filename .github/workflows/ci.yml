@@ -89,3 +89,62 @@ jobs:
 
       - name: No secret is available to this workflow
         run: node .github/scripts/assert-no-secrets.mjs
+
+  relay:
+    name: The relay relays, and its credentials expire
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # `docker run` rather than a service container, because coturn is
+      # configured by command-line arguments and a service container has no way
+      # to pass any: its `options` go to `docker create` before the image name,
+      # so they are read as docker's own flags and the create fails outright.
+      #
+      # The secret is invented here and is not a secret in the GitHub sense — it
+      # must not be, because this job runs on a fork's pull request like every
+      # other one and there is nothing in it worth having.
+      - name: A real coturn
+        run: |
+          docker run -d --name coturn -p 3478:3478/udp coturn/coturn:4.6-alpine \
+            --listening-port=3478 \
+            --listening-ip=0.0.0.0 \
+            --realm=ofiskit \
+            --use-auth-secret \
+            --static-auth-secret=ci-relay-secret \
+            --fingerprint \
+            --no-cli \
+            --no-multicast-peers
+          # Relay ports take a moment to initialise, and a check that races them
+          # fails as "no answer" and reads as a broken relay.
+          ready=
+          for attempt in $(seq 1 20); do
+            if docker logs coturn 2>&1 | grep -q 'Relay ports initialization done'; then
+              ready=yes
+              break
+            fi
+            sleep 1
+          done
+          if [ -z "$ready" ]; then
+            echo 'coturn did not come up:'
+            docker logs coturn
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Speaks STUN and TURN on the wire, with no browser involved. The check
+      # worth having is the third one: an expired credential being refused, which
+      # is a claim rather than a fact until something has watched it happen.
+      - name: Synthetic relayed connection
+        run: npm run turn:check
+        env:
+          TURN_SECRET: ci-relay-secret
+          TURN_HOST: 127.0.0.1
+          TURN_PORT: 3478
