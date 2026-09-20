@@ -10,7 +10,7 @@ import { createTemplate, type Template } from '@unityevolv/ofiskit-template'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { OfficeEngine } from './engine.js'
-import { Refusal } from './protocol/index.js'
+import { Refusal, type OfficeChange, type OfficeDiff } from './protocol/index.js'
 import type { Transport } from './transport.js'
 
 const OFFICE = 'office'
@@ -52,12 +52,32 @@ function office(): Template {
   return createTemplate({ name: 'Test office', canvas: 'landscape', images: { light: 'o.webp' } })
 }
 
+/**
+ * The diffs the office was sent, in order.
+ *
+ * A helper rather than an assertion each time, because after this story every
+ * test that used to look for a full-state broadcast is looking at a diff, and
+ * reaching into the payload in forty places is how a test file rots.
+ */
+function diffs(sent: Recorder): OfficeDiff[] {
+  return sent.office
+    .filter((one) => one.event === 'office:diff')
+    .map((one) => one.payload as OfficeDiff)
+}
+
+/** Every change across every diff, flattened. */
+function changes(sent: Recorder): OfficeChange[] {
+  return diffs(sent).flatMap((diff) => diff.changes)
+}
+
 interface Harness {
   engine: OfficeEngine
   sent: Recorder
   store: MemoryPresenceStore
   template: Template
   events: ReturnType<typeof localEventBus>
+  /** Send whatever is pending now, so a test never waits out the window. */
+  flush(): Promise<void>
   enter(options: {
     name: string
     deviceId?: string
@@ -70,6 +90,14 @@ function harness(
   identity: IdentityAdapter = typedEmailIdentity(),
   roomCapacity?: (room: { id: string }) => number | null,
   graceMs?: number,
+  /**
+   * Long by default, so nothing goes out until a test says so.
+   *
+   * A test that wants to watch the window close passes a short one; everything
+   * else flushes by hand, which is the difference between an assertion and a
+   * race.
+   */
+  diffWindowMs = 10_000,
 ): Harness {
   const template = office()
   const store = new MemoryPresenceStore()
@@ -83,6 +111,7 @@ function harness(
     templates: staticTemplateSource(template),
     transport: sent,
     events,
+    diffWindowMs,
     ...(roomCapacity ? { roomCapacity } : {}),
     ...(graceMs === undefined ? {} : { graceMs }),
   })
@@ -95,6 +124,9 @@ function harness(
     store,
     template,
     events,
+    async flush() {
+      await engine.flush()
+    },
     async enter({ name, deviceId, kind = 'web', connectionId }) {
       counter += 1
       const id = connectionId ?? `socket-${counter}`
@@ -227,12 +259,18 @@ describe('leaving', () => {
   it('removes somebody on a clean exit and tells the office', async () => {
     const h = harness()
     const socket = await h.enter({ name: 'Ada' })
+    // The flushes are new: the office is told in diffs now, gathered over a
+    // window, so a test has to say when the window closes. Without the first
+    // one, the arrival and the departure cancel each other out — which is
+    // correct, and has a test of its own further down.
+    await h.flush()
     h.sent.clear()
 
     await h.engine.leaveOffice(socket)
+    await h.flush()
 
     expect((await h.engine.snapshot(socket)).people).toHaveLength(0)
-    expect(h.sent.office.some((one) => one.event === 'office:state')).toBe(true)
+    expect(h.sent.office.some((one) => one.event === 'office:diff')).toBe(true)
   })
 
   it('does not remove somebody the moment their last device drops', async () => {
@@ -352,13 +390,17 @@ describe('moving between rooms', () => {
 
   it('moves somebody and tells the office', async () => {
     const socket = await h.enter({ name: 'Ada' })
+    // Flushed, because a move is now gathered into a diff rather than sent on
+    // the spot. What the move is *made of* is tested in 'snapshot and diffs'.
+    await h.flush()
     h.sent.clear()
 
     const workspace = roomNamed('Workspace')
     expect((await h.engine.joinRoom(socket, workspace)).ok).toBe(true)
+    await h.flush()
 
     expect((await h.engine.snapshot(socket)).people[0]?.roomId).toBe(workspace)
-    expect(h.sent.office.some((one) => one.event === 'office:state')).toBe(true)
+    expect(h.sent.office.some((one) => one.event === 'office:diff')).toBe(true)
   })
 
   it('puts somebody back in reception when they leave a room', async () => {
@@ -675,5 +717,216 @@ describe('status', () => {
     const result = await h.engine.setManualStatus(socket, 'asleep' as never)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe(Refusal.MALFORMED)
+  })
+})
+
+describe('snapshot and diffs', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = harness()
+  })
+
+  const roomOfType = (type: string) => h.template.rooms.find((room) => room.type === type)?.id ?? ''
+  const named = (name: string) => h.template.rooms.find((room) => room.name === name)?.id ?? ''
+
+  it('stamps the snapshot with the last number it accounts for', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+
+    // Nothing has gone out yet, so the snapshot is stamped 0 — and it contains
+    // Ada anyway, because the store has her. The diff that follows restates her
+    // and the client applies it to no effect. That is cheaper than flushing the
+    // whole office every time somebody walks in.
+    const before = await h.engine.snapshot(socket)
+    expect(before.seq).toBe(0)
+    expect(before.people).toHaveLength(1)
+
+    await h.flush()
+    expect(diffs(h.sent)[0]?.seq).toBe(1)
+    expect((await h.engine.snapshot(socket)).seq).toBe(1)
+  })
+
+  it('numbers diffs strictly increasing, one at a time', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    await h.flush()
+    await h.engine.joinRoom(socket, named('Workspace'))
+    await h.flush()
+    await h.engine.setManualStatus(socket, 'dnd')
+    await h.flush()
+
+    // A client seeing 1 then 3 knows it missed one. That is the only thing the
+    // number has to do, and it is why it is allocated by the store rather than
+    // counted per process.
+    expect(diffs(h.sent).map((diff) => diff.seq)).toEqual([1, 2, 3])
+  })
+
+  it('sends a move as a move, not as the whole office', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    await h.flush()
+    h.sent.clear()
+
+    const workspace = named('Workspace')
+    await h.engine.joinRoom(socket, workspace)
+    await h.flush()
+
+    expect(changes(h.sent)).toEqual([
+      {
+        kind: 'person.moved',
+        userId: expect.any(String),
+        roomId: workspace,
+        arrivedAt: expect.any(String),
+      },
+    ])
+    // The point of the story: a move does not carry a person, let alone an office.
+    expect(JSON.stringify(diffs(h.sent))).not.toContain('displayName')
+  })
+
+  it('coalesces a drag through three rooms into one event at the last room', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    await h.flush()
+    h.sent.clear()
+
+    await h.engine.joinRoom(socket, named('Workspace'))
+    await h.engine.joinRoom(socket, roomOfType('break'))
+    await h.engine.joinRoom(socket, roomOfType('reception'))
+    await h.flush()
+
+    // One event, and it says where they ended up. The office has no use for the
+    // two rooms they passed through and could not have rendered them anyway.
+    const only = changes(h.sent)
+    expect(only).toHaveLength(1)
+    expect(only[0]?.kind === 'person.updated' ? only[0].presence.roomId : '').toBe(
+      roomOfType('reception'),
+    )
+  })
+
+  it('tells a hundred people about one move exactly once', async () => {
+    // The done-when, stated as a test. Everyone present receives everything —
+    // visibility is uniform — so what has to be small is the event, not the
+    // audience.
+    for (let i = 0; i < 100; i += 1) await h.enter({ name: `Person${i}` })
+    const mover = await h.enter({ name: 'Ada' })
+    await h.flush()
+    h.sent.clear()
+
+    await h.engine.joinRoom(mover, named('Workspace'))
+    await h.flush()
+
+    expect(h.sent.office).toHaveLength(1)
+    expect(changes(h.sent)).toHaveLength(1)
+  })
+
+  it('re-sends the entry when somebody changes before their arrival has gone out', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    await h.engine.setManualStatus(socket, 'dnd')
+    await h.flush()
+
+    // Not an update: a client that has not heard of this person yet has nothing
+    // to apply an update to.
+    const only = changes(h.sent)
+    expect(only).toHaveLength(1)
+    expect(only[0]?.kind).toBe('person.entered')
+    expect(only[0]?.kind === 'person.entered' ? only[0].presence.status : '').toBe('dnd')
+  })
+
+  it('says nothing at all about somebody who arrived and left inside one window', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    await h.engine.leaveOffice(socket)
+    await h.flush()
+
+    // Telling the office that a stranger has left is noise, and it would consume
+    // a sequence number that every client then has to account for.
+    expect(h.sent.office).toHaveLength(0)
+  })
+
+  it('reports a departure once the office has heard of the person', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    await h.flush()
+    h.sent.clear()
+
+    await h.engine.leaveOffice(socket)
+    await h.flush()
+
+    expect(changes(h.sent)).toEqual([{ kind: 'person.left', userId: expect.any(String) }])
+  })
+
+  it('sends the person, not just the move, when the break room changes their status', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    await h.flush()
+    h.sent.clear()
+
+    await h.engine.joinRoom(socket, roomOfType('break'))
+    await h.flush()
+
+    // A bare `person.moved` carries no status, and the break room changed one.
+    const only = changes(h.sent)
+    expect(only[0]?.kind).toBe('person.updated')
+    expect(only[0]?.kind === 'person.updated' ? only[0].presence.status : '').toBe('dnd')
+  })
+
+  it('says nothing when a device goes idle without changing the answer', async () => {
+    const laptop = await h.enter({ name: 'Ada', deviceId: 'laptop' })
+    await h.enter({ name: 'Ada', deviceId: 'phone', kind: 'mobile' })
+    await h.flush()
+    h.sent.clear()
+
+    await h.engine.setActivity(laptop, { idle: true, foreground: true })
+    await h.flush()
+
+    // Still available, because the phone is active. Idle flags arrive constantly,
+    // and this is what stops almost all of them costing an event.
+    expect(h.sent.office).toHaveLength(0)
+  })
+
+  it('closes the window on its own, without anybody flushing', async () => {
+    const quick = harness(typedEmailIdentity(), undefined, undefined, 1)
+    await quick.enter({ name: 'Ada' })
+    await quick.flush()
+    quick.sent.clear()
+
+    await quick.enter({ name: 'Grace' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(diffs(quick.sent)).toHaveLength(1)
+    expect(changes(quick.sent)[0]?.kind).toBe('person.entered')
+    await quick.engine.close()
+  })
+
+  it('gives a client that lost track the whole office again, at a number it can trust', async () => {
+    const watcher = await h.enter({ name: 'Ada' })
+    const other = await h.enter({ name: 'Grace' })
+    await h.engine.joinRoom(other, named('Workspace'))
+    await h.flush()
+    h.sent.clear()
+
+    const result = await h.engine.resync(watcher)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.snapshot.people).toHaveLength(2)
+    expect(result.snapshot.seq).toBe(1)
+    expect(result.snapshot.you.userId).toBe(
+      result.snapshot.people.find((person) => person.displayName === 'Ada')?.userId,
+    )
+    // A resync is a read. It does not tell the office anything.
+    expect(h.sent.office).toHaveLength(0)
+  })
+
+  it('refuses a resync from a socket that is not in the office', async () => {
+    h.engine.connected({ connectionId: 'stranger', deviceId: 'd', kind: 'web' })
+    const result = await h.engine.resync('stranger')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe(Refusal.NOT_AUTHENTICATED)
+  })
+
+  it('gets everything out before the server goes', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(socket, named('Workspace'))
+    expect(h.sent.office).toHaveLength(0)
+
+    await h.engine.close()
+
+    // A diff lost to shutdown leaves every connected client one event behind,
+    // and they would only find out on the next change.
+    expect(diffs(h.sent)).toHaveLength(1)
   })
 })

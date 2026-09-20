@@ -166,6 +166,12 @@ function bind(socket: Socket, engine: OfficeEngine, officeId: string, logger: Lo
         if (result.ok) {
           // Joined only once authenticated, so an unauthenticated socket never
           // receives anything about anybody.
+          //
+          // Which leaves a sliver: a change landing between the snapshot being
+          // taken and this join is not delivered. That is what the sequence
+          // number is for — the client sees the gap on the next diff and asks
+          // for a fresh snapshot, which is cheaper and more honest than holding
+          // a lock across an await to make the sliver disappear.
           await socket.join(`office:${result.snapshot.officeId}`)
           await socket.join(`user:${result.snapshot.you.userId}`)
         }
@@ -176,6 +182,8 @@ function bind(socket: Socket, engine: OfficeEngine, officeId: string, logger: Lo
   })
 
   socket.on('office:leave', (ack) => handle(ack, () => engine.leaveOffice(id), 'office:leave'))
+
+  socket.on('office:resync', (ack) => handle(ack, () => engine.resync(id), 'office:resync'))
 
   socket.on('room:join', (request, ack) =>
     handle(ack, () => engine.joinRoom(id, String(request?.roomId ?? '')), 'room:join'),
