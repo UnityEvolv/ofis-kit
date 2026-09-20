@@ -16,6 +16,15 @@ export { ThemeProvider, useTheme, type Theme, type ThemeChoice } from './theme.j
 export { AnnouncerProvider, useAnnounce } from './Announcer.js'
 
 export {
+  KnockDock,
+  OutgoingKnock,
+  type IncomingKnock,
+  type KnockDockProps,
+  type KnockOutcome,
+  type OutgoingKnockProps,
+} from './Knocks.js'
+
+export {
   MaximiseButton,
   OfficeMap,
   RoomListView,

@@ -2,7 +2,9 @@ import { Button, Icon, Select } from '@unityevolv/unitykit'
 import type { OfisClient } from '@unityevolv/ofiskit-realtime-client'
 import { statusIsChosen, you as yourPresence, yourRoom } from '@unityevolv/ofiskit-realtime-client'
 import {
+  KnockDock,
   OfficeMap,
+  OutgoingKnock,
   RoomListView,
   StatusControl,
   ViewToggle,
@@ -19,6 +21,7 @@ import type { Template } from '@unityevolv/ofiskit-template'
 import { useCallback } from 'react'
 
 import { officeImageUrl } from './config.js'
+import { useKnocks } from './useKnocks.js'
 
 /**
  * The office, full window.
@@ -83,27 +86,14 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
     [announce, client, template.rooms],
   )
 
-  const knock = useCallback(
-    (id: string) => {
-      const target = template.rooms.find((one) => one.id === id)
-      void client.knock(id).then((result) => {
-        if (!result.ok) return announce(result.message, 'assertive')
-        announce(
-          result.silent
-            ? `You knocked on ${target?.name ?? 'the room'}. Everybody inside is on do not disturb, so it arrived silently.`
-            : `You knocked on ${target?.name ?? 'the room'}.`,
-        )
-      })
-    },
-    [announce, client, template.rooms],
-  )
+  const knocks = useKnocks(client, template)
 
   const props = {
     template,
     state,
     imageUrl: officeImageUrl,
     onJoin: join,
-    onKnock: knock,
+    onKnock: knocks.knock,
     onLock: (id: string) => void client.lock(id),
     onUnlock: (id: string) => void client.unlock(id),
   }
@@ -123,8 +113,27 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
           data-placement={tiles}
         />
 
-        <main className="min-h-0 min-w-0 flex-1">
+        {/*
+          Positioned so the knock cards sit over the office rather than pushing it
+          around: somebody arriving at the door must not move the room somebody
+          else was about to click.
+        */}
+        <main className="relative min-h-0 min-w-0 flex-1">
           {view === 'map' ? <OfficeMap {...props} /> : <RoomListView {...props} />}
+
+          <KnockDock knocks={knocks.incoming} onAdmit={knocks.admit} onDecline={knocks.decline} />
+
+          {knocks.outgoing && (
+            <div className="pointer-events-none absolute bottom-4 left-4 z-30 w-72">
+              <OutgoingKnock
+                roomName={knocks.outgoing.roomName}
+                outcome={knocks.outgoing.outcome}
+                message={knocks.outgoing.message ?? null}
+                silent={knocks.outgoing.silent ?? false}
+                onDismiss={knocks.dismiss}
+              />
+            </div>
+          )}
         </main>
       </div>
 

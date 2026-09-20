@@ -116,3 +116,70 @@ test('a second device follows the first, because presence is per user', async ({
   await leave(laptop)
   await leave(phone)
 })
+
+test('knocking, being let in, and the room staying locked behind you', async ({ browser }) => {
+  // The story's done-when, end to end: three browsers, one locked room.
+  const ada = await walkIn(browser, 'Ada')
+  const grace = await walkIn(browser, 'Grace')
+  const alan = await walkIn(browser, 'Alan')
+
+  await join(ada.page, 'Studio')
+  await join(grace.page, 'Studio')
+  await room(ada.page, 'Studio').getByRole('button', { name: 'Lock' }).click()
+
+  // Alan cannot walk in, and is offered a knock instead.
+  await room(alan.page, 'Studio').getByRole('button', { name: 'Knock' }).click()
+  await expect(alan.page.getByTestId('outgoing-knock')).toContainText(/knocked on Studio/i)
+
+  // Everyone inside is told, not only whoever locked it.
+  await expect(ada.page.getByRole('region', { name: /people knocking/i })).toBeVisible()
+  await expect(grace.page.getByText(/Alan would like to come in/i)).toBeVisible()
+
+  // Grace lets him in, and the card goes from Ada's screen too.
+  await grace.page.getByRole('button', { name: /let them in/i }).click()
+  await seeIn(grace.page, 'Studio', 'Alan')
+  await expect(ada.page.getByRole('region', { name: /people knocking/i })).toHaveCount(0)
+
+  // And the door is still shut: the fourth person is still outside.
+  const bob = await walkIn(browser, 'Bob')
+  await expect(room(bob.page, 'Studio')).toHaveAttribute('aria-label', /locked/i)
+  await expect(room(bob.page, 'Studio').getByRole('button', { name: 'Knock' })).toBeVisible()
+
+  for (const person of [ada, grace, alan, bob]) await leave(person)
+})
+
+test('a declined knock says so, rather than going quiet', async ({ browser }) => {
+  const ada = await walkIn(browser, 'Ada')
+  const alan = await walkIn(browser, 'Alan')
+
+  await join(ada.page, 'Studio')
+  await room(ada.page, 'Studio').getByRole('button', { name: 'Lock' }).click()
+  await room(alan.page, 'Studio').getByRole('button', { name: 'Knock' }).click()
+
+  await ada.page.getByRole('button', { name: /not now/i }).click()
+
+  // Knocking into silence and never learning whether anybody saw it is the worst
+  // version of this feature.
+  await expect(alan.page.getByTestId('outgoing-knock')).toContainText(/not right now/i)
+
+  await leave(ada)
+  await leave(alan)
+})
+
+test('the fifth knock in a minute explains itself instead of disappearing', async ({ browser }) => {
+  const ada = await walkIn(browser, 'Ada')
+  const alan = await walkIn(browser, 'Alan')
+
+  await join(ada.page, 'Studio')
+  await room(ada.page, 'Studio').getByRole('button', { name: 'Lock' }).click()
+
+  // Five are allowed, per person per room. A knock interrupts everyone inside, so
+  // twelve of them is a way to make the room unusable.
+  const knockButton = room(alan.page, 'Studio').getByRole('button', { name: 'Knock' })
+  for (let attempt = 0; attempt < 6; attempt += 1) await knockButton.click()
+
+  await expect(alan.page.getByTestId('outgoing-knock')).toContainText(/knocked a few times already/i)
+
+  await leave(ada)
+  await leave(alan)
+})
