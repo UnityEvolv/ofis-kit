@@ -76,7 +76,7 @@ function draw(
     seq: 1,
     people: options.people ?? [],
     locks: options.locks ?? [],
-    you: { userId: options.you ?? 'ada', deviceId: 'ada-laptop' },
+    you: { userId: options.you ?? 'ada', deviceId: 'ada-laptop', manual: null },
   }
 
   const handlers = {

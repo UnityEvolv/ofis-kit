@@ -1,6 +1,7 @@
 import type {
   OfficeChange,
   OfficeDiff,
+  ManualStatus,
   OfficeSnapshot,
   PublicPresence,
 } from '@unityevolv/ofiskit-realtime-core/protocol'
@@ -28,7 +29,7 @@ export interface OfficeState {
   people: Map<string, PublicPresence>
   /** roomId → who locked it. */
   locks: Map<string, string>
-  you: { userId: string; deviceId: string }
+  you: { userId: string; deviceId: string; manual: ManualStatus | null }
   /** False until the first snapshot lands, so the map can show its skeleton. */
   ready: boolean
 }
@@ -39,7 +40,7 @@ export function emptyOffice(officeId = ''): OfficeState {
     seq: 0,
     people: new Map(),
     locks: new Map(),
-    you: { userId: '', deviceId: '' },
+    you: { userId: '', deviceId: '', manual: null },
     ready: false,
   }
 }
@@ -165,6 +166,16 @@ export function you(state: OfficeState): PublicPresence | null {
 /** The room the viewer is standing in, if the office has told us yet. */
 export function yourRoom(state: OfficeState): string | null {
   return you(state)?.roomId ?? null
+}
+
+/**
+ * Whether the status you are showing is one you chose.
+ *
+ * The difference the control turns on: a chosen status offers a way back to
+ * automatic, and a worked-out one has nothing to go back from.
+ */
+export function statusIsChosen(state: OfficeState): boolean {
+  return state.you.manual !== null
 }
 
 /**

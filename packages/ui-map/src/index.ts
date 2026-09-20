@@ -26,11 +26,13 @@ export {
 } from './OfficeMap.js'
 
 export { RoomBar, type RoomBarProps } from './RoomBar.js'
+export { StatusControl, type StatusControlProps } from './StatusControl.js'
 export { PersonAvatar, type PersonAvatarProps } from './PersonAvatar.js'
 export { StatusDot, describeStatus, statusLabel, STATUS_LOOKS, type StatusDotProps } from './status.js'
 
 export {
   useClientEvents,
+  useIdleReporting,
   useMeasured,
   useMediaQuery,
   useOffice,

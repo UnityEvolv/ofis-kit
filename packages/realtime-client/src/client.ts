@@ -1,6 +1,8 @@
 import type {
   Ack,
+  CustomStatus,
   DeviceKind,
+  ManualStatus,
   OfficeDiff,
   OfficeSnapshot,
 } from '@unityevolv/ofiskit-realtime-core/protocol'
@@ -84,6 +86,12 @@ export interface OfisClient {
   lock(roomId: string): Promise<Ack>
   unlock(roomId: string): Promise<Ack>
   knock(roomId: string): Promise<Ack<{ knockId: string; silent: boolean }>>
+
+  /** A status the person chose. null puts them back on automatic. */
+  setStatus(manual: ManualStatus | null): Promise<Ack>
+  setCustomStatus(custom: CustomStatus | null): Promise<Ack>
+  /** One device's own signals. Never a conclusion about the person. */
+  setActivity(activity: { idle: boolean; foreground: boolean }): void
 }
 
 /** Socket.IO, which is what every real deployment uses. */
@@ -296,5 +304,26 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
     lock: (roomId) => ask('room:lock', { roomId }),
     unlock: (roomId) => ask('room:unlock', { roomId }),
     knock: (roomId) => ask<{ knockId: string; silent: boolean }>('room:knock', { roomId }),
+
+    /**
+     * Set, or clear, a status the person chose.
+     *
+     * The choice is recorded here as well as sent, because `you.manual` is what
+     * the control reads to decide whether to offer a way back to automatic, and
+     * it arrives only in a snapshot. Waiting for the next one would leave the
+     * control a step behind its own button.
+     */
+    async setStatus(manual) {
+      const result = await ask('status:manual', { manual })
+      if (result.ok) publish({ ...state, you: { ...state.you, manual } })
+      return result
+    },
+
+    setCustomStatus: (custom) => ask('status:custom', { custom }),
+
+    setActivity(activity) {
+      // No acknowledgement: these arrive constantly and nobody waits on them.
+      socket.emit('device:activity', activity)
+    },
   }
 }

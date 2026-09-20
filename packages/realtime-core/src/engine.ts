@@ -936,6 +936,7 @@ export class OfficeEngine {
       this.#store.currentSequence(officeId),
     ])
     const at = this.#now()
+    const mine = people.find((presence) => presence.userId === connection?.identity?.id)
 
     return {
       officeId,
@@ -945,6 +946,10 @@ export class OfficeEngine {
       you: {
         userId: connection?.identity?.id ?? '',
         deviceId: connection?.deviceId ?? '',
+        // Only what this person chose for themselves. Do not disturb that the
+        // break room set is automatic as far as they are concerned, and the
+        // control offers no way back from something they did not choose.
+        manual: mine?.manualFrom === 'user' ? (mine.manual ?? null) : null,
       },
     }
   }
