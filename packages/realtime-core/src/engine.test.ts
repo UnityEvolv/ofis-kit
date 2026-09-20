@@ -1881,3 +1881,112 @@ describe('what a host can attach', () => {
     expect((await h.engine.leaveCall(ada)).ok).toBe(true)
   })
 })
+
+describe('relaying signalling', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = harness()
+  })
+
+  const named = (name: string) => h.template.rooms.find((room) => room.name === name)?.id ?? ''
+
+  /** Two people in one call, which is the only place signalling is allowed. */
+  async function inCall() {
+    const workspace = named('Workspace')
+    const ada = await h.enter({ name: 'Ada', deviceId: 'ada-laptop' })
+    const grace = await h.enter({ name: 'Grace', deviceId: 'grace-laptop' })
+    await h.engine.joinRoom(ada, workspace)
+    await h.engine.joinRoom(grace, workspace)
+    await h.engine.joinCall(ada, { audio: true, video: false })
+    await h.engine.joinCall(grace, { audio: true, video: false })
+    h.sent.clear()
+    return { ada, grace }
+  }
+
+  it('passes an offer to the addressed leg, and to nobody else', async () => {
+    const { ada } = await inCall()
+
+    await h.engine.signal(ada, { to: 'grace-laptop', type: 'offer', payload: { sdp: 'v=0' } })
+
+    expect(h.sent.connections).toHaveLength(1)
+    expect(h.sent.connections[0]?.event).toBe('signal')
+    expect(h.sent.connections[0]?.payload).toMatchObject({
+      // Filled in by the server rather than trusted from the sender, so nobody
+      // can claim to be somebody else's camera.
+      from: 'ada-laptop',
+      to: 'grace-laptop',
+      type: 'offer',
+    })
+  })
+
+  it('does not look inside the payload', async () => {
+    const { ada } = await inCall()
+    const payload = { sdp: 'whatever the browser said', candidates: [1, 2, 3] }
+
+    await h.engine.signal(ada, { to: 'grace-laptop', type: 'candidate', payload })
+
+    // Opaque on purpose: it is what keeps the core out of the media path, and it
+    // is why this relay could carry a different provider's signalling unchanged.
+    expect((h.sent.connections[0]?.payload as { payload: unknown }).payload).toEqual(payload)
+  })
+
+  it('goes nowhere when the sender is not in a call', async () => {
+    const workspace = named('Workspace')
+    const ada = await h.enter({ name: 'Ada', deviceId: 'ada-laptop' })
+    const grace = await h.enter({ name: 'Grace', deviceId: 'grace-laptop' })
+    await h.engine.joinRoom(ada, workspace)
+    await h.engine.joinRoom(grace, workspace)
+    await h.engine.joinCall(grace, { audio: true, video: false })
+    h.sent.clear()
+
+    // Otherwise anybody in the office could signal into a conversation they are
+    // not part of.
+    await h.engine.signal(ada, { to: 'grace-laptop', type: 'offer', payload: {} })
+    expect(h.sent.connections).toHaveLength(0)
+  })
+
+  it('goes nowhere when the addressed leg is not in the call', async () => {
+    const { ada } = await inCall()
+    const outsider = await h.enter({ name: 'Alan', deviceId: 'alan-laptop' })
+    void outsider
+
+    // The address is not a way to reach an arbitrary socket.
+    await h.engine.signal(ada, { to: 'alan-laptop', type: 'offer', payload: {} })
+    expect(h.sent.connections).toHaveLength(0)
+  })
+
+  it('never crosses between rooms', async () => {
+    // Two calls, in two rooms, at the same time. A device id from one is not an
+    // address in the other.
+    const studio = named('Workspace')
+    const ada = await h.enter({ name: 'Ada', deviceId: 'ada-laptop' })
+    await h.engine.joinRoom(ada, studio)
+    await h.engine.joinCall(ada, { audio: true, video: false })
+
+    const elsewhere = h.template.rooms.find((room) => room.type === 'meeting')
+    if (elsewhere) {
+      const grace = await h.enter({ name: 'Grace', deviceId: 'grace-laptop' })
+      await h.engine.joinRoom(grace, elsewhere.id)
+      await h.engine.joinCall(grace, { audio: true, video: false })
+      h.sent.clear()
+
+      await h.engine.signal(ada, { to: 'grace-laptop', type: 'offer', payload: {} })
+      expect(h.sent.connections).toHaveLength(0)
+    }
+  })
+
+  it('stops relaying once a leg has left the call', async () => {
+    const { ada, grace } = await inCall()
+    await h.engine.leaveCall(grace)
+    h.sent.clear()
+
+    await h.engine.signal(ada, { to: 'grace-laptop', type: 'offer', payload: {} })
+    expect(h.sent.connections).toHaveLength(0)
+  })
+
+  it('ignores a message from a socket that has not entered the office', async () => {
+    h.engine.connected({ connectionId: 'stranger', deviceId: 'stranger', kind: 'web' })
+    await h.engine.signal('stranger', { to: 'anybody', type: 'offer', payload: {} })
+    expect(h.sent.connections).toHaveLength(0)
+  })
+})

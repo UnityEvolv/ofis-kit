@@ -47,6 +47,8 @@ export {
   type Signaller,
 } from './rtc/adapter.js'
 
+export { meshAdapter, describeMediaError } from './rtc/mesh.js'
+
 export {
   createOfisClient,
   type ClientEvent,

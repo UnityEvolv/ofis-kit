@@ -17,7 +17,7 @@ import {
   type OfficeView,
 } from '@unityevolv/ofiskit-ui-map'
 import { tilePlacement } from '@unityevolv/ofiskit-ui-map'
-import type { Template } from '@unityevolv/ofiskit-template'
+import { hostsCalls, type Template } from '@unityevolv/ofiskit-template'
 import { useCallback } from 'react'
 
 import { officeImageUrl } from './config.js'
@@ -54,10 +54,23 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   const reception = template.rooms.find((one) => one.type === 'reception')
   const tiles = tilePlacement(template.canvas)
 
-  // This device's own signals. The server resolves across every device the
-  // person has open, so typing on a phone keeps them available while the laptop
-  // sits idle.
-  useIdleReporting(client)
+  /*
+   * Whether this device is in the room's call.
+   *
+   * Per device, not per person: somebody in the room from a laptop and a phone may
+   * have only one of them in the conversation.
+   */
+  const inCall = Boolean(
+    yourPresence(state)?.devices.find((device) => device.deviceId === state.you.deviceId)?.inCall,
+  )
+
+  /*
+   * This device's own signals, suspended while in a call.
+   *
+   * Somebody listening is not idle even though they have not touched anything for
+   * twenty minutes, and the server would resolve them as away.
+   */
+  useIdleReporting(client, { enabled: !inCall })
 
   /**
    * A refusal is said out loud, not only drawn.
@@ -155,6 +168,31 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
         {room && reception && room.id !== reception.id && (
           <Button size="sm" variant="ghost" onClick={() => void client.leaveRoom()}>
             <Icon name="chevron-left" size="sm" /> Back to {reception.name}
+          </Button>
+        )}
+
+        {/*
+          The smallest thing that lets the provider be used at all.
+
+          A provider with no way to start a call cannot be shown to work, and the
+          call controls story replaces this with the real bar — device pickers,
+          camera, screen share, the lot. What is here is a microphone, because
+          pressing it is the act that joins a call.
+        */}
+        {room && hostsCalls(room.type) && (
+          <Button
+            size="sm"
+            variant={inCall ? 'primary' : 'ghost'}
+            onClick={() => {
+              void (inCall
+                ? client.leaveCall()
+                : client.joinCall({ audio: true, video: false }).then((result) => {
+                    if (!result.ok) announce(result.message, 'assertive')
+                  }))
+            }}
+          >
+            <Icon name={inCall ? 'leave-call' : 'mic'} size="sm" />
+            {inCall ? 'Leave call' : 'Join call'}
           </Button>
         )}
 
