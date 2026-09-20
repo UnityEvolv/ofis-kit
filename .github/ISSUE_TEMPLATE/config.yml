@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: mailto:security@unityevolv.com
+    about: Please email this rather than opening an issue, so it can be fixed before it is public.
+  - name: unityofis, the hosted product
+    url: https://github.com/UnityEvolv/ofis-kit/blob/main/docs/architecture.md
+    about: Accounts, roles, guests, chat, calendar and external providers live in the wrapper. This explains the line.
+  - name: unitykit, the design system
+    url: https://github.com/UnityEvolv/unity-kit
+    about: The components, tokens and themes the office is built from. Raise component issues there.

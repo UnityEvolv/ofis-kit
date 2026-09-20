@@ -1,0 +1,48 @@
+name: Feature or interface request
+description: Something the engine should do, or a question an adapter should be able to answer.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Worth knowing before you write: ofiskit is deliberately one office with no
+        accounts, no roles, no chat and no database. Those are not gaps waiting to
+        be filled; the absence is what makes the engine boundary provable, and they
+        live in unityofis instead.
+
+        That does not mean the answer is no. It usually means the answer is a new
+        question on an adapter, so a host can supply the behaviour. See
+        [docs/architecture.md](../../docs/architecture.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and where the engine stops you. Not the solution yet.
+    validations:
+      required: true
+  - type: dropdown
+    id: shape
+    attributes:
+      label: What shape do you think this is?
+      description: A guess is fine, and being wrong costs nothing.
+      options:
+        - Core behaviour, the same for every host
+        - A new question for the identity adapter to answer
+        - Something the template should be able to describe
+        - A new RTC provider
+        - Somewhere the presence store needs to do more
+        - Only relevant to a specific host, so probably not core
+        - No idea
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would build, if you were building it
+      description: Optional, but it makes the conversation much shorter.
+  - type: checkboxes
+    id: offer
+    attributes:
+      label: Would you like to build it?
+      options:
+        - label: I would be willing to open a pull request for this
