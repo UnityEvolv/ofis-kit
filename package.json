@@ -21,7 +21,7 @@
     "build": "npm run build --workspaces --if-present",
     "build:packages": "tsc -b packages/template packages/presence-store packages/adapters packages/realtime-core packages/realtime-client packages/ui-map packages/ui-builder",
     "dev": "node scripts/dev.mjs",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
