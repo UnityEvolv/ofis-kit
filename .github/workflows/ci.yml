@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# This repository is public and anyone can open a pull request, so no workflow
+# here is given a secret. Not a provider key, not a token, nothing. A pull
+# request from a stranger's fork runs exactly what a maintainer's does, and there
+# is nothing for it to exfiltrate. That is what makes the repository safe to
+# open, and it is why provider tests live only in the private repositories.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Nothing here reaches the network at test time; the office is in memory.
+  CI: true
+
+jobs:
+  check:
+    name: Lint, types, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and component tests
+        run: npm test
+
+      - name: Build packages and app
+        run: npm run build
+
+      - name: Bundle budget
+        run: npm run budget
+
+      - name: Upload the built app
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-dist
+          path: app/dist
+          retention-days: 3
+
+  boundaries:
+    name: The rules the layout exists to enforce
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Each of these has a test proving it fails on the mistake it exists to
+      # catch. A rule nobody has seen fail is indistinguishable from one that is
+      # not wired up, so the proof runs on every pull request too.
+      - name: The boundary rules fail on the mistakes they catch
+        run: npx vitest run tools/eslint-plugin-ofiskit/rules.test.js
+
+      - name: No secret is available to this workflow
+        run: node .github/scripts/assert-no-secrets.mjs
