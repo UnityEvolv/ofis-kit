@@ -98,7 +98,24 @@ export function OfficeMap(props: OfficeMapProps) {
       aria-label={`${template.name} office map`}
       className="relative h-full w-full overflow-hidden bg-base-200"
     >
-      {canvas.width > 0 && (
+      {/*
+        A skeleton until the first snapshot lands.
+
+        Drawing the rooms with nobody in them would be a lie for a moment, and it
+        is the worst possible moment for one: somebody reloading sees an empty
+        office and believes it before the people appear. An office that is
+        visibly still arriving is honest and reads as faster.
+      */}
+      {!state.ready && (
+        <p
+          className="absolute inset-x-0 top-1/2 text-center text-sm text-base-content/60"
+          role="status"
+        >
+          Looking around the office…
+        </p>
+      )}
+
+      {canvas.width > 0 && state.ready && (
         <>
           <img
             src={imageUrl(background)}
@@ -265,6 +282,16 @@ export function OfficeMap(props: OfficeMapProps) {
 export function RoomListView(props: OfficeMapProps) {
   const { template, state, capacityOf } = props
   const yourRoomId = yourRoom(state)
+
+  if (!state.ready) {
+    return (
+      <nav aria-label={`${template.name} rooms`} className="h-full overflow-auto p-2">
+        <p className="p-2 text-sm text-base-content/60" role="status">
+          Looking around the office…
+        </p>
+      </nav>
+    )
+  }
 
   return (
     <nav aria-label={`${template.name} rooms`} className="h-full overflow-auto p-2">

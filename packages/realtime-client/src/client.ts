@@ -32,6 +32,24 @@ export type ClientEvent =
   | { type: 'status'; status: ConnectionStatus }
   | { type: 'closed'; code: string; message: string }
 
+/**
+ * The little of Socket.IO this client actually uses.
+ *
+ * Named so the client can be driven without a network, for the same reason the
+ * engine takes a `Transport`: the rules worth testing here are what happens to
+ * the office state when a diff skips a number or a move is refused, and none of
+ * those need a socket to be true. It is also the seam a host would replace to run
+ * this over something else entirely.
+ */
+export interface SocketLike {
+  on(event: string, handler: (...args: never[]) => void): unknown
+  off(event: string, handler: (...args: never[]) => void): unknown
+  emit(event: string, ...args: unknown[]): unknown
+  disconnect(): unknown
+  /** Socket.IO's manager, which is where reconnection attempts are announced. */
+  io: { on(event: string, handler: (...args: never[]) => void): unknown }
+}
+
 export interface OfisClientOptions {
   /** Where the socket lives. From configuration; never a literal in the app. */
   url: string
@@ -41,6 +59,13 @@ export interface OfisClientOptions {
   kind?: DeviceKind
   /** How often to tell the server we are still here. */
   heartbeatMs?: number
+  /**
+   * How to open the socket. Socket.IO unless somebody says otherwise.
+   *
+   * Tests pass a fake here. So could a host on a different transport, which is
+   * the only reason this is an option rather than a test-only hook.
+   */
+  connect?(options: OfisClientOptions): SocketLike
 }
 
 export interface OfisClient {
@@ -61,12 +86,18 @@ export interface OfisClient {
   knock(roomId: string): Promise<Ack<{ knockId: string; silent: boolean }>>
 }
 
-export function createOfisClient(options: OfisClientOptions): OfisClient {
+/** Socket.IO, which is what every real deployment uses. */
+function openSocket(options: OfisClientOptions): SocketLike {
   const socket: Socket = io(options.url, {
     path: options.path ?? '/socket',
     auth: { deviceId: options.deviceId, kind: options.kind ?? 'web' },
     transports: ['websocket', 'polling'],
   })
+  return socket as unknown as SocketLike
+}
+
+export function createOfisClient(options: OfisClientOptions): OfisClient {
+  const socket = (options.connect ?? openSocket)(options)
 
   let state = emptyOffice()
   let connection: ConnectionStatus = 'idle'

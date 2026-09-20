@@ -23,6 +23,7 @@ test('two people see each other move between rooms', async ({ browser }) => {
   await seeIn(ada.page, 'Reception', 'Grace')
   await seeIn(grace.page, 'Reception', 'Ada')
 
+  const at = Date.now()
   await join(ada.page, 'Studio')
 
   // The one that matters: Grace's screen, which nobody touched.
@@ -30,6 +31,12 @@ test('two people see each other move between rooms', async ({ browser }) => {
   await expect(
     room(grace.page, 'Reception').getByRole('img', { name: /^Ada,/ }),
   ).toHaveCount(0)
+
+  // Within a second, which the story asks for. The diff window is fifty
+  // milliseconds and the rest is the round trip, so a second is loose — loose
+  // enough not to be flaky, tight enough to fail if a move ever starts waiting
+  // on something it should not.
+  expect(Date.now() - at).toBeLessThan(1000)
 
   await leave(ada)
   await leave(grace)

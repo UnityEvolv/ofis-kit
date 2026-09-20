@@ -1,5 +1,5 @@
 import type { OfficeSnapshot, PublicPresence } from '@unityevolv/ofiskit-realtime-client'
-import { fromSnapshot } from '@unityevolv/ofiskit-realtime-client'
+import { emptyOffice, fromSnapshot } from '@unityevolv/ofiskit-realtime-client'
 import { createTemplate, type CanvasShape, type Template } from '@unityevolv/ofiskit-template'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -372,6 +372,77 @@ describe('the office map', () => {
 
     const bar = screen.getByTestId(`room-bar-${reception.id}`)
     expect(within(bar).queryByRole('button', { name: /lock/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('before the office has arrived', () => {
+  /** The map with no snapshot yet, which is what a reload starts from. */
+  function notReady(list = false) {
+    const props: OfficeMapProps = {
+      template: office(),
+      state: emptyOffice('office'),
+      imageUrl: (name) => `/office/${name}`,
+      onJoin: vi.fn(),
+      onKnock: vi.fn(),
+      onLock: vi.fn(),
+      onUnlock: vi.fn(),
+    }
+    return render(
+      <ThemeProvider>{list ? <RoomListView {...props} /> : <OfficeMap {...props} />}</ThemeProvider>,
+    )
+  }
+
+  it('says it is still looking rather than drawing an empty office', () => {
+    // Drawing the rooms with nobody in them would be a lie for a moment, and it
+    // is the worst possible moment for one: somebody reloading sees an empty
+    // office and believes it before the people appear.
+    notReady()
+
+    expect(screen.getByRole('status')).toHaveTextContent(/looking around the office/i)
+    expect(screen.queryAllByRole('group')).toHaveLength(0)
+  })
+
+  it('says the same thing in the list view', () => {
+    notReady(true)
+    expect(screen.getByRole('status')).toHaveTextContent(/looking around the office/i)
+    expect(screen.queryAllByTestId(/^room-bar-/)).toHaveLength(0)
+  })
+})
+
+describe('a move on the map', () => {
+  it('animates the position, so the eye can follow who went where', () => {
+    const template = office()
+    const room = template.rooms.find((one) => one.name === 'Workspace')!
+
+    draw({ template, people: [person({ userId: 'grace', roomId: room.id })] })
+
+    // The avatar's cell is positioned, and the transition is on `left` and `top`,
+    // so a move is something the browser animates rather than a person vanishing
+    // from one room and appearing in another.
+    const cell = screen.getByRole('img', { name: /^grace,/i }).closest('li')
+    expect(cell?.style.transition).toMatch(/left .* ease, top .* ease/)
+  })
+
+  it('does not animate for somebody who asked for less motion', () => {
+    // Motion is the part of this product most likely to make somebody feel
+    // unwell, and a map where everything slides is the worst case of it.
+    const matchMedia = globalThis.matchMedia
+    globalThis.matchMedia = ((query: string) =>
+      ({
+        matches: query.includes('reduced-motion'),
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }) as unknown as MediaQueryList) as typeof globalThis.matchMedia
+
+    const template = office()
+    const room = template.rooms.find((one) => one.name === 'Workspace')!
+    draw({ template, people: [person({ userId: 'grace', roomId: room.id })] })
+
+    const cell = screen.getByRole('img', { name: /^grace,/i }).closest('li')
+    expect(cell?.style.transition).toBe('')
+
+    globalThis.matchMedia = matchMedia
   })
 })
 
