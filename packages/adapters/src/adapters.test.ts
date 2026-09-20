@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 import { localEventBus, silentEventBus } from './events.js'
 import { idForEmail, typedEmailIdentity } from './identity.js'
+import { memoryRateLimiter, unlimited } from './rate-limit.js'
 import { TemplateInvalid, fileTemplateSource } from './template-source.js'
 
 describe('the typed-email identity adapter', () => {
@@ -137,5 +138,68 @@ describe('the event bus', () => {
       'second:template.changed',
       'second:template.changed',
     ])
+  })
+})
+
+describe('the in-memory rate limiter', () => {
+  /** A clock the test moves, so nothing has to wait for a window to pass. */
+  function clock(at = 1_000_000) {
+    return {
+      now: () => at,
+      advance(ms: number) {
+        at += ms
+      },
+    }
+  }
+
+  it('allows up to the limit and then refuses', async () => {
+    const limiter = memoryRateLimiter(() => 1_000)
+    const outcomes: boolean[] = []
+    for (let i = 0; i < 5; i += 1) {
+      outcomes.push((await limiter.take('knock:ada:studio', 3, 60_000)).allowed)
+    }
+    expect(outcomes).toEqual([true, true, true, false, false])
+  })
+
+  it('counts down what is left, and says how long to wait', async () => {
+    const time = clock()
+    const limiter = memoryRateLimiter(time.now)
+
+    expect(await limiter.take('k', 2, 60_000)).toMatchObject({ remaining: 1 })
+    expect(await limiter.take('k', 2, 60_000)).toMatchObject({ remaining: 0 })
+
+    time.advance(20_000)
+    const refused = await limiter.take('k', 2, 60_000)
+    // Not the whole window: what is left of it, so the refusal can say "try
+    // again in forty seconds" rather than always saying a minute.
+    expect(refused).toMatchObject({ allowed: false, remaining: 0, retryAfterMs: 40_000 })
+  })
+
+  it('starts again once the window has passed', async () => {
+    const time = clock()
+    const limiter = memoryRateLimiter(time.now)
+
+    await limiter.take('k', 1, 60_000)
+    expect((await limiter.take('k', 1, 60_000)).allowed).toBe(false)
+
+    time.advance(60_001)
+    expect((await limiter.take('k', 1, 60_000)).allowed).toBe(true)
+  })
+
+  it('keeps one budget per key, so two rooms do not share one', async () => {
+    const limiter = memoryRateLimiter(() => 1_000)
+
+    await limiter.take('knock:ada:studio', 1, 60_000)
+    expect((await limiter.take('knock:ada:studio', 1, 60_000)).allowed).toBe(false)
+    // A different door. The limit is about not making one room unusable, and has
+    // nothing to say about knocking on another.
+    expect((await limiter.take('knock:ada:library', 1, 60_000)).allowed).toBe(true)
+  })
+
+  it('always says yes when the host has decided the limit lives elsewhere', async () => {
+    const limiter = unlimited()
+    for (let i = 0; i < 50; i += 1) {
+      expect((await limiter.take('k', 1, 60_000)).allowed).toBe(true)
+    }
   })
 })

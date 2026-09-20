@@ -80,6 +80,14 @@ export interface OfficeSnapshot {
    */
   seq: number
   people: PublicPresence[]
+  /**
+   * Every locked room.
+   *
+   * In the snapshot rather than worked out from the people inside, because a
+   * lock is not a property of who is in the room — it is visible from the whole
+   * office so that nobody is surprised by a door that will not open.
+   */
+  locks: Array<{ roomId: string; lockedBy: string }>
   /** Who this client is, so it can find itself without matching on a name. */
   you: { userId: string; deviceId: string }
 }
@@ -99,6 +107,8 @@ export type OfficeChange =
   | { kind: 'person.moved'; userId: string; roomId: string; arrivedAt: string }
   | { kind: 'person.updated'; presence: PublicPresence }
   | { kind: 'person.left'; userId: string }
+  | { kind: 'room.locked'; roomId: string; lockedBy: string }
+  | { kind: 'room.unlocked'; roomId: string }
 
 export interface OfficeDiff {
   /**
@@ -117,6 +127,14 @@ export interface OfficeDiff {
 
 export interface MoveRequest {
   roomId: string
+}
+
+export interface KnockRequest {
+  roomId: string
+}
+
+export interface KnockReplyRequest {
+  knockId: string
 }
 
 export interface StatusRequest {
@@ -184,6 +202,21 @@ export interface ClientEvents {
   'office:resync': (ack: (result: Ack<{ snapshot: OfficeSnapshot }>) => void) => void
   'room:join': (request: MoveRequest, ack: (result: Ack) => void) => void
   'room:leave': (ack: (result: Ack) => void) => void
+  'room:lock': (request: MoveRequest, ack: (result: Ack) => void) => void
+  'room:unlock': (request: MoveRequest, ack: (result: Ack) => void) => void
+  /**
+   * Ask to come into a locked room.
+   *
+   * `silent` in the acknowledgement means everyone inside is on do not disturb,
+   * so the knock arrived without a sound. The knocker is told, because otherwise
+   * an unanswered knock is indistinguishable from a broken one.
+   */
+  'room:knock': (
+    request: KnockRequest,
+    ack: (result: Ack<{ knockId: string; silent: boolean }>) => void,
+  ) => void
+  'knock:admit': (request: KnockReplyRequest, ack: (result: Ack) => void) => void
+  'knock:decline': (request: KnockReplyRequest, ack: (result: Ack) => void) => void
   'status:manual': (request: StatusRequest, ack: (result: Ack) => void) => void
   'status:custom': (request: CustomStatusRequest, ack: (result: Ack) => void) => void
   'device:activity': (request: ActivityRequest) => void
@@ -204,6 +237,37 @@ export interface ServerEvents {
    * somebody has lost track, and the server cannot know that.
    */
   'office:diff': (diff: OfficeDiff) => void
+  /**
+   * Somebody is knocking.
+   *
+   * Per person rather than per room, because `silent` differs between two people
+   * standing in the same room: it is true for whoever is on do not disturb and
+   * false for the colleague beside them. The knock still arrives either way —
+   * do not disturb suppresses interruption, not access.
+   */
+  'knock:received': (event: {
+    knockId: string
+    roomId: string
+    userId: string
+    displayName: string
+    photoUrl?: string
+    silent: boolean
+    expiresAt: string
+  }) => void
+  /** A knock is over, one way or another. Sent to the room and to the knocker. */
+  'knock:resolved': (event: {
+    knockId: string
+    outcome: 'admitted' | 'declined' | 'expired'
+    byUserId?: string
+  }) => void
+  /**
+   * You were let in.
+   *
+   * An invitation to move, not a reservation: the client still sends
+   * `room:join`, and that join can still be refused because the room filled in
+   * the meantime. Nothing was held open.
+   */
+  'knock:admitted': (event: { roomId: string; byUserId: string }) => void
   /** The template on disk changed; re-read it. */
   'template:changed': (event: { officeId: string }) => void
   /** Your credential is about to stop working. Send a fresh one on this socket. */
@@ -244,6 +308,21 @@ export const Refusal = {
   ROOM_FULL: 'room.full',
   /** Already there. Not an error worth showing, but not a success either. */
   ROOM_ALREADY_THERE: 'room.already_there',
+  /** Closed to interruption. Knock to ask. */
+  ROOM_LOCKED: 'room.locked',
+  /** Locking is for the people in the conversation, so you have to be in it. */
+  ROOM_NOT_INSIDE: 'room.not_inside',
+  /** Reception and the break room are open to everyone by design. */
+  ROOM_NOT_LOCKABLE: 'room.not_lockable',
+
+  /** Knocking on a room you are standing in. */
+  KNOCK_INSIDE: 'knock.inside',
+  /** The room is open. Walk in; there is nobody to ask. */
+  KNOCK_NOT_LOCKED: 'knock.not_locked',
+  /** Admitted, declined, expired, or never existed. All the same to the caller. */
+  KNOCK_UNKNOWN: 'knock.unknown',
+  /** Enough. A knock interrupts everyone in the room. */
+  KNOCK_RATE_LIMITED: 'knock.rate_limited',
 
   /** The request did not match the contract. */
   MALFORMED: 'request.malformed',

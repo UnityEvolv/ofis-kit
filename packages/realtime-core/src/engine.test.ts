@@ -1,9 +1,12 @@
 import {
   localEventBus,
+  memoryRateLimiter,
   staticTemplateSource,
   typedEmailIdentity,
+  unlimited,
   type Decision,
   type IdentityAdapter,
+  type RateLimiter,
 } from '@unityevolv/ofiskit-adapters'
 import { MemoryPresenceStore } from '@unityevolv/ofiskit-presence-store'
 import { createTemplate, type Template } from '@unityevolv/ofiskit-template'
@@ -86,19 +89,41 @@ interface Harness {
   }): Promise<string>
 }
 
-function harness(
-  identity: IdentityAdapter = typedEmailIdentity(),
-  roomCapacity?: (room: { id: string }) => number | null,
-  graceMs?: number,
+/**
+ * What a test wants different from the ordinary office.
+ *
+ * Named rather than positional, because this list only grows and a call site
+ * reading `harness(typedEmailIdentity(), undefined, undefined, 1)` tells you
+ * nothing about which knob that 1 turns.
+ */
+interface HarnessOptions {
+  identity?: IdentityAdapter
+  roomCapacity?: (room: { id: string }) => number | null
+  graceMs?: number
   /**
    * Long by default, so nothing goes out until a test says so.
    *
-   * A test that wants to watch the window close passes a short one; everything
-   * else flushes by hand, which is the difference between an assertion and a
-   * race.
+   * A test that wants to watch the diff window close passes a short one;
+   * everything else flushes by hand, which is the difference between an assertion
+   * and a race.
    */
+  diffWindowMs?: number
+  knockTtlMs?: number
+  /**
+   * Unlimited by default, so a test about knocking is about knocking. The one
+   * test that is about the limit passes a real limiter.
+   */
+  limiter?: RateLimiter
+}
+
+function harness({
+  identity = typedEmailIdentity(),
+  roomCapacity,
+  graceMs,
   diffWindowMs = 10_000,
-): Harness {
+  knockTtlMs,
+  limiter = unlimited(),
+}: HarnessOptions = {}): Harness {
   const template = office()
   const store = new MemoryPresenceStore()
   const sent = new Recorder()
@@ -111,9 +136,11 @@ function harness(
     templates: staticTemplateSource(template),
     transport: sent,
     events,
+    limiter,
     diffWindowMs,
     ...(roomCapacity ? { roomCapacity } : {}),
     ...(graceMs === undefined ? {} : { graceMs }),
+    ...(knockTtlMs === undefined ? {} : { knockTtlMs }),
   })
 
   let counter = 0
@@ -187,9 +214,11 @@ describe('entering the office', () => {
     // The whole boundary in one test: the core does not know what a membership
     // is, and refuses anyway, because it asked.
     const closed = harness({
-      ...typedEmailIdentity(),
-      async may(): Promise<Decision> {
-        return { allowed: false, code: 'office.restricted', message: 'Members only.' }
+      identity: {
+        ...typedEmailIdentity(),
+        async may(): Promise<Decision> {
+          return { allowed: false, code: 'office.restricted', message: 'Members only.' }
+        },
       },
     })
 
@@ -277,7 +306,7 @@ describe('leaving', () => {
     // This used to remove them immediately. It no longer does, deliberately:
     // a dropped connection now starts a grace period, so a wifi blip does not
     // make somebody vanish from a room. The removal is tested below.
-    const h = harness(typedEmailIdentity(), undefined, 5000)
+    const h = harness({ graceMs: 5000 })
     const socket = await h.enter({ name: 'Ada' })
 
     await h.engine.disconnected(socket)
@@ -434,12 +463,14 @@ describe('moving between rooms', () => {
     // The boundary again: the core does not know what a restriction is, and
     // refuses anyway, in the adapter's own words.
     const restricted = harness({
-      ...typedEmailIdentity(),
-      async may({ permission }): Promise<Decision> {
-        if (permission === 'join_room') {
-          return { allowed: false, code: 'room.restricted', message: 'The studio is invite only.' }
-        }
-        return { allowed: true }
+      identity: {
+        ...typedEmailIdentity(),
+        async may({ permission }): Promise<Decision> {
+          if (permission === 'join_room') {
+            return { allowed: false, code: 'room.restricted', message: 'The studio is invite only.' }
+          }
+          return { allowed: true }
+        },
       },
     })
     const socket = await restricted.enter({ name: 'Ada' })
@@ -455,7 +486,7 @@ describe('moving between rooms', () => {
   it('refuses a full room at the moment of the move, holding nothing', async () => {
     // Capacity is an office setting, so it arrives as a function rather than
     // as anything the template knows about.
-    const limited = harness(typedEmailIdentity(), () => 1)
+    const limited = harness({ roomCapacity: () => 1 })
     const first = await limited.enter({ name: 'Ada' })
     const second = await limited.enter({ name: 'Grace' })
     const workspace = limited.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
@@ -474,9 +505,11 @@ describe('moving between rooms', () => {
     // they sign in. The free office has nowhere to put it and does not listen.
     const seen: Array<{ roomId: string | null }> = []
     const remembering = harness({
-      ...typedEmailIdentity(),
-      async onPresenceChanged(event) {
-        seen.push({ roomId: event.roomId })
+      identity: {
+        ...typedEmailIdentity(),
+        async onPresenceChanged(event) {
+          seen.push({ roomId: event.roomId })
+        },
       },
     })
 
@@ -528,7 +561,7 @@ describe('disconnecting, waiting, and coming back', () => {
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
   it('keeps somebody in their room during the grace period', async () => {
-    const h = harness(typedEmailIdentity(), undefined, 300)
+    const h = harness({ graceMs: 300 })
     const socket = await h.enter({ name: 'Ada' })
     const workspace = h.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
     await h.engine.joinRoom(socket, workspace)
@@ -544,7 +577,7 @@ describe('disconnecting, waiting, and coming back', () => {
   })
 
   it('removes them once the grace period passes with nobody back', async () => {
-    const h = harness(typedEmailIdentity(), undefined, 60)
+    const h = harness({ graceMs: 60 })
     const socket = await h.enter({ name: 'Ada' })
 
     await h.engine.disconnected(socket)
@@ -554,7 +587,7 @@ describe('disconnecting, waiting, and coming back', () => {
   })
 
   it('puts them back where they were when they return in time', async () => {
-    const h = harness(typedEmailIdentity(), undefined, 400)
+    const h = harness({ graceMs: 400 })
     const socket = await h.enter({ name: 'Ada', deviceId: 'laptop' })
     const workspace = h.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
     await h.engine.joinRoom(socket, workspace)
@@ -578,7 +611,7 @@ describe('disconnecting, waiting, and coming back', () => {
   })
 
   it('skips the grace period entirely on a clean exit', async () => {
-    const h = harness(typedEmailIdentity(), undefined, 5000)
+    const h = harness({ graceMs: 5000 })
     const socket = await h.enter({ name: 'Ada' })
 
     await h.engine.leaveOffice(socket)
@@ -589,7 +622,7 @@ describe('disconnecting, waiting, and coming back', () => {
   })
 
   it('starts no grace period while another device is still open', async () => {
-    const h = harness(typedEmailIdentity(), undefined, 60)
+    const h = harness({ graceMs: 60 })
     const laptop = await h.enter({ name: 'Ada', deviceId: 'laptop' })
     await h.enter({ name: 'Ada', deviceId: 'phone', kind: 'mobile', connectionId: 'socket-phone' })
 
@@ -681,7 +714,7 @@ describe('status', () => {
   })
 
   it('shows reconnecting during the grace period', async () => {
-    const graced = harness(typedEmailIdentity(), undefined, 300)
+    const graced = harness({ graceMs: 300 })
     const socket = await graced.enter({ name: 'Ada' })
 
     await graced.engine.disconnected(socket)
@@ -878,7 +911,7 @@ describe('snapshot and diffs', () => {
   })
 
   it('closes the window on its own, without anybody flushing', async () => {
-    const quick = harness(typedEmailIdentity(), undefined, undefined, 1)
+    const quick = harness({ diffWindowMs: 1 })
     await quick.enter({ name: 'Ada' })
     await quick.flush()
     quick.sent.clear()
@@ -928,5 +961,368 @@ describe('snapshot and diffs', () => {
     // A diff lost to shutdown leaves every connected client one event behind,
     // and they would only find out on the next change.
     expect(diffs(h.sent)).toHaveLength(1)
+  })
+})
+
+describe('lock, knock and admit', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = harness()
+  })
+
+  const named = (name: string) => h.template.rooms.find((room) => room.name === name)?.id ?? ''
+  const typed = (type: string) => h.template.rooms.find((room) => room.type === type)?.id ?? ''
+
+  /** What one person was sent, by event name. */
+  const sentTo = (userId: string, event: string) =>
+    h.sent.toUsers.filter((one) => one.userId === userId && one.event === event)
+
+  const userIdOf = async (socket: string) => (await h.engine.snapshot(socket)).you.userId
+
+  /** Two people in the workspace, with it locked behind them. */
+  async function twoInsideLocked() {
+    const workspace = named('Workspace')
+    const ada = await h.enter({ name: 'Ada' })
+    const grace = await h.enter({ name: 'Grace' })
+    await h.engine.joinRoom(ada, workspace)
+    await h.engine.joinRoom(grace, workspace)
+    expect((await h.engine.lock(ada, workspace)).ok).toBe(true)
+    await h.flush()
+    h.sent.clear()
+    return { ada, grace, workspace }
+  }
+
+  it('lets anyone inside lock the room, and shows it to the whole office', async () => {
+    const { ada, workspace } = await twoInsideLocked()
+
+    // Visible from the office rather than only from inside, so nobody is
+    // surprised by a door that will not open.
+    const snapshot = await h.engine.snapshot(ada)
+    expect(snapshot.locks).toEqual([{ roomId: workspace, lockedBy: await userIdOf(ada) }])
+  })
+
+  it('refuses to lock a room you are not in', async () => {
+    const outside = await h.enter({ name: 'Ada' })
+    const result = await h.engine.lock(outside, named('Workspace'))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe(Refusal.ROOM_NOT_INSIDE)
+  })
+
+  it('refuses to lock reception or the break room', async () => {
+    // Open by design. A lockable reception is a way to lock everybody out of the
+    // office.
+    const socket = await h.enter({ name: 'Ada' })
+    const result = await h.engine.lock(socket, typed('reception'))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe(Refusal.ROOM_NOT_LOCKABLE)
+  })
+
+  it('refuses to lock when the identity adapter says no', async () => {
+    // Guests cannot lock. The core does not know what a guest is and refuses
+    // anyway, because it asked.
+    const guests = harness({
+      identity: {
+        ...typedEmailIdentity(),
+        async may({ permission }): Promise<Decision> {
+          if (permission === 'lock_room') {
+            return { allowed: false, code: 'room.guest', message: 'Guests cannot lock a room.' }
+          }
+          return { allowed: true }
+        },
+      },
+    })
+
+    const socket = await guests.enter({ name: 'Ada' })
+    const workspace = guests.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    await guests.engine.joinRoom(socket, workspace)
+    const result = await guests.engine.lock(socket, workspace)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.message).toBe('Guests cannot lock a room.')
+  })
+
+  it('keeps somebody out of a locked room and tells them to knock', async () => {
+    const { workspace } = await twoInsideLocked()
+    const outsider = await h.enter({ name: 'Alan' })
+
+    const result = await h.engine.joinRoom(outsider, workspace)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe(Refusal.ROOM_LOCKED)
+  })
+
+  it('tells everyone inside about a knock, and the knocker who heard it', async () => {
+    const { ada, grace, workspace } = await twoInsideLocked()
+    const outsider = await h.enter({ name: 'Alan' })
+    await h.flush()
+
+    const knocked = await h.engine.knock(outsider, workspace)
+    expect(knocked.ok).toBe(true)
+    if (!knocked.ok) return
+
+    expect(sentTo(await userIdOf(ada), 'knock:received')).toHaveLength(1)
+    expect(sentTo(await userIdOf(grace), 'knock:received')).toHaveLength(1)
+    // Somebody was there to hear it.
+    expect(knocked.silent).toBe(false)
+  })
+
+  it('arrives without a sound for somebody on do not disturb', async () => {
+    const { ada, workspace } = await twoInsideLocked()
+    await h.engine.setManualStatus(ada, 'dnd')
+    const outsider = await h.enter({ name: 'Alan' })
+    h.sent.clear()
+
+    const knocked = await h.engine.knock(outsider, workspace)
+    expect(knocked.ok).toBe(true)
+    if (!knocked.ok) return
+
+    // Not refused. Do not disturb suppresses interruption, not access — so the
+    // knock still arrives, it just arrives silently, and the knocker is told why
+    // it may go unanswered.
+    const received = sentTo(await userIdOf(ada), 'knock:received')[0]?.payload as { silent: boolean }
+    expect(received.silent).toBe(true)
+    // Grace is not on do not disturb, so it is not silent for the room.
+    expect(knocked.silent).toBe(false)
+  })
+
+  it('says silent when everybody inside is on do not disturb', async () => {
+    const { ada, grace, workspace } = await twoInsideLocked()
+    await h.engine.setManualStatus(ada, 'dnd')
+    await h.engine.setManualStatus(grace, 'dnd')
+    const outsider = await h.enter({ name: 'Alan' })
+
+    const knocked = await h.engine.knock(outsider, workspace)
+    expect(knocked.ok).toBe(true)
+    if (!knocked.ok) return
+    expect(knocked.silent).toBe(true)
+  })
+
+  it('refuses a knock on a room that is not locked, and on one you are in', async () => {
+    const workspace = named('Workspace')
+    const inside = await h.enter({ name: 'Ada' })
+    const outside = await h.enter({ name: 'Grace' })
+    await h.engine.joinRoom(inside, workspace)
+
+    const open = await h.engine.knock(outside, workspace)
+    expect(open.ok).toBe(false)
+    if (!open.ok) expect(open.code).toBe(Refusal.KNOCK_NOT_LOCKED)
+
+    await h.engine.lock(inside, workspace)
+    const ownRoom = await h.engine.knock(inside, workspace)
+    expect(ownRoom.ok).toBe(false)
+    if (!ownRoom.ok) expect(ownRoom.code).toBe(Refusal.KNOCK_INSIDE)
+  })
+
+  it('rate limits somebody knocking over and over', async () => {
+    const limited = harness({ limiter: memoryRateLimiter() })
+    const workspace = limited.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    const inside = await limited.enter({ name: 'Ada' })
+    await limited.engine.joinRoom(inside, workspace)
+    await limited.engine.lock(inside, workspace)
+    const outsider = await limited.enter({ name: 'Alan' })
+
+    const outcomes: boolean[] = []
+    for (let i = 0; i < 7; i += 1) {
+      outcomes.push((await limited.engine.knock(outsider, workspace)).ok)
+    }
+
+    // Five, then no. Not a security limit — a knock interrupts everyone in the
+    // room, so twelve of them is a way to make the room unusable.
+    expect(outcomes).toEqual([true, true, true, true, true, false, false])
+    const last = await limited.engine.knock(outsider, workspace)
+    if (!last.ok) expect(last.code).toBe(Refusal.KNOCK_RATE_LIMITED)
+  })
+
+  it('replaces an earlier knock from the same person rather than stacking them', async () => {
+    const { workspace } = await twoInsideLocked()
+    const outsider = await h.enter({ name: 'Alan' })
+
+    await h.engine.knock(outsider, workspace)
+    await h.engine.knock(outsider, workspace)
+
+    // Knocking again is impatience, not a second request, and two rows would be
+    // two cards on the screen of everybody inside.
+    expect(await h.store.knocks(OFFICE, workspace)).toHaveLength(1)
+  })
+
+  it('lets exactly one person in while the room stays locked', async () => {
+    const { ada, workspace } = await twoInsideLocked()
+    const alan = await h.enter({ name: 'Alan' })
+    const other = await h.enter({ name: 'Bob' })
+
+    const knocked = await h.engine.knock(alan, workspace)
+    expect(knocked.ok).toBe(true)
+    if (!knocked.ok) return
+
+    expect((await h.engine.admit(ada, knocked.knockId)).ok).toBe(true)
+    expect((await h.engine.joinRoom(alan, workspace)).ok).toBe(true)
+
+    // The whole point of admitting rather than unlocking: the door is still shut
+    // behind them.
+    const stillOut = await h.engine.joinRoom(other, workspace)
+    expect(stillOut.ok).toBe(false)
+    if (!stillOut.ok) expect(stillOut.code).toBe(Refusal.ROOM_LOCKED)
+    expect((await h.engine.snapshot(ada)).locks).toHaveLength(1)
+  })
+
+  it('spends the admission on the move it authorises', async () => {
+    const { ada, workspace } = await twoInsideLocked()
+    const alan = await h.enter({ name: 'Alan' })
+
+    const knocked = await h.engine.knock(alan, workspace)
+    if (!knocked.ok) return
+    await h.engine.admit(ada, knocked.knockId)
+    await h.engine.joinRoom(alan, workspace)
+    await h.engine.leaveRoom(alan)
+
+    // An admission is permission to come in now, not a key to the room.
+    const again = await h.engine.joinRoom(alan, workspace)
+    expect(again.ok).toBe(false)
+    if (!again.ok) expect(again.code).toBe(Refusal.ROOM_LOCKED)
+  })
+
+  it('refuses an admitted person if the room filled before they moved', async () => {
+    // Admission is an invitation to move, not a reservation. Nothing is held.
+    const small = harness({ roomCapacity: () => 2 })
+    const workspace = small.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    const ada = await small.enter({ name: 'Ada' })
+    await small.engine.joinRoom(ada, workspace)
+    await small.engine.lock(ada, workspace)
+
+    // Two people are let in, and there is one place. Nothing is held for either
+    // of them, so whoever walks in first gets it.
+    const alan = await small.enter({ name: 'Alan' })
+    const bob = await small.enter({ name: 'Bob' })
+    const alanKnock = await small.engine.knock(alan, workspace)
+    const bobKnock = await small.engine.knock(bob, workspace)
+    if (!alanKnock.ok || !bobKnock.ok) return
+    expect((await small.engine.admit(ada, alanKnock.knockId)).ok).toBe(true)
+    expect((await small.engine.admit(ada, bobKnock.knockId)).ok).toBe(true)
+
+    expect((await small.engine.joinRoom(bob, workspace)).ok).toBe(true)
+
+    const result = await small.engine.joinRoom(alan, workspace)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe(Refusal.ROOM_FULL)
+
+    // And Alan is exactly where he was, told why.
+    const reception = small.template.rooms.find((room) => room.type === 'reception')?.id
+    const snapshot = await small.engine.snapshot(alan)
+    expect(snapshot.people.find((one) => one.displayName === 'Alan')?.roomId).toBe(reception)
+  })
+
+  it('tells the knocker and the room when a knock is declined', async () => {
+    const { ada, workspace } = await twoInsideLocked()
+    const alan = await h.enter({ name: 'Alan' })
+    const alanId = await userIdOf(alan)
+    const knocked = await h.engine.knock(alan, workspace)
+    if (!knocked.ok) return
+    h.sent.clear()
+
+    expect((await h.engine.decline(ada, knocked.knockId)).ok).toBe(true)
+
+    expect(sentTo(alanId, 'knock:resolved')).toHaveLength(1)
+    // The room too, so the card disappears from every screen rather than only
+    // from the screen of whoever pressed the button.
+    expect(h.sent.rooms.some((one) => one.event === 'knock:resolved')).toBe(true)
+    expect(await h.store.knocks(OFFICE, workspace)).toHaveLength(0)
+  })
+
+  it('refuses to answer a knock on somebody else’s door', async () => {
+    const { workspace } = await twoInsideLocked()
+    const alan = await h.enter({ name: 'Alan' })
+    const knocked = await h.engine.knock(alan, workspace)
+    if (!knocked.ok) return
+
+    // Alan is outside, so this knock is not on a door he is behind.
+    const result = await h.engine.admit(alan, knocked.knockId)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe(Refusal.KNOCK_UNKNOWN)
+  })
+
+  it('gives up on a knock nobody answered', async () => {
+    const quick = harness({ knockTtlMs: 30 })
+    const workspace = quick.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    const ada = await quick.enter({ name: 'Ada' })
+    await quick.engine.joinRoom(ada, workspace)
+    await quick.engine.lock(ada, workspace)
+    const alan = await quick.enter({ name: 'Alan' })
+    const alanId = (await quick.engine.snapshot(alan)).you.userId
+
+    const knocked = await quick.engine.knock(alan, workspace)
+    if (!knocked.ok) return
+    await new Promise((resolve) => setTimeout(resolve, 60))
+
+    // Ignoring a knock is a complete answer, so it needs no button — it stops
+    // sitting on the screen on its own.
+    const resolvedEvents = quick.sent.toUsers.filter(
+      (one) => one.userId === alanId && one.event === 'knock:resolved',
+    )
+    expect(resolvedEvents).toHaveLength(1)
+    expect((resolvedEvents[0]?.payload as { outcome: string }).outcome).toBe('expired')
+    await quick.engine.close()
+  })
+
+  it('unlocks a room the last person walks out of', async () => {
+    const workspace = named('Workspace')
+    const ada = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(ada, workspace)
+    await h.engine.lock(ada, workspace)
+    await h.flush()
+    h.sent.clear()
+
+    await h.engine.leaveRoom(ada)
+    await h.flush()
+
+    expect(changes(h.sent)).toContainEqual({ kind: 'room.unlocked', roomId: workspace })
+    expect((await h.engine.snapshot(ada)).locks).toHaveLength(0)
+  })
+
+  it('unlocks a room that empties by a connection dropping and never coming back', async () => {
+    // The done-when: a crashed browser must not leave a room locked with nobody
+    // in it and no way back in.
+    const graced = harness({ graceMs: 40 })
+    const workspace = graced.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    const ada = await graced.enter({ name: 'Ada' })
+    await graced.engine.joinRoom(ada, workspace)
+    await graced.engine.lock(ada, workspace)
+    await graced.flush()
+    graced.sent.clear()
+
+    await graced.engine.disconnected(ada)
+    await new Promise((resolve) => setTimeout(resolve, 90))
+    await graced.flush()
+
+    const sent = graced.sent.office
+      .filter((one) => one.event === 'office:diff')
+      .flatMap((one) => (one.payload as OfficeDiff).changes)
+    expect(sent).toContainEqual({ kind: 'room.unlocked', roomId: workspace })
+    await graced.engine.close()
+  })
+
+  it('says nothing about a lock when an ordinary departure changes nothing', async () => {
+    // Without the check, every departure from every room announces an unlock,
+    // and a client cannot tell that from a door that really did just open.
+    const ada = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(ada, named('Workspace'))
+    await h.flush()
+    h.sent.clear()
+
+    await h.engine.leaveRoom(ada)
+    await h.flush()
+
+    expect(changes(h.sent).some((change) => change.kind === 'room.unlocked')).toBe(false)
+  })
+
+  it('lets anyone inside unlock, not only whoever locked it', async () => {
+    const { grace, workspace } = await twoInsideLocked()
+
+    expect((await h.engine.unlock(grace, workspace)).ok).toBe(true)
+    await h.flush()
+
+    expect(changes(h.sent)).toContainEqual({ kind: 'room.unlocked', roomId: workspace })
+    const outsider = await h.enter({ name: 'Alan' })
+    expect((await h.engine.joinRoom(outsider, workspace)).ok).toBe(true)
   })
 })

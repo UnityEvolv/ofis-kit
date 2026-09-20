@@ -190,6 +190,22 @@ function bind(socket: Socket, engine: OfficeEngine, officeId: string, logger: Lo
   )
   socket.on('room:leave', (ack) => handle(ack, () => engine.leaveRoom(id), 'room:leave'))
 
+  socket.on('room:lock', (request, ack) =>
+    handle(ack, () => engine.lock(id, String(request?.roomId ?? '')), 'room:lock'),
+  )
+  socket.on('room:unlock', (request, ack) =>
+    handle(ack, () => engine.unlock(id, String(request?.roomId ?? '')), 'room:unlock'),
+  )
+  socket.on('room:knock', (request, ack) =>
+    handle(ack, () => engine.knock(id, String(request?.roomId ?? '')), 'room:knock'),
+  )
+  socket.on('knock:admit', (request, ack) =>
+    handle(ack, () => engine.admit(id, String(request?.knockId ?? '')), 'knock:admit'),
+  )
+  socket.on('knock:decline', (request, ack) =>
+    handle(ack, () => engine.decline(id, String(request?.knockId ?? '')), 'knock:decline'),
+  )
+
   socket.on('status:manual', (request, ack) =>
     handle(ack, () => engine.setManualStatus(id, request?.manual ?? null), 'status:manual'),
   )
