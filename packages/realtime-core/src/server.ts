@@ -177,6 +177,11 @@ function bind(socket: Socket, engine: OfficeEngine, officeId: string, logger: Lo
 
   socket.on('office:leave', (ack) => handle(ack, () => engine.leaveOffice(id), 'office:leave'))
 
+  socket.on('room:join', (request, ack) =>
+    handle(ack, () => engine.joinRoom(id, String(request?.roomId ?? '')), 'room:join'),
+  )
+  socket.on('room:leave', (ack) => handle(ack, () => engine.leaveRoom(id), 'room:leave'))
+
   socket.on('auth:refresh', (request, ack) =>
     handle(ack, () => engine.refreshAuth(id, request?.credentials), 'auth:refresh'),
   )

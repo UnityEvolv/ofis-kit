@@ -66,7 +66,10 @@ interface Harness {
   }): Promise<string>
 }
 
-function harness(identity: IdentityAdapter = typedEmailIdentity()): Harness {
+function harness(
+  identity: IdentityAdapter = typedEmailIdentity(),
+  roomCapacity?: (room: { id: string }) => number | null,
+): Harness {
   const template = office()
   const store = new MemoryPresenceStore()
   const sent = new Recorder()
@@ -79,6 +82,7 @@ function harness(identity: IdentityAdapter = typedEmailIdentity()): Harness {
     templates: staticTemplateSource(template),
     transport: sent,
     events,
+    ...(roomCapacity ? { roomCapacity } : {}),
   })
 
   let counter = 0
@@ -328,5 +332,145 @@ describe('the heartbeat', () => {
     const result = await h.engine.heartbeat('cold')
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe(Refusal.NOT_AUTHENTICATED)
+  })
+})
+
+describe('moving between rooms', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = harness()
+  })
+
+  const roomNamed = (name: string) => h.template.rooms.find((room) => room.name === name)?.id ?? ''
+
+  it('moves somebody and tells the office', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    h.sent.clear()
+
+    const workspace = roomNamed('Workspace')
+    expect((await h.engine.joinRoom(socket, workspace)).ok).toBe(true)
+
+    expect((await h.engine.snapshot(socket)).people[0]?.roomId).toBe(workspace)
+    expect(h.sent.office.some((one) => one.event === 'office:state')).toBe(true)
+  })
+
+  it('puts somebody back in reception when they leave a room', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    const reception = h.template.rooms.find((room) => room.type === 'reception')?.id
+
+    await h.engine.joinRoom(socket, roomNamed('Workspace'))
+    await h.engine.leaveRoom(socket)
+
+    expect((await h.engine.snapshot(socket)).people[0]?.roomId).toBe(reception)
+  })
+
+  it('refuses a room that does not exist', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    const result = await h.engine.joinRoom(socket, 'nowhere')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe(Refusal.ROOM_UNKNOWN)
+  })
+
+  it('says so rather than pretending, when you are already there', async () => {
+    const socket = await h.enter({ name: 'Ada' })
+    const workspace = roomNamed('Workspace')
+    await h.engine.joinRoom(socket, workspace)
+
+    const result = await h.engine.joinRoom(socket, workspace)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe(Refusal.ROOM_ALREADY_THERE)
+  })
+
+  it('refuses a room the identity adapter says no to, with its reason', async () => {
+    // The boundary again: the core does not know what a restriction is, and
+    // refuses anyway, in the adapter's own words.
+    const restricted = harness({
+      ...typedEmailIdentity(),
+      async may({ permission }): Promise<Decision> {
+        if (permission === 'join_room') {
+          return { allowed: false, code: 'room.restricted', message: 'The studio is invite only.' }
+        }
+        return { allowed: true }
+      },
+    })
+    const socket = await restricted.enter({ name: 'Ada' })
+    const workspace = restricted.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+
+    const result = await restricted.engine.joinRoom(socket, workspace)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.code).toBe('room.restricted')
+    expect(result.message).toContain('invite only')
+  })
+
+  it('refuses a full room at the moment of the move, holding nothing', async () => {
+    // Capacity is an office setting, so it arrives as a function rather than
+    // as anything the template knows about.
+    const limited = harness(typedEmailIdentity(), () => 1)
+    const first = await limited.enter({ name: 'Ada' })
+    const second = await limited.enter({ name: 'Grace' })
+    const workspace = limited.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+
+    expect((await limited.engine.joinRoom(first, workspace)).ok).toBe(true)
+
+    // Nothing was ever reserved for the second person, so the answer is no,
+    // with a reason, at the moment they actually tried.
+    const refused = await limited.engine.joinRoom(second, workspace)
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) expect(refused.code).toBe(Refusal.ROOM_FULL)
+  })
+
+  it('tells the host, so it can remember where somebody was', async () => {
+    // unityofis uses this to put a person back in their last room next time
+    // they sign in. The free office has nowhere to put it and does not listen.
+    const seen: Array<{ roomId: string | null }> = []
+    const remembering = harness({
+      ...typedEmailIdentity(),
+      async onPresenceChanged(event) {
+        seen.push({ roomId: event.roomId })
+      },
+    })
+
+    const socket = await remembering.enter({ name: 'Ada' })
+    const workspace = remembering.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    await remembering.engine.joinRoom(socket, workspace)
+
+    expect(seen).toContainEqual({ roomId: workspace })
+  })
+})
+
+describe('a move is per user, not per device', () => {
+  it('moves every device when one of them moves', async () => {
+    const h = harness()
+    const laptop = await h.enter({ name: 'Ada', deviceId: 'laptop' })
+    const phone = await h.enter({
+      name: 'Ada',
+      deviceId: 'phone',
+      kind: 'mobile',
+      connectionId: 'socket-phone',
+    })
+    const workspace = h.template.rooms.find((room) => room.name === 'Workspace')?.id
+
+    await h.engine.joinRoom(laptop, workspace ?? '')
+
+    // The phone did not have to be told. There is only one answer to where
+    // Ada is, and both devices are looking at it.
+    const fromPhone = await h.engine.snapshot(phone)
+    expect(fromPhone.people).toHaveLength(1)
+    expect(fromPhone.people[0]?.roomId).toBe(workspace)
+    expect(fromPhone.people[0]?.devices).toHaveLength(2)
+  })
+
+  it('leaves everybody where they are when one device disconnects', async () => {
+    const h = harness()
+    const laptop = await h.enter({ name: 'Ada', deviceId: 'laptop' })
+    await h.enter({ name: 'Ada', deviceId: 'phone', kind: 'mobile', connectionId: 'socket-phone' })
+    const workspace = h.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+
+    await h.engine.joinRoom(laptop, workspace)
+    await h.engine.disconnected(laptop)
+
+    const snapshot = await h.engine.snapshot('socket-phone')
+    expect(snapshot.people[0]?.roomId).toBe(workspace)
   })
 })
