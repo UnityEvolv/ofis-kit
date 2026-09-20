@@ -8,7 +8,11 @@ import type {
 } from '@unityevolv/ofiskit-adapters'
 import {
   DISCONNECT_GRACE_MS,
+  liveCustomStatus,
+  resolveStatus,
+  type CustomStatus,
   type DeviceKind,
+  type ManualStatus,
   type Presence,
   type PresenceStore,
 } from '@unityevolv/ofiskit-presence-store'
@@ -18,6 +22,7 @@ import { silentLogger, type Logger } from './logger.js'
 import {
   Refusal,
   type Ack,
+  type ActivityRequest,
   type EnterOfficeRequest,
   type OfficeSnapshot,
   type PublicPresence,
@@ -406,7 +411,17 @@ export class OfficeEngine {
   /** The move itself, once every rule has said yes. */
   async #move(officeId: string, presence: Presence, roomId: string): Promise<void> {
     const arrivedAt = new Date(this.#now()).toISOString()
-    await this.#store.put({ ...presence, roomId, arrivedAt })
+
+    // Entering the break room is do not disturb, and leaving it clears that
+    // again — unless the person chose a status for themselves, which survives.
+    const moved = await this.#withBreakRoomStatus(
+      officeId,
+      { ...presence, roomId, arrivedAt },
+      roomId,
+      presence.roomId,
+    )
+
+    await this.#store.put(moved)
     await this.#broadcast(officeId)
 
     // The host is told, so unityofis can remember the last office and room on
@@ -418,6 +433,119 @@ export class OfficeEngine {
     })
 
     this.#logger.debug('moved', { userId: presence.userId, officeId, roomId })
+  }
+
+  // ------------------------------------------------------------------- status
+
+  /**
+   * A status the person chose. It outranks everything automatic until cleared.
+   *
+   * Marked as their own, so the break room neither overwrites it on the way in
+   * nor clears it on the way out. Without that distinction, stepping into the
+   * break room once would pin somebody to do not disturb for the rest of the
+   * day, because afterwards there is no way to tell the two apart.
+   */
+  async setManualStatus(connectionId: string, manual: ManualStatus | null): Promise<Ack> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { officeId, presence } = resolved
+
+    if (manual !== null && !['available', 'away', 'dnd'].includes(manual)) {
+      return fail(Refusal.MALFORMED, 'That is not a status.')
+    }
+
+    await this.#store.put({
+      ...presence,
+      manual,
+      manualFrom: manual === null ? null : 'user',
+    })
+    await this.#broadcast(officeId)
+    return done()
+  }
+
+  /**
+   * A custom status: a few words, maybe an emoji, and when it stops being true.
+   *
+   * The expiry arrives as an absolute instant worked out by the client. Where
+   * "today" and "this week" land depends on the viewer's time zone, and the
+   * server never computes a date in anybody's zone — it only compares two
+   * instants, which is also why nothing has to run to clear it.
+   */
+  async setCustomStatus(connectionId: string, custom: CustomStatus | null): Promise<Ack> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { officeId, presence } = resolved
+
+    if (custom !== null) {
+      if (typeof custom.text !== 'string' || custom.text.trim().length === 0) {
+        return fail(Refusal.MALFORMED, 'A custom status needs some words.')
+      }
+      if (custom.text.length > 100) {
+        return fail(Refusal.MALFORMED, 'A custom status is at most a hundred characters.')
+      }
+      if (custom.expiresAt !== undefined && Number.isNaN(Date.parse(custom.expiresAt))) {
+        return fail(Refusal.MALFORMED, 'That expiry is not a date.')
+      }
+    }
+
+    await this.#store.put({ ...presence, custom })
+    await this.#broadcast(officeId)
+    return done()
+  }
+
+  /**
+   * What this device is doing: idle, or backgrounded.
+   *
+   * One device's signal, never a conclusion about the person. Resolving across
+   * every device they have open is the presence store's job, and it is why
+   * typing on a phone keeps somebody available while their laptop sits idle.
+   */
+  async setActivity(connectionId: string, activity: ActivityRequest): Promise<void> {
+    const connection = this.#connections.get(connectionId)
+    if (!connection?.identity || !connection.officeId) return
+
+    const presence = await this.#store.get(connection.officeId, connection.identity.id)
+    if (!presence) return
+
+    const devices = presence.devices.map((device) =>
+      device.connectionId === connectionId
+        ? { ...device, idle: Boolean(activity?.idle), foreground: activity?.foreground !== false }
+        : device,
+    )
+
+    const before = resolveStatus(presence, this.#now())
+    const after = resolveStatus({ ...presence, devices }, this.#now())
+    await this.#store.put({ ...presence, devices })
+
+    // Only tell the office when the answer actually changed. Idle flags arrive
+    // constantly and almost none of them mean anything to anybody else.
+    if (before !== after) await this.#broadcast(connection.officeId)
+  }
+
+  /**
+   * Entering the break room is do not disturb; leaving it clears that again.
+   *
+   * Deliberately not a manual status: one the person chose survives walking in
+   * and out of the break room, because they meant it.
+   */
+  async #withBreakRoomStatus(
+    officeId: string,
+    presence: Presence,
+    to: string,
+    from: string,
+  ): Promise<Presence> {
+    const template = await this.#options.templates.get(officeId)
+    const breakRoom = template?.rooms.find((room) => room.type === 'break')
+    if (!breakRoom) return presence
+
+    if (presence.manualFrom === 'user') return presence
+
+    if (to === breakRoom.id) return { ...presence, manual: 'dnd', manualFrom: 'room' }
+    if (from === breakRoom.id && presence.manualFrom === 'room') {
+      // Only what the room set gets cleared on the way out.
+      return { ...presence, manual: null, manualFrom: null }
+    }
+    return presence
   }
 
   // ---------------------------------------------------------------- the office
@@ -557,16 +685,19 @@ export class OfficeEngine {
  * timestamps. None of that is anybody else's business, and sending it would
  * mean broadcasting the whole office on every heartbeat.
  */
-function toPublic(presence: Presence): PublicPresence {
+function toPublic(presence: Presence, at: number = Date.now()): PublicPresence {
+  const custom = liveCustomStatus(presence, at)
+
   return {
     userId: presence.userId,
     displayName: presence.displayName,
     ...(presence.photoUrl ? { photoUrl: presence.photoUrl } : {}),
     roomId: presence.roomId,
-    // No devices means the last one dropped and the grace period is running.
-    // They are still in their room; everyone else is told they are on their
-    // way back rather than that they left.
-    reconnecting: presence.devices.length === 0,
+    // Resolved here so every client renders the same answer, rather than each
+    // working it out from the raw device signals — which they cannot see, and
+    // should not have to.
+    status: resolveStatus(presence, at),
+    ...(custom ? { custom } : {}),
     devices: presence.devices.map((device) => ({
       deviceId: device.deviceId,
       kind: device.kind,

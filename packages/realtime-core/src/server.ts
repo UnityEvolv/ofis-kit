@@ -182,6 +182,18 @@ function bind(socket: Socket, engine: OfficeEngine, officeId: string, logger: Lo
   )
   socket.on('room:leave', (ack) => handle(ack, () => engine.leaveRoom(id), 'room:leave'))
 
+  socket.on('status:manual', (request, ack) =>
+    handle(ack, () => engine.setManualStatus(id, request?.manual ?? null), 'status:manual'),
+  )
+  socket.on('status:custom', (request, ack) =>
+    handle(ack, () => engine.setCustomStatus(id, request?.custom ?? null), 'status:custom'),
+  )
+
+  // No acknowledgement: these arrive constantly and nobody waits on them.
+  socket.on('device:activity', (request) => {
+    void engine.setActivity(id, request)
+  })
+
   socket.on('auth:refresh', (request, ack) =>
     handle(ack, () => engine.refreshAuth(id, request?.credentials), 'auth:refresh'),
   )
