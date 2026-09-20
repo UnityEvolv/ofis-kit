@@ -15,6 +15,7 @@ export {
   lockedBy,
   occupancy,
   peopleIn,
+  statusIsChosen,
   you,
   yourRoom,
   type DiffOutcome,

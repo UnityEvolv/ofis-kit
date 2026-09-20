@@ -88,8 +88,18 @@ export interface OfficeSnapshot {
    * office so that nobody is surprised by a door that will not open.
    */
   locks: Array<{ roomId: string; lockedBy: string }>
-  /** Who this client is, so it can find itself without matching on a name. */
-  you: { userId: string; deviceId: string }
+  /**
+   * Who this client is, so it can find itself without matching on a name.
+   *
+   * `manual` is the status this person chose, or null when the office is working
+   * it out for them. It is here and not on `PublicPresence` because it is nobody
+   * else's business: the office can see that somebody is on do not disturb, and
+   * whether they meant it or walked into the break room is between them and
+   * their own screen. The control needs it to know whether to offer a way back
+   * to automatic, and it has to survive a reload, which is why it travels rather
+   * than being remembered on the client.
+   */
+  you: { userId: string; deviceId: string; manual: ManualStatus | null }
 }
 
 /**

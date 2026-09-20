@@ -1,0 +1,32 @@
+{
+  // Every test file, typechecked and never emitted.
+  //
+  // Each package excludes its tests from its own build, which is right — a test
+  // has no business in `dist`. The consequence was that nothing typechecked them
+  // at all, so a fixture could drift from the type it was standing in for and
+  // the suite would go on passing against a shape the product no longer has.
+  //
+  // That is exactly what happened when the snapshot's `you` grew a field: every
+  // fixture in the repository was missing it and nothing said so. This is the
+  // check that says so.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": [
+    "vitest.setup.ts",
+    "packages/*/src/**/*.test.ts",
+    "packages/*/src/**/*.test.tsx",
+    "app/src/**/*.test.ts",
+    "app/src/**/*.test.tsx",
+    "server/src/**/*.test.ts",
+    "e2e/**/*.ts"
+  ]
+}

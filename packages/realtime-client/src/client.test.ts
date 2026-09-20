@@ -93,7 +93,7 @@ function snapshot(overrides: Partial<OfficeSnapshot> = {}): OfficeSnapshot {
     seq: 1,
     people: [person({ userId: 'ada' })],
     locks: [],
-    you: { userId: 'ada', deviceId: 'ada-laptop' },
+    you: { userId: 'ada', deviceId: 'ada-laptop', manual: null },
     ...overrides,
   }
 }

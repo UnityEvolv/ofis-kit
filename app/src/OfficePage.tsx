@@ -1,12 +1,14 @@
 import { Button, Icon, Select } from '@unityevolv/unitykit'
 import type { OfisClient } from '@unityevolv/ofiskit-realtime-client'
-import { yourRoom } from '@unityevolv/ofiskit-realtime-client'
+import { statusIsChosen, you as yourPresence, yourRoom } from '@unityevolv/ofiskit-realtime-client'
 import {
   OfficeMap,
   RoomListView,
+  StatusControl,
   ViewToggle,
   useAnnounce,
   useClientEvents,
+  useIdleReporting,
   useOffice,
   usePersisted,
   useTheme,
@@ -48,6 +50,11 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   const room = template.rooms.find((one) => one.id === roomId)
   const reception = template.rooms.find((one) => one.type === 'reception')
   const tiles = tilePlacement(template.canvas)
+
+  // This device's own signals. The server resolves across every device the
+  // person has open, so typing on a phone keeps them available while the laptop
+  // sits idle.
+  useIdleReporting(client)
 
   /**
    * A refusal is said out loud, not only drawn.
@@ -143,6 +150,19 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          {/*
+            In the controls bar, because this app has no header. unityofis puts
+            the same component in the app shell's header and adds its org presets
+            — which is the whole of the difference.
+          */}
+          <StatusControl
+            you={yourPresence(state)}
+            chosen={statusIsChosen(state)}
+            fromBreakRoom={!statusIsChosen(state) && room?.type === 'break'}
+            onSetStatus={(manual) => void client.setStatus(manual)}
+            onSetCustom={(custom) => void client.setCustomStatus(custom)}
+          />
+
           <ViewToggle view={view} onChange={setView} />
 
           {/*

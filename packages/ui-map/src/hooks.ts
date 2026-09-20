@@ -134,3 +134,79 @@ export function useMeasured<T extends HTMLElement>(): [
 
   return [ref, size]
 }
+
+/**
+ * How long without keyboard or pointer before this device counts as idle.
+ *
+ * Ten minutes, the same number the presence store resolves against. It is here as
+ * well because the device is what notices, and the server is what decides — this
+ * reports one device's signal and never a conclusion about the person.
+ */
+const IDLE_AFTER_MS = 10 * 60 * 1000
+
+/**
+ * Tell the office when this device goes quiet.
+ *
+ * Keyboard and pointer activity, plus the page being hidden, which is what a
+ * screen locking or a tab going to the background looks like from here. The
+ * server resolves across every device the person has open, so typing on a phone
+ * keeps somebody available while their laptop sits idle.
+ *
+ * Suspended by the caller during a call, because somebody listening is not idle
+ * even though they have not touched anything for twenty minutes.
+ */
+export function useIdleReporting(
+  client: OfisClient,
+  options: { enabled?: boolean; afterMs?: number } = {},
+): void {
+  const { enabled = true, afterMs = IDLE_AFTER_MS } = options
+  const idle = useRef(false)
+
+  useEffect(() => {
+    if (!enabled) {
+      // Leaving the feature has to leave the person active, or somebody who
+      // joined a call while idle stays away for the length of it.
+      if (idle.current) {
+        idle.current = false
+        client.setActivity({ idle: false, foreground: true })
+      }
+      return
+    }
+
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const report = (next: boolean) => {
+      // Only on a change. These events arrive by the hundred and almost none of
+      // them mean anything to anybody else.
+      if (idle.current === next) return
+      idle.current = next
+      client.setActivity({ idle: next, foreground: !document.hidden })
+    }
+
+    const restart = () => {
+      report(false)
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => report(true), afterMs)
+    }
+
+    const onVisibility = () => {
+      // A hidden tab is not necessarily an idle person on a laptop, but it is the
+      // only signal a browser gives for a locked screen.
+      if (document.hidden) report(true)
+      else restart()
+    }
+
+    // Passive: none of these ever calls preventDefault, and saying so keeps
+    // scrolling smooth on a touch screen.
+    const events = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const
+    for (const event of events) globalThis.addEventListener(event, restart, { passive: true })
+    document.addEventListener('visibilitychange', onVisibility)
+    restart()
+
+    return () => {
+      for (const event of events) globalThis.removeEventListener(event, restart)
+      document.removeEventListener('visibilitychange', onVisibility)
+      if (timer) clearTimeout(timer)
+    }
+  }, [client, enabled, afterMs])
+}
