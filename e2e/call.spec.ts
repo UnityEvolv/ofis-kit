@@ -59,8 +59,8 @@ test('two people in a room hear each other', async ({ browser }) => {
   await join(grace.page, 'Studio')
   await seeIn(ada.page, 'Studio', 'Grace')
 
-  await ada.page.getByRole('button', { name: 'Join call' }).click()
-  await grace.page.getByRole('button', { name: 'Join call' }).click()
+  await ada.page.getByRole('button', { name: 'Turn on microphone' }).click()
+  await grace.page.getByRole('button', { name: 'Turn on microphone' }).click()
 
   // Both are in the call as far as the office is concerned.
   await expect(ada.page.getByRole('button', { name: 'Leave call' })).toBeVisible()
@@ -81,17 +81,17 @@ test('leaving the call keeps you in the room', async ({ browser }) => {
   const ada = await walkIn(browser, 'Ada')
 
   await join(ada.page, 'Studio')
-  await ada.page.getByRole('button', { name: 'Join call' }).click()
+  await ada.page.getByRole('button', { name: 'Turn on microphone' }).click()
   await expect(ada.page.getByRole('button', { name: 'Leave call' })).toBeVisible()
 
   await ada.page.getByRole('button', { name: 'Leave call' }).click()
 
   // Presence and the call are separate things: leaving the conversation is not
   // leaving the room.
-  await expect(ada.page.getByRole('button', { name: 'Join call' })).toBeVisible()
-  // Scoped to the footer: the announcer's live region says the same words, which
-  // is correct for each and ambiguous for a locator.
-  await expect(ada.page.locator('footer')).toContainText(/You are in Studio/i)
+  await expect(ada.page.getByRole('button', { name: 'Turn on microphone' })).toBeVisible()
+  // Scoped to the bar: the announcer's live region says the same words, which is
+  // correct for each and ambiguous for a locator.
+  await expect(ada.page.getByRole('toolbar')).toContainText(/You are in Studio/i)
 
   await leave(ada)
 })
@@ -100,7 +100,7 @@ test('leaving the room leaves the call', async ({ browser }) => {
   const ada = await walkIn(browser, 'Ada')
 
   await join(ada.page, 'Studio')
-  await ada.page.getByRole('button', { name: 'Join call' }).click()
+  await ada.page.getByRole('button', { name: 'Turn on microphone' }).click()
   await expect(ada.page.getByRole('button', { name: 'Leave call' })).toBeVisible()
 
   await ada.page.getByRole('button', { name: /back to reception/i }).click()
@@ -113,27 +113,36 @@ test('leaving the room leaves the call', async ({ browser }) => {
 })
 
 test('a fifth participant is refused, and told the number', async ({ browser }) => {
+  // Five browsers, and a four-way mesh to build before the fifth is even asked:
+  // genuinely slow rather than stuck.
+  test.slow()
+
   // The provider declares four, and the cap is the provider's rather than a
   // number the call layer picked.
   const people = []
   for (const name of ['One', 'Two', 'Three', 'Four']) {
     const person = await walkIn(browser, name)
     await join(person.page, 'Studio')
-    await person.page.getByRole('button', { name: 'Join call' }).click()
+    await person.page.getByRole('button', { name: 'Turn on microphone' }).click()
     await expect(person.page.getByRole('button', { name: 'Leave call' })).toBeVisible()
     people.push(person)
   }
 
   const fifth = await walkIn(browser, 'Five')
   await join(fifth.page, 'Studio')
-  await fifth.page.getByRole('button', { name: 'Join call' }).click()
 
-  // Refused, and said out loud rather than only drawn — the live region is how
-  // somebody using a screen reader finds out at all.
-  await expect(fifth.page.getByRole('alert')).toContainText(/full \(4 people\)/i, {
+  /*
+   * The fifth person cannot press it, and is told why.
+   *
+   * Disabled and visible rather than hidden, with the reason beside the controls
+   * where a touch screen can read it — a tooltip is invisible on one. The server
+   * refuses a fifth leg independently, which the engine's own tests cover: the
+   * disabled state is a convenience and never the control.
+   */
+  await expect(fifth.page.getByRole('button', { name: 'Turn on microphone' })).toBeDisabled({
     timeout: 10_000,
   })
-  await expect(fifth.page.getByRole('button', { name: 'Join call' })).toBeVisible()
+  await expect(fifth.page.getByRole('note')).toContainText(/this call is full \(4 people\)/i)
 
   for (const person of [...people, fifth]) await leave(person)
 })
@@ -149,8 +158,8 @@ test('the other person is actually audible', async ({ browser }) => {
   await join(grace.page, 'Studio')
   await seeIn(ada.page, 'Studio', 'Grace')
 
-  await ada.page.getByRole('button', { name: 'Join call' }).click()
-  await grace.page.getByRole('button', { name: 'Join call' }).click()
+  await ada.page.getByRole('button', { name: 'Turn on microphone' }).click()
+  await grace.page.getByRole('button', { name: 'Turn on microphone' }).click()
 
   // An audio element, with a stream on it, playing by itself.
   const playing = async (page: typeof ada.page) =>
@@ -172,4 +181,85 @@ test('the other person is actually audible', async ({ browser }) => {
 
   await leave(ada)
   await leave(grace)
+})
+
+test('the microphone joins with audio only, and the camera adds video without interrupting it', async ({
+  browser,
+}) => {
+  // The story's done-when, and the rule that catches people out: entering a room
+  // never joins its call, and each control joins with exactly what was pressed.
+  const ada = await walkIn(browser, 'Ada', { before: watchPeers })
+  const grace = await walkIn(browser, 'Grace')
+
+  await join(ada.page, 'Studio')
+  await join(grace.page, 'Studio')
+  await seeIn(grace.page, 'Studio', 'Ada')
+
+  // Being in the room is not being in the call.
+  await expect(ada.page.getByRole('button', { name: 'Turn on microphone' })).toBeVisible()
+  await expect(ada.page.getByRole('button', { name: 'Leave call' })).toHaveCount(0)
+
+  await ada.page.getByRole('button', { name: 'Turn on microphone' }).click()
+
+  // In, with audio. The camera stays off until it is pressed.
+  await expect(ada.page.getByRole('button', { name: 'Mute microphone' })).toBeVisible()
+  await expect(ada.page.getByRole('button', { name: 'Turn on camera' })).toBeVisible()
+
+  // Grace can see that Ada is in the call and has no camera on.
+  await expect
+    .poll(
+      async () =>
+        grace.page.evaluate(async () => {
+          const response = await fetch('/v1/office')
+          const office = (await response.json()) as {
+            people: Array<{ displayName: string; devices: Array<{ inCall: boolean; cameraOn: boolean }> }>
+          }
+          return office.people.find((one) => one.displayName === 'Ada')?.devices[0]
+        }),
+      { timeout: 10_000 },
+    )
+    .toMatchObject({ inCall: true, cameraOn: false })
+
+  // Grace joins too, so there is somebody to be connected to — and so the camera
+  // going on has a connection to renegotiate.
+  await grace.page.getByRole('button', { name: 'Turn on microphone' }).click()
+  await expect.poll(() => connectionStates(ada.page), { timeout: 20_000 }).toContain('connected')
+
+  await ada.page.getByRole('button', { name: 'Turn on camera' }).click()
+  await expect(ada.page.getByRole('button', { name: 'Turn off camera' })).toBeVisible()
+
+  /*
+   * The camera went on and the audio was never interrupted.
+   *
+   * The same connection, renegotiated: still `connected`, and never `failed` or
+   * back to `connecting`. Turning a camera on renegotiating the whole connection
+   * from scratch is the failure this asserts against.
+   */
+  expect(await connectionStates(ada.page)).toContain('connected')
+  await expect(ada.page.getByRole('button', { name: 'Mute microphone' })).toBeVisible()
+
+  await leave(ada)
+  await leave(grace)
+})
+
+test('the call view swaps the map for the call, and the toggle brings it back', async ({
+  browser,
+}) => {
+  const ada = await walkIn(browser, 'Ada')
+  await join(ada.page, 'Studio')
+  await ada.page.getByRole('button', { name: 'Turn on microphone' }).click()
+
+  await ada.page.getByRole('button', { name: 'Show the call full size' }).click()
+
+  // The map is gone and the call has the space.
+  await expect(ada.page.getByTestId('call-view')).toBeVisible()
+  await expect(ada.page.getByRole('region', { name: /office map/i })).toHaveCount(0)
+
+  await ada.page.getByRole('button', { name: 'Show the office map' }).click()
+
+  // A different view of the same office rather than a different place, so it comes
+  // straight back.
+  await expect(ada.page.getByRole('region', { name: /office map/i })).toBeVisible()
+
+  await leave(ada)
 })
