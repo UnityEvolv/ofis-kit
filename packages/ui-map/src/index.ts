@@ -34,6 +34,8 @@ export {
   type OfficeView,
 } from './OfficeMap.js'
 
+export { CallAudio, type CallAudioProps } from './CallAudio.js'
+export { DevicePanel, PermissionPrimer, type DevicePanelProps } from './DevicePanel.js'
 export { RoomBar, type RoomBarProps } from './RoomBar.js'
 export { StatusControl, type StatusControlProps } from './StatusControl.js'
 export { PersonAvatar, type PersonAvatarProps } from './PersonAvatar.js'

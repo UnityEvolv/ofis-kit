@@ -49,6 +49,27 @@ export {
 
 export { meshAdapter, describeMediaError } from './rtc/mesh.js'
 
+/**
+ * Choosing a microphone, a camera and a speaker, and coping when the browser says
+ * no.
+ *
+ * Almost all of the value is in the failure cases: picking from a list is easy,
+ * and telling somebody the difference between "you denied permission" and
+ * "something else is holding your camera" is what stops a support ticket.
+ */
+export {
+  labelFor,
+  listDevices,
+  memoryDeviceStorage,
+  requestPermission,
+  stillAvailable,
+  watchDevices,
+  type DeviceChoice,
+  type DeviceStorage,
+  type Devices,
+  type PermissionOutcome,
+} from './rtc/devices.js'
+
 export {
   createOfisClient,
   type ClientEvent,

@@ -137,3 +137,39 @@ test('a fifth participant is refused, and told the number', async ({ browser }) 
 
   for (const person of [...people, fifth]) await leave(person)
 })
+
+test('the other person is actually audible', async ({ browser }) => {
+  // The failure this catches is invisible: peer connections succeed, the tiles
+  // appear, the indicators move, and nobody can hear anybody, because a stream
+  // that is never attached to an element is a stream the browser does not play.
+  const ada = await walkIn(browser, 'Ada')
+  const grace = await walkIn(browser, 'Grace')
+
+  await join(ada.page, 'Studio')
+  await join(grace.page, 'Studio')
+  await seeIn(ada.page, 'Studio', 'Grace')
+
+  await ada.page.getByRole('button', { name: 'Join call' }).click()
+  await grace.page.getByRole('button', { name: 'Join call' }).click()
+
+  // An audio element, with a stream on it, playing by itself.
+  const playing = async (page: typeof ada.page) =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('audio')].map((element) => ({
+        hasStream: element.srcObject !== null,
+        muted: element.muted,
+      })),
+    )
+
+  await expect.poll(() => playing(ada.page), { timeout: 20_000 }).toContainEqual({
+    hasStream: true,
+    muted: false,
+  })
+  await expect.poll(() => playing(grace.page), { timeout: 20_000 }).toContainEqual({
+    hasStream: true,
+    muted: false,
+  })
+
+  await leave(ada)
+  await leave(grace)
+})
