@@ -1,0 +1,86 @@
+# The whole office, in three containers.
+#
+#   docker compose -f deploy/docker-compose.yml up
+#
+# Then open http://localhost:8080, type an email and a name, and you are in
+# reception. A second browser window is a second person.
+#
+# Three, because they are genuinely three things: a pile of static files, a Node
+# process holding presence, and a relay that makes calls work through corporate
+# networks. The app container also forwards the socket to the server, so the
+# browser sees one origin and there is no CORS to configure.
+
+name: ofiskit
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: app
+    ports:
+      - '${PORT:-8080}:8080'
+    depends_on:
+      - server
+    restart: unless-stopped
+
+  server:
+    # Named, because the app container forwards to it by this name.
+    container_name: ofiskit-server
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: server
+    environment:
+      # The shared secret coturn also gets. Change it for anything public; the
+      # default exists so that `up` works with no setup at all.
+      TURN_SECRET: ${TURN_SECRET:-ofiskit-local-development-secret}
+      # Where the client is told to look for a relay. This is the address a
+      # browser has to be able to reach, which on a laptop is localhost and in
+      # a real deployment is whatever name coturn is published under.
+      TURN_URLS: ${TURN_URLS:-turn:localhost:3478?transport=udp}
+      STUN_URLS: ${STUN_URLS:-stun:localhost:3478}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Set DEMO=true for a public deployment: it says so on screen and caps
+      # how many people can be in the office at once.
+      DEMO: ${DEMO:-false}
+      MAX_PRESENT: ${MAX_PRESENT:-}
+    volumes:
+      # The office is two files. Mount them and you can change the office
+      # without rebuilding anything.
+      - ../config:/app/config:ro
+    restart: unless-stopped
+
+  coturn:
+    image: coturn/coturn:4.6-alpine
+    # Host networking, because a relay has to hand out the address a browser
+    # will actually connect to, and a bridged container hands out one that only
+    # exists inside Docker.
+    network_mode: host
+    command:
+      - --listening-port=3478
+      - --listening-ip=0.0.0.0
+      - --realm=ofiskit
+      # The REST scheme: no user database, no accounts. The office mints a
+      # username that is an expiry timestamp and a password that is an HMAC of
+      # it under this secret, and coturn accepts it until the timestamp passes.
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET:-ofiskit-local-development-secret}
+      - --fingerprint
+      # Relay only. Without these a TURN server is an open proxy into whatever
+      # network it is sitting in, which is the classic way to lose one.
+      - --no-cli
+      - --no-tlsv1
+      - --no-tlsv1_1
+      - --no-multicast-peers
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      # A small box carries a surprising amount of relayed audio; video is what
+      # costs. Sized for a free tier, and written down so it can be argued with.
+      - --max-bps=1000000
+      - --user-quota=12
+      - --total-quota=1200
+    restart: unless-stopped

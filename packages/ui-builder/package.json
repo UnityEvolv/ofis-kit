@@ -1,0 +1,23 @@
+{
+  "name": "@unityevolv/ofiskit-ui-builder",
+  "version": "0.1.0",
+  "description": "The office builder: draw rooms and user areas on a background image and emit a template. Takes a layout, emits a layout; the host decides what to do with it.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "sideEffects": false,
+  "publishConfig": { "access": "public" },
+  "repository": { "type": "git", "url": "git+https://github.com/UnityEvolv/ofis-kit.git", "directory": "packages/ui-builder" },
+  "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit" },
+  "dependencies": {
+    "@unityevolv/ofiskit-template": "0.1.0"
+  },
+  "peerDependencies": {
+    "@unityevolv/unitykit": ">=0.1.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  }
+}

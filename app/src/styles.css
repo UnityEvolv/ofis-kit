@@ -1,0 +1,14 @@
+/*
+ * The one stylesheet.
+ *
+ * Tailwind only, for now. Wiring unitykit into it — the theme, the tokens and
+ * the source directives that make the kit's classes actually generate CSS — is
+ * its own story, and the part most likely to go wrong.
+ */
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  height: 100%;
+}
