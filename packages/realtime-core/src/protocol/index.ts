@@ -57,6 +57,14 @@ export interface PublicPresence {
     cameraOn: boolean
     sharing: boolean
     speaking: boolean
+    /**
+     * When this device last started speaking, or null if it never has.
+     *
+     * Stamped by the server so that everybody in the call sees the same five
+     * faces: a client that joined a minute ago has no less idea of who spoke
+     * recently than one that has been listening throughout.
+     */
+    lastSpokeAt: string | null
   }>
   /**
    * Already resolved, so clients render it rather than working it out again.

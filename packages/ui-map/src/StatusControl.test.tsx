@@ -28,6 +28,7 @@ function person(overrides: Partial<PublicPresence> = {}): PublicPresence {
         cameraOn: false,
         sharing: false,
         speaking: false,
+        lastSpokeAt: null,
       },
     ],
     status: 'available',

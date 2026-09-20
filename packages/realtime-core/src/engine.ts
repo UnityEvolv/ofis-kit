@@ -1614,6 +1614,7 @@ function toPublic(
         cameraOn: leg?.cameraOn ?? false,
         sharing: leg?.sharing ?? false,
         speaking: leg?.speaking ?? false,
+        lastSpokeAt: leg?.lastSpokeAt ?? null,
       }
     }),
     arrivedAt: presence.arrivedAt,

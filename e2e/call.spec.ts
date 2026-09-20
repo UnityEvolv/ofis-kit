@@ -263,3 +263,59 @@ test('the call view swaps the map for the call, and the toggle brings it back', 
 
   await leave(ada)
 })
+
+test('the tiles appear beside the office, and your own is pinned', async ({ browser }) => {
+  const ada = await walkIn(browser, 'Ada')
+  const grace = await walkIn(browser, 'Grace')
+
+  await join(ada.page, 'Studio')
+  await join(grace.page, 'Studio')
+  await ada.page.getByRole('button', { name: 'Turn on microphone' }).click()
+  await grace.page.getByRole('button', { name: 'Turn on microphone' }).click()
+
+  // A strip on this office, because its canvas is landscape: width to spare and
+  // height at a premium.
+  const strip = ada.page.getByTestId('call-tiles')
+  await expect(strip).toHaveAttribute('data-placement', 'top')
+
+  // Two tiles: Ada's own, pinned, and Grace's.
+  await expect(strip.getByTestId(/^tile-/)).toHaveCount(2)
+  await expect(strip.getByText('You')).toBeVisible()
+
+  // And the map is still there beside them.
+  await expect(ada.page.getByRole('region', { name: /office map/i })).toBeVisible()
+
+  await leave(ada)
+  await leave(grace)
+})
+
+test('muting somebody for yourself silences them for you and nobody else', async ({ browser }) => {
+  const ada = await walkIn(browser, 'Ada')
+  const grace = await walkIn(browser, 'Grace')
+
+  await join(ada.page, 'Studio')
+  await join(grace.page, 'Studio')
+  await ada.page.getByRole('button', { name: 'Turn on microphone' }).click()
+  await grace.page.getByRole('button', { name: 'Turn on microphone' }).click()
+
+  await ada.page.getByRole('button', { name: /mute grace for yourself only/i }).click()
+
+  // Muted on Ada's side: the audio element for Grace's leg, and nothing else.
+  await expect
+    .poll(() =>
+      ada.page.evaluate(() => [...document.querySelectorAll('audio')].map((one) => one.muted)),
+    )
+    .toEqual([true])
+  await expect(ada.page.getByText(/muted for you/i)).toBeVisible()
+
+  // Grace is not told, and hears Ada exactly as before.
+  await expect(grace.page.getByText(/muted for you/i)).toHaveCount(0)
+  await expect
+    .poll(() =>
+      grace.page.evaluate(() => [...document.querySelectorAll('audio')].map((one) => one.muted)),
+    )
+    .toEqual([false])
+
+  await leave(ada)
+  await leave(grace)
+})
