@@ -3,8 +3,12 @@ import type { IceServer, SignalMessage } from '@unityevolv/ofiskit-realtime-core
 import {
   AUDIO_BITRATE,
   CONNECT_TIMEOUT_MS,
+  LEVEL_INTERVAL_MS,
   SCREEN_CEILING,
+  SPEAKING_LEVEL,
   VIDEO_STEPS,
+  rmsLevel,
+  speakingNow,
   type JoinOptions,
   type RtcClientAdapter,
   type RtcEvent,
@@ -66,6 +70,8 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
   let audioContext: AudioContext | null = null
   let analyser: AnalyserNode | null = null
   let speaking = false
+  /** When the level was last above the threshold, which is what the hold measures from. */
+  let loudAt = 0
 
   const emit = (event: RtcEvent) => {
     for (const handler of [...handlers]) handler(event)
@@ -127,6 +133,11 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
    * Client-side because in a mesh there is no server in the media path to
    * measure it. Reported only when it crosses the threshold, not on a tick, so
    * the socket carries a handful of events per person rather than a stream.
+   *
+   * The measure is the root mean square of the waveform, which is how loud the
+   * sound is. Muting stops it immediately rather than waiting out the hold: a
+   * muted microphone is silent, and an indicator saying otherwise for a second
+   * afterwards is the one mistake this indicator must never make.
    */
   function watchLevel(stream: MediaStream): void {
     try {
@@ -135,21 +146,23 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       analyser.fftSize = 512
       audioContext.createMediaStreamSource(stream).connect(analyser)
 
-      const samples = new Uint8Array(analyser.frequencyBinCount)
+      const samples = new Uint8Array(analyser.fftSize)
       levelTimer = setInterval(() => {
         if (!analyser) return
-        analyser.getByteFrequencyData(samples)
-        let total = 0
-        for (const sample of samples) total += sample
-        const level = total / samples.length / 255
+        analyser.getByteTimeDomainData(samples)
+        const level = rmsLevel(samples)
 
         const muted = !(microphone?.getAudioTracks()[0]?.enabled ?? false)
-        const now = !muted && level > 0.04
+        if (!muted && level > SPEAKING_LEVEL) loudAt = Date.now()
+
+        // Held briefly after the level drops, because the gap between two words
+        // is not the end of somebody talking.
+        const now = speakingNow({ muted, loudAt, now: Date.now() })
         if (now !== speaking) {
           speaking = now
           emit({ type: 'speaking', speaking: now, level })
         }
-      }, 200)
+      }, LEVEL_INTERVAL_MS)
     } catch {
       // No audio context is survivable: speaking indicators stop working and
       // the call itself is unaffected, which is the right thing to lose.
@@ -539,6 +552,7 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       stopSignals?.()
       stopSignals = null
       speaking = false
+      loudAt = 0
     },
 
     async setMicrophone(on: boolean) {

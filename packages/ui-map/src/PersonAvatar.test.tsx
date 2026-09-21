@@ -153,6 +153,132 @@ describe('one person on the map', () => {
   })
 })
 
+/**
+ * Who is talking, on the map.
+ *
+ * The ring is the half somebody sees and the label is the half somebody hears;
+ * neither is optional. "Who is speaking" is most of what a person wants from a
+ * room they are looking at rather than sitting in.
+ */
+describe('what a call looks like from the map', () => {
+  const inCall = (overrides: Partial<PublicPresence['devices'][number]> = {}) => ({
+    ...device('ada-laptop'),
+    inCall: true,
+    muted: false,
+    ...overrides,
+  })
+
+  it('rings the person who is speaking, and says so', () => {
+    const { container } = render(
+      <PersonAvatar
+        person={person({ userId: 'ada', status: 'in_call', devices: [inCall({ speaking: true })] })}
+        size={64}
+      />,
+    )
+
+    expect(screen.getByRole('img', { name: /speaking/i })).toBeInTheDocument()
+    expect(container.querySelector('.animate-pulse')).not.toBeNull()
+  })
+
+  it('keeps the ring and drops the pulse under reduced motion', () => {
+    // The information is in the ring. The pulsing is the part that makes some
+    // people feel unwell, and it is the part that goes.
+    const { container } = render(
+      <PersonAvatar
+        person={person({ userId: 'ada', status: 'in_call', devices: [inCall({ speaking: true })] })}
+        size={64}
+        reducedMotion
+      />,
+    )
+
+    expect(container.querySelector('.ring-primary')).not.toBeNull()
+    expect(container.querySelector('.animate-pulse')).toBeNull()
+    expect(screen.getByRole('img', { name: /speaking/i })).toBeInTheDocument()
+  })
+
+  it('draws nothing for somebody muted who is not in a call', () => {
+    // Every device carries `muted`, and it means nothing until there is a call to
+    // be muted in — a mute badge on everybody standing in reception is noise.
+    render(<PersonAvatar person={person({ userId: 'ada' })} size={64} />)
+    expect(screen.queryByRole('img', { name: /microphone off/i })).not.toBeInTheDocument()
+  })
+
+  it('badges a muted microphone once there is a call to be muted in', () => {
+    render(
+      <PersonAvatar
+        person={person({ userId: 'ada', status: 'in_call', devices: [inCall({ muted: true })] })}
+        size={64}
+      />,
+    )
+    expect(screen.getByRole('img', { name: /microphone off/i })).toBeInTheDocument()
+  })
+
+  it('badges somebody sharing their screen', () => {
+    render(
+      <PersonAvatar
+        person={person({ userId: 'ada', status: 'in_call', devices: [inCall({ sharing: true })] })}
+        size={64}
+      />,
+    )
+    expect(screen.getByRole('img', { name: /sharing their screen/i })).toBeInTheDocument()
+  })
+
+  it('is per device where the avatar is one device', () => {
+    // Somebody in the call on their laptop with a phone in their pocket: the
+    // laptop's avatar is the one that lights up.
+    const devices = [
+      { ...inCall({ speaking: true }), deviceId: 'laptop' },
+      { ...device('phone', 'mobile'), deviceId: 'phone' },
+    ]
+    const ada = person({ userId: 'ada', status: 'in_call', devices })
+
+    const { unmount } = render(<PersonAvatar person={ada} size={64} deviceId="laptop" linked />)
+    expect(screen.getByRole('img', { name: /speaking/i })).toBeInTheDocument()
+    unmount()
+
+    render(<PersonAvatar person={ada} size={64} deviceId="phone" linked />)
+    expect(screen.queryByRole('img', { name: /speaking/i })).not.toBeInTheDocument()
+  })
+
+  it('is across the person where the avatar is the person', () => {
+    // Drawn once, for somebody in the call from two devices: speaking if either
+    // is, and muted only if both are.
+    const ada = person({
+      userId: 'ada',
+      status: 'in_call',
+      devices: [
+        { ...inCall({ muted: true }), deviceId: 'laptop' },
+        { ...inCall({ speaking: true }), deviceId: 'phone' },
+      ],
+    })
+
+    render(<PersonAvatar person={ada} size={64} />)
+
+    expect(screen.getByRole('img', { name: /speaking/i })).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /microphone off/i })).not.toBeInTheDocument()
+  })
+
+  it('never says only a colour', () => {
+    // Ring, badge and label all at once. A ring on a picture is invisible to a
+    // screen reader, and a colour alone is invisible to plenty of people looking
+    // straight at it.
+    render(
+      <PersonAvatar
+        person={person({
+          userId: 'ada',
+          status: 'in_call',
+          devices: [inCall({ speaking: true, sharing: true })],
+        })}
+        size={64}
+      />,
+    )
+
+    const avatar = screen.getByRole('img', { name: /ada/i })
+    expect(avatar.getAttribute('aria-label')).toMatch(/sharing their screen/i)
+    expect(avatar.getAttribute('aria-label')).toMatch(/speaking/i)
+  })
+})
+
 describe('the one visual language for status', () => {
   const every = Object.keys(STATUS_LOOKS) as Status[]
 

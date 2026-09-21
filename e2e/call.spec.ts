@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { join, leave, officeIsEmpty, seeIn, walkIn } from './helpers.js'
+import { join, leave, officeIsEmpty, room, seeIn, walkIn } from './helpers.js'
 
 /**
  * A real call between two real browsers.
@@ -318,4 +318,57 @@ test('muting somebody for yourself silences them for you and nobody else', async
 
   await leave(ada)
   await leave(grace)
+})
+
+test('a call is visible from outside the room, and the speaker lights up inside it', async ({
+  browser,
+}) => {
+  // The story's done-when, both halves. The first is what somebody standing
+  // somewhere else sees; the second is what somebody in the room sees.
+  const ada = await walkIn(browser, 'Ada')
+  const grace = await walkIn(browser, 'Grace')
+  const cleo = await walkIn(browser, 'Cleo')
+
+  await join(ada.page, 'Studio')
+  await join(grace.page, 'Studio')
+  await ada.page.getByRole('button', { name: 'Turn on microphone' }).click()
+  await grace.page.getByRole('button', { name: 'Turn on microphone' }).click()
+
+  /*
+   * Cleo never went anywhere near Studio.
+   *
+   * She is in reception, looking at the map, and the room bar tells her there is
+   * a conversation in there and how many people are in it — which is the whole
+   * reason the call is on the bar rather than only inside the room.
+   */
+  await expect(room(cleo.page, 'Studio').getByRole('img', { name: /call with 2 people/i })).toBeVisible({
+    timeout: 10_000,
+  })
+
+  // And the same thing said to a screen reader arrowing between rooms.
+  await expect(room(cleo.page, 'Studio')).toHaveAttribute(
+    'aria-label',
+    /call with 2 people/i,
+  )
+
+  /*
+   * Inside the room, whoever is talking lights up.
+   *
+   * Chromium's fake microphone plays a repeating tone rather than silence, so Ada
+   * is talking as far as the level meter is concerned — but only while her tab is
+   * the one in front, because Chromium throttles a background tab's timers to
+   * roughly once a second and the meter then samples between the beeps. Nothing
+   * about the product depends on that; a person talking is looking at their own
+   * screen. So Ada is brought to the front, and the assertion is still made on
+   * Grace's page, which is the point: Grace sees who is talking.
+   */
+  await ada.page.bringToFront()
+
+  await expect(
+    room(grace.page, 'Studio').getByRole('img', { name: /^Ada,.*speaking/i }),
+  ).toBeVisible({ timeout: 15_000 })
+
+  await leave(ada)
+  await leave(grace)
+  await leave(cleo)
 })

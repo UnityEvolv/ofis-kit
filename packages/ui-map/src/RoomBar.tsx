@@ -1,4 +1,5 @@
 import { Icon } from '@unityevolv/unitykit'
+import type { RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import type { Room } from '@unityevolv/ofiskit-template'
 import { hostsCalls } from '@unityevolv/ofiskit-template'
 
@@ -24,6 +25,15 @@ export interface RoomBarProps {
   capacity: number | null
   locked: boolean
   inside: boolean
+  /**
+   * The call happening in this room, if there is one.
+   *
+   * Null in reception and the break room always, because neither hosts a call —
+   * and null in an ordinary room where nobody has started one yet. A room with a
+   * call in it is the single most useful thing on this bar: it is the difference
+   * between walking in on a conversation and joining one.
+   */
+  call?: RoomCall | null
   /** The identity adapter's answer, when the host has one. Never invented here. */
   forbiddenReason?: string | null
   /** How wide the room is on screen, which decides how much the bar can show. */
@@ -54,6 +64,18 @@ export function RoomBar(props: RoomBarProps) {
 
   const full = capacity !== null && occupancy >= capacity
   const lockable = hostsCalls(room.type)
+
+  /*
+   * The call, and whether there is a seat left in it.
+   *
+   * Two different fullnesses live on this bar and they are not the same thing: the
+   * room can have space for ten more people while the call in it has none, because
+   * the cap on the call is the provider's and the cap on the room is the office's.
+   * Saying "full" without saying which would send somebody away from a room they
+   * could have walked into.
+   */
+  const call = hostsCalls(room.type) ? (props.call ?? null) : null
+  const callFull = call !== null && call.participants.length >= call.limit
 
   const actions: Action[] = []
 
@@ -98,8 +120,11 @@ export function RoomBar(props: RoomBarProps) {
   }
 
   // One message at a time. Two stacked reasons is a paragraph on a room bar, and
-  // the first one is the one stopping you.
-  const message = actions.find((action) => action.disabled)?.reason ?? null
+  // the first one is the one stopping you. A full call comes second, because it
+  // stops you doing less: you can still go in and listen.
+  const message =
+    actions.find((action) => action.disabled)?.reason ??
+    (callFull ? `The call in ${room.name} is full. You can still go in.` : null)
 
   const typeIcon =
     room.type === 'reception' ? 'reception' : room.type === 'break' ? 'break-room' : 'office'
@@ -136,6 +161,33 @@ export function RoomBar(props: RoomBarProps) {
         <span className="min-w-0 flex-1 truncate text-xs font-medium" title={room.name}>
           {room.name}
         </span>
+
+        {/*
+          A call in progress, visible from outside the room.
+
+          Everything about it is in one accessible name rather than in the parts:
+          an icon and "3/4" read out separately are two fragments nobody can
+          assemble, and the whole question somebody is asking is "is there a
+          conversation in there, and is there room in it".
+        */}
+        {call && (
+          <span
+            role="img"
+            aria-label={`Call with ${call.participants.length} ${
+              call.participants.length === 1 ? 'person' : 'people'
+            }${callFull ? ', full' : ''}`}
+            data-testid={`room-call-${room.id}`}
+            className={[
+              'inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-px text-[10px] font-medium tabular-nums',
+              callFull ? 'bg-base-200 text-base-content/70' : 'bg-primary/15 text-primary',
+            ].join(' ')}
+          >
+            <Icon name="mic" size="xs" />
+            <span aria-hidden="true">
+              {call.participants.length}/{call.limit}
+            </span>
+          </span>
+        )}
 
         {locked && (
           <span className="shrink-0 text-base-content/70">

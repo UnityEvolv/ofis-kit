@@ -197,6 +197,20 @@ describe('the tiles', () => {
     expect(view.container.querySelectorAll('audio')).toHaveLength(0)
   })
 
+  it('rings the tile of whoever is talking, and says so as well as drawing it', () => {
+    // The same ring as on the map, because "who is talking" should look like one
+    // thing wherever it appears — and said out loud, because a ring is invisible
+    // to a screen reader.
+    const built = callOf(['grace'])
+    built.people.set('grace', person('grace', [device('grace-laptop', { speaking: true })]))
+
+    tiles({ names: ['grace'], people: built.people })
+
+    const tile = screen.getByTestId('tile-grace-laptop')
+    expect(tile.className).toMatch(/ring-primary/)
+    expect(tile).toHaveTextContent(/grace, speaking/i)
+  })
+
   it('shows a muted microphone and a weak connection on the tile', () => {
     const built = callOf(['grace'])
     built.people.set('grace', person('grace', [device('grace-laptop', { muted: true })]))
