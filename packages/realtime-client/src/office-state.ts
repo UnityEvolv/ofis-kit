@@ -207,6 +207,37 @@ export function callIn(state: OfficeState, roomId: string): RoomCall | null {
   return state.calls.get(roomId) ?? null
 }
 
+/** Who is sharing a screen in a room, with their name resolved. */
+export interface Sharer {
+  userId: string
+  deviceId: string
+  /** Empty for somebody the office has not heard of, which a caller can test. */
+  displayName: string
+  startedAt: string
+}
+
+/**
+ * Who is sharing in a room, or nobody.
+ *
+ * Read from the call rather than by looking for a device with its `sharing` flag
+ * set, because the call holds **one** slot: asking it is how every screen agrees
+ * about whose screen is on them, and a scan of everybody's devices could find two.
+ *
+ * The name is resolved here so that callers do not each do it: the answer is
+ * usually needed in a sentence — "Ada is sharing" — rather than as an id.
+ */
+export function sharerIn(state: OfficeState, roomId: string): Sharer | null {
+  const sharing = state.calls.get(roomId)?.sharing
+  if (!sharing) return null
+
+  return {
+    userId: sharing.userId,
+    deviceId: sharing.deviceId,
+    displayName: state.people.get(sharing.userId)?.displayName ?? '',
+    startedAt: sharing.startedAt,
+  }
+}
+
 /**
  * Seats a room's call is using.
  *

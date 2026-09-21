@@ -65,6 +65,14 @@ export type ClientEvent =
       reaction: string
       at: string
     }
+  /**
+   * Your own screen share was stopped, by somebody else taking over.
+   *
+   * Only ever about your own share, because it is the only one this client has a
+   * capture to tear down. Everybody else learns a share changed hands from the
+   * call, the ordinary way, and needs no event for it.
+   */
+  | { type: 'share.ended'; roomId: string; reason: 'taken_over'; byUserId: string }
   /** A move or an action the server refused, with the reason to show. */
   | { type: 'refused'; action: string; code: string; message: string }
   | { type: 'status'; status: ConnectionStatus }
@@ -349,6 +357,20 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
       socket.emit('call:failed', { reason: event.reason })
     }
     emit({ type: 'rtc', event })
+  })
+
+  /**
+   * Somebody took the share, so this one stops.
+   *
+   * The capture is stopped here rather than left to whoever is drawing, because it
+   * is not a drawing decision: the operating system is recording a screen, the
+   * server has already given the slot to somebody else, and a client that only
+   * redrew would go on capturing for nobody. The event is emitted as well, so the
+   * person can be told why their share ended without them touching anything.
+   */
+  socket.on('call:share_ended', (event: { roomId: string; reason: 'taken_over'; byUserId: string }) => {
+    void rtc.stopScreenShare()
+    emit({ type: 'share.ended', ...event })
   })
 
   socket.on('disconnected', (reason: { code: string; message: string }) => {

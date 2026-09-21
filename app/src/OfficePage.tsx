@@ -10,7 +10,11 @@ import {
   OfficeMap,
   OutgoingKnock,
   RoomListView,
+  ScreenSourcePicker,
+  ShareStage,
+  SharingBanner,
   StatusControl,
+  TakeOverDialog,
   ViewToggle,
   useAnnounce,
   useClientEvents,
@@ -20,15 +24,17 @@ import {
   describeReaction,
   useCallMedia,
   useReactions,
+  useShare,
   useSpeakerOrder,
   useTheme,
   type OfficeView,
 } from '@unityevolv/ofiskit-ui-map'
 import { tilePlacement } from '@unityevolv/ofiskit-ui-map'
 import { hostsCalls, type Template } from '@unityevolv/ofiskit-template'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { officeImageUrl } from './config.js'
+import { hostScreenSources } from './screenSources.js'
 import { useCallControls } from './useCallControls.js'
 import { useKnocks } from './useKnocks.js'
 
@@ -73,6 +79,16 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   const tiles = tilePlacement(template.canvas)
 
   /**
+   * The host's own screen picker, where the host has one.
+   *
+   * Null in a browser, which is what this app actually runs in: the browser's picker
+   * is better than anything drawn here and is the only one that can offer a single
+   * tab. A desktop shell wrapping this app exposes its list instead, and nothing else
+   * about sharing changes.
+   */
+  const screenSources = useMemo(() => hostScreenSources(), [])
+
+  /**
    * Everything the bar does when it is pressed.
    *
    * Held here rather than in the bar, because pressing the microphone when you are
@@ -81,6 +97,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
    */
   const call = useCallControls(client, state, {
     available: Boolean(room && hostsCalls(room.type)),
+    screenSources,
   })
 
   /*
@@ -148,6 +165,19 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
    */
   const reactions = useReactions(client)
 
+  /**
+   * The screen somebody is showing, and what that does to this view.
+   *
+   * Everybody's client switches to the call when a share starts and goes back to the
+   * layout it had when the share ends, because a share is the one thing in the office
+   * that is worth interrupting a layout for — and switching away again during it is
+   * allowed, which is what makes the switch a default rather than a lock.
+   */
+  const share = useShare(client, state, media, {
+    callView: call.callView,
+    setCallView: call.setCallView,
+  })
+
   const knocks = useKnocks(client, template)
 
   const props = {
@@ -203,18 +233,51 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
             space they fill.
           */}
           {call.callView && call.call ? (
-            <div data-testid="call-view" className="h-full w-full">
-              <CallTiles
-                call={call.call}
-                people={state.people}
-                order={order}
-                media={media}
-                reactions={reactions.byDevice}
-                you={state.you}
-                placement="grid"
-                onMuteForMe={media.muteForMe}
-                onVisibleChange={(deviceIds) => client.rtc.setVideoSubscriptions(deviceIds)}
-              />
+            <div data-testid="call-view" className="flex h-full w-full flex-col">
+              {/*
+                A share takes the space and the faces move to a strip above it.
+
+                Across the top in both orientations, unlike the strip beside the map:
+                a share is almost always wider than it is tall, so the width belongs
+                to it, and a column of tiles beside it on a phone would leave neither
+                of them readable.
+              */}
+              {share.sharedBy ? (
+                <>
+                  <CallTiles
+                    call={call.call}
+                    people={state.people}
+                    order={order}
+                    media={media}
+                    reactions={reactions.byDevice}
+                    you={state.you}
+                    placement="top"
+                    onMuteForMe={media.muteForMe}
+                    onVisibleChange={(deviceIds) => client.rtc.setVideoSubscriptions(deviceIds)}
+                  />
+                  <ShareStage
+                    sharerName={share.sharedBy.displayName || 'Somebody'}
+                    mine={share.mine}
+                    stream={share.stream}
+                    {...(devices.speakerDeviceId
+                      ? { speakerDeviceId: devices.speakerDeviceId }
+                      : {})}
+                    onStop={() => void client.rtc.stopScreenShare()}
+                  />
+                </>
+              ) : (
+                <CallTiles
+                  call={call.call}
+                  people={state.people}
+                  order={order}
+                  media={media}
+                  reactions={reactions.byDevice}
+                  you={state.you}
+                  placement="grid"
+                  onMuteForMe={media.muteForMe}
+                  onVisibleChange={(deviceIds) => client.rtc.setVideoSubscriptions(deviceIds)}
+                />
+              )}
             </div>
           ) : view === 'map' ? (
             <OfficeMap {...props} />
@@ -239,6 +302,15 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
       </div>
 
       {/*
+        You are sharing, said in every view.
+
+        Above the bar rather than inside it, and present on the map as well as in the
+        call: forgetting to stop is the commonest failure in any call product, and its
+        consequences are somebody's inbox on a projector.
+      */}
+      {share.mine && <SharingBanner onStop={() => void client.rtc.stopScreenShare()} />}
+
+      {/*
         The controls bar, and the only chrome in this app.
         
         The bar is always there; the *call* controls come and go, because reception
@@ -252,6 +324,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
         muted={call.muted}
         cameraOn={call.cameraOn}
         sharing={call.sharing}
+        sharedByOther={call.sharedByOther}
         handRaised={call.handRaised}
         callView={call.callView}
         call={call.call}
@@ -338,6 +411,29 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
         onApply={(choice) => void client.rtc.useDevices(choice)}
         preview
       />
+
+      {/*
+        The two questions a share sometimes asks first.
+
+        Neither appears in the ordinary case: on the web, pressing share in a call
+        nobody is sharing in opens the browser's own picker and nothing else happens
+        here.
+      */}
+      {call.asking?.kind === 'take-over' && (
+        <TakeOverDialog
+          sharerName={call.asking.sharerName || 'Somebody'}
+          onConfirm={call.confirmTakeOver}
+          onCancel={call.cancelShare}
+        />
+      )}
+
+      {call.asking?.kind === 'sources' && (
+        <ScreenSourcePicker
+          sources={call.asking.list}
+          onPick={call.pickSource}
+          onCancel={call.cancelShare}
+        />
+      )}
     </div>
   )
 }

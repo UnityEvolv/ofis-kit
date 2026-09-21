@@ -2179,3 +2179,152 @@ describe('a hand up, and reacting without interrupting', () => {
     expect(await h.engine.react(grace, '\u{1F602}')).toMatchObject({ ok: true })
   })
 })
+
+describe('one screen at a time', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = harness()
+  })
+
+  const named = (name: string) => h.template.rooms.find((room) => room.name === name)?.id ?? ''
+
+  /** Two people in the workspace, both in its call. */
+  async function inCall() {
+    const ada = await h.enter({ name: 'Ada', deviceId: 'ada-laptop' })
+    const grace = await h.enter({ name: 'Grace', deviceId: 'grace-laptop' })
+    for (const socket of [ada, grace]) {
+      await h.engine.joinRoom(socket, named('Workspace'))
+      await h.engine.joinCall(socket, { audio: true, video: false })
+    }
+    await h.flush()
+    h.sent.clear()
+    return { ada, grace }
+  }
+
+  const share = (socket: string, sharing: boolean) =>
+    h.engine.setMediaState(socket, { muted: false, cameraOn: false, sharing })
+
+  const callFrom = async (socket: string) => (await h.engine.snapshot(socket)).calls[0]
+
+  it('says who is sharing, so every screen in the room agrees', async () => {
+    const { ada, grace } = await inCall()
+    const userId = (await h.engine.snapshot(ada)).you.userId
+
+    await share(ada, true)
+
+    // Read from the call rather than from anybody's devices: one slot, one answer.
+    expect(await callFrom(grace)).toMatchObject({
+      sharing: { userId, deviceId: 'ada-laptop', startedAt: expect.any(String) },
+    })
+  })
+
+  it('empties the slot when the share stops', async () => {
+    const { ada, grace } = await inCall()
+
+    await share(ada, true)
+    await share(ada, false)
+
+    expect((await callFrom(grace))?.sharing).toBeNull()
+  })
+
+  it('does not restamp a share that is already running', async () => {
+    const { ada } = await inCall()
+
+    await share(ada, true)
+    const first = (await callFrom(ada))?.sharing?.startedAt
+
+    // A client reporting its media state again — a mute, a camera — must not make
+    // its own share look newer than it is.
+    await h.engine.setMediaState(ada, { muted: true, cameraOn: false, sharing: true })
+
+    expect((await callFrom(ada))?.sharing?.startedAt).toBe(first)
+  })
+
+  it('hands the slot over, and leaves nobody sharing twice', async () => {
+    const { ada, grace } = await inCall()
+
+    await share(ada, true)
+    await share(grace, true)
+
+    // The invariant the slot exists for: there is no arrangement of two clients
+    // that ends with two shares.
+    const devices = (await h.engine.snapshot(ada)).people.flatMap((one) => one.devices)
+    expect(devices.filter((device) => device.sharing).map((device) => device.deviceId)).toEqual([
+      'grace-laptop',
+    ])
+    expect((await callFrom(ada))?.sharing).toMatchObject({ deviceId: 'grace-laptop' })
+  })
+
+  it('tells the displaced client, on its own socket, so the capture stops', async () => {
+    const { ada, grace } = await inCall()
+    const graceId = (await h.engine.snapshot(grace)).you.userId
+
+    await share(ada, true)
+    h.sent.clear()
+    await share(grace, true)
+
+    // To the one connection holding a screen, and to nobody else: everybody else
+    // learns the share changed hands from the call, the ordinary way.
+    expect(h.sent.connections).toEqual([
+      {
+        connectionId: ada,
+        event: 'call:share_ended',
+        payload: { roomId: named('Workspace'), reason: 'taken_over', byUserId: graceId },
+      },
+    ])
+    expect(h.sent.rooms.filter((one) => one.event === 'call:share_ended')).toHaveLength(0)
+  })
+
+  it('says nothing to anybody when the first share is nobody else’s', async () => {
+    const { ada } = await inCall()
+
+    await share(ada, true)
+
+    // Taking a slot that was empty displaces nobody, so there is nothing to send.
+    expect(h.sent.connections.filter((one) => one.event === 'call:share_ended')).toHaveLength(0)
+  })
+
+  it('gives the slot up when the sharer’s connection drops', async () => {
+    h = harness({ graceMs: 5000 })
+    const { ada, grace } = await inCall()
+
+    await share(ada, true)
+    await h.engine.disconnected(ada)
+
+    /*
+     * The seat is held and the share is not.
+     *
+     * A slot held by a device that has stopped sending is a frozen last frame on
+     * everybody's screen — or nothing at all — for the length of the grace period,
+     * and the screen it belonged to is gone either way.
+     */
+    const call = await callFrom(grace)
+    expect(call?.participants).toHaveLength(2)
+    expect(call?.sharing).toBeNull()
+  })
+
+  it('leaves the slot empty when the sharer leaves the call', async () => {
+    const { ada, grace } = await inCall()
+
+    await share(ada, true)
+    await h.engine.leaveCall(ada)
+
+    expect((await callFrom(grace))?.sharing).toBeNull()
+  })
+
+  it('is the same slot for a second device as for a second person', async () => {
+    const { ada } = await inCall()
+    // Two of your own screens is the same question: a call shows one screen, and
+    // whose it is has nothing to do with it.
+    const phone = await h.enter({ name: 'Ada', deviceId: 'ada-phone', connectionId: 'socket-phone' })
+    await h.engine.joinRoom(phone, named('Workspace'))
+    await h.engine.joinCall(phone, { audio: false, video: false, secondDevice: 'add' })
+
+    await share(ada, true)
+    await share(phone, true)
+
+    expect((await callFrom(ada))?.sharing).toMatchObject({ deviceId: 'ada-phone' })
+    const devices = (await h.engine.snapshot(ada)).people.flatMap((one) => one.devices)
+    expect(devices.filter((device) => device.sharing)).toHaveLength(1)
+  })
+})

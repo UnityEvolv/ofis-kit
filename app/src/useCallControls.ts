@@ -1,9 +1,14 @@
 import type { OfisClient } from '@unityevolv/ofiskit-realtime-client'
-import { callIn, you as yourPresence, yourRoom } from '@unityevolv/ofiskit-realtime-client'
+import { callIn, sharerIn, you as yourPresence, yourRoom } from '@unityevolv/ofiskit-realtime-client'
 import { useAnnounce, usePersisted } from '@unityevolv/ofiskit-ui-map'
 import type { OfficeState } from '@unityevolv/ofiskit-realtime-client'
-import type { Reaction, RoomCall } from '@unityevolv/ofiskit-realtime-client'
-import { useCallback } from 'react'
+import type {
+  Reaction,
+  RoomCall,
+  ScreenSource,
+  ScreenSourceProvider,
+} from '@unityevolv/ofiskit-realtime-client'
+import { useCallback, useState } from 'react'
 
 /**
  * What the controls bar does when it is pressed.
@@ -20,6 +25,18 @@ import { useCallback } from 'react'
  * differently about this.
  */
 
+/**
+ * What has to be asked before a share can start, if anything.
+ *
+ * Two questions and no more. Taking over is asked because ending somebody else's
+ * share without warning looks like a crash to them; the source list is asked only on
+ * a platform whose browser has no picker of its own, and on the web neither appears
+ * and the browser's picker opens immediately.
+ */
+export type ShareQuestion =
+  | { kind: 'take-over'; sharerName: string }
+  | { kind: 'sources'; list: ScreenSource[] }
+
 export interface CallControls {
   /** False in reception and the break room, which never have calls. */
   available: boolean
@@ -27,6 +44,8 @@ export interface CallControls {
   muted: boolean
   cameraOn: boolean
   sharing: boolean
+  /** Whoever else is sharing, by name, so the control can say what it would do. */
+  sharedByOther: string | null
   call: RoomCall | null
   /** Your own hand, read from the office state like every other call signal. */
   handRaised: boolean
@@ -39,12 +58,30 @@ export interface CallControls {
   toggleHand(): void
   react(reaction: Reaction): void
   leaveCall(): void
+
+  /** What is being asked before a share starts. Null almost always. */
+  asking: ShareQuestion | null
+  /** Yes, take the slot. Opens the source list next where there is one. */
+  confirmTakeOver(): void
+  /** One source from a host's picker, chosen. */
+  pickSource(sourceId: string): void
+  /** No. Nothing is started and nobody else is affected. */
+  cancelShare(): void
 }
 
 export function useCallControls(
   client: OfisClient,
   state: OfficeState,
-  options: { available: boolean },
+  options: {
+    available: boolean
+    /**
+     * A host's own list of screens and windows, on a platform that needs one.
+     *
+     * Absent on the web, which is the common case: the browser's picker is better
+     * than anything we would draw and it is the only one that can offer a tab.
+     */
+    screenSources?: ScreenSourceProvider | null
+  },
 ): CallControls {
   const announce = useAnnounce()
 
@@ -100,32 +137,82 @@ export function useCallControls(
     void client.rtc.setCamera(!cameraOn)
   }, [cameraOn, client, inCall, joinWith])
 
+  /*
+   * Sharing, in three steps that are usually one.
+   *
+   * On the web, pressing the button opens the browser's picker and that is the whole
+   * interaction. The other two steps exist because a call has one screen slot —
+   * taking it from somebody is worth asking about — and because a desktop shell has
+   * to draw its own list of windows. Both are questions, held here, and neither
+   * changes what `start` does.
+   */
+  const [asking, setAsking] = useState<ShareQuestion | null>(null)
+  const sharedBy = roomId ? sharerIn(state, roomId) : null
+  const sharedByOther =
+    sharedBy && sharedBy.deviceId !== state.you.deviceId ? sharedBy.displayName : null
+
+  const start = useCallback(
+    (sourceId?: string) => {
+      setAsking(null)
+
+      const share = () => {
+        // Nothing to do with the result: a share that started is announced to
+        // everybody by the call itself, and a picker somebody closed is not a
+        // failure and says nothing. A capture that failed has already said so.
+        void client.rtc.startScreenShare(sourceId === undefined ? undefined : { sourceId })
+      }
+
+      if (inCall) return share()
+
+      // Sharing is joining, like the microphone and the camera. Audio off: somebody
+      // sharing a screen has not asked to be heard yet.
+      void client.joinCall({ audio: false, video: false }).then((result) => {
+        if (!result.ok) return announce(result.message, 'assertive')
+        share()
+      })
+    },
+    [announce, client, inCall, setAsking],
+  )
+
+  /** Open the host's list, where there is a host with one. */
+  const chooseSource = useCallback(
+    (sources: ScreenSourceProvider) => {
+      void sources
+        .list()
+        // An empty list is not a failure: the picker says so and offers a way out,
+        // which is better than a button that appears to do nothing.
+        .catch(() => [])
+        .then((list) => setAsking({ kind: 'sources', list }))
+    },
+    [setAsking],
+  )
+
   const toggleShare = useCallback(() => {
     if (sharing) {
       void client.rtc.stopScreenShare()
       return
     }
 
-    const share = () => {
-      void client.rtc.startScreenShare().then((started) => {
-        // A share fills the window, because a share nobody can read is not worth
-        // sharing. The picker being cancelled is not a failure and says nothing.
-        if (started) setCallView(true)
-      })
-    }
-
-    if (!inCall) {
-      // Sharing is joining, like the other two. Audio off: somebody sharing a
-      // screen has not asked to be heard yet.
-      void client.joinCall({ audio: false, video: false }).then((result) => {
-        if (!result.ok) return announce(result.message, 'assertive')
-        share()
-      })
+    // Somebody else has the slot. Asked, not refused: the person who wants to show
+    // something next is usually right that they do.
+    if (sharedByOther !== null) {
+      setAsking({ kind: 'take-over', sharerName: sharedByOther })
       return
     }
 
-    share()
-  }, [announce, client, inCall, setCallView, sharing])
+    const sources = options.screenSources
+    if (sources) return chooseSource(sources)
+    start()
+  }, [chooseSource, client, options.screenSources, sharedByOther, setAsking, sharing, start])
+
+  const confirmTakeOver = useCallback(() => {
+    const sources = options.screenSources
+    // The slot is not claimed here. It is claimed by the share actually starting,
+    // which is the only moment at which there is something to put in it — asking
+    // first would take somebody's screen down for a picker that gets cancelled.
+    if (sources) return chooseSource(sources)
+    start()
+  }, [chooseSource, options.screenSources, start])
 
   /**
    * A hand up, or down. No media involved at either end.
@@ -167,6 +254,7 @@ export function useCallControls(
     muted,
     cameraOn,
     sharing,
+    sharedByOther,
     call,
     handRaised,
     // Call view is only ever shown when there is a call to show. Otherwise the
@@ -179,5 +267,9 @@ export function useCallControls(
     toggleHand,
     react,
     leaveCall,
+    asking,
+    confirmTakeOver,
+    pickSource: start,
+    cancelShare: () => setAsking(null),
   }
 }

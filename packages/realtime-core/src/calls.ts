@@ -190,7 +190,16 @@ export interface CallLeg {
   joinedAt: string
   muted: boolean
   cameraOn: boolean
+  /**
+   * Whether this leg is sharing its screen.
+   *
+   * Only one leg in a call may have this set, which is not a convention but the
+   * only thing `claimShare` will do: it is the one way in, and it takes the flag
+   * off everybody else on the way. Nothing else assigns it.
+   */
   sharing: boolean
+  /** When the share started, so the call can say since when. Null when not sharing. */
+  sharedAt: string | null
   speaking: boolean
   /** When they last started speaking, so tile order is the same for everybody. */
   lastSpokeAt: string | null
@@ -309,6 +318,7 @@ export class CallRegistry {
       muted: !media.audio,
       cameraOn: media.video,
       sharing: false,
+      sharedAt: null,
       speaking: false,
       lastSpokeAt: null,
       handRaisedAt: null,
@@ -388,12 +398,18 @@ export class CallRegistry {
     return null
   }
 
-  /** Update what a leg is publishing. Returns the call, or null when not in one. */
+  /**
+   * Update what a leg is publishing. Returns the call, or null when not in one.
+   *
+   * Sharing is deliberately not one of the things it takes: that goes through
+   * `claimShare`, because it is the one piece of media state that is about the
+   * whole call rather than about one leg.
+   */
   setMedia(
     officeId: string,
     roomId: string,
     deviceId: string,
-    state: Partial<Pick<CallLeg, 'muted' | 'cameraOn' | 'sharing' | 'speaking'>>,
+    state: Partial<Pick<CallLeg, 'muted' | 'cameraOn' | 'speaking'>>,
   ): LiveCall | null {
     const call = this.get(officeId, roomId)
     const leg = call?.legs.get(deviceId)
@@ -407,6 +423,59 @@ export class CallRegistry {
     }
 
     Object.assign(leg, state)
+    return call
+  }
+
+  /**
+   * Take the call's one screen-share slot.
+   *
+   * Returns whoever was displaced, because that is the half the caller has work to
+   * do about: a share that has lost its slot is still being captured on somebody's
+   * machine, and the only client that can stop that is theirs. Everybody else finds
+   * out the ordinary way, from the call in the next diff.
+   *
+   * Taking a slot you already hold does not restamp it, so a client that reports
+   * its media state twice does not make its own share look newer than it is.
+   */
+  claimShare(
+    officeId: string,
+    roomId: string,
+    deviceId: string,
+  ): { call: LiveCall; displaced: CallLeg[] } | null {
+    const call = this.get(officeId, roomId)
+    const leg = call?.legs.get(deviceId)
+    if (!call || !leg) return null
+
+    const displaced = [...call.legs.values()].filter(
+      (other) => other.deviceId !== deviceId && other.sharing,
+    )
+    for (const other of displaced) {
+      other.sharing = false
+      other.sharedAt = null
+    }
+
+    if (!leg.sharing) {
+      leg.sharing = true
+      leg.sharedAt = new Date(this.#now()).toISOString()
+    }
+
+    return { call, displaced }
+  }
+
+  /**
+   * Give the slot up.
+   *
+   * Idempotent on purpose: a client stopping a share it has already lost is the
+   * normal ending of being taken over, and it must not take the new sharer's slot
+   * away with it — which is why this only ever clears the leg it was given.
+   */
+  releaseShare(officeId: string, roomId: string, deviceId: string): LiveCall | null {
+    const call = this.get(officeId, roomId)
+    const leg = call?.legs.get(deviceId)
+    if (!call || !leg) return null
+
+    leg.sharing = false
+    leg.sharedAt = null
     return call
   }
 
@@ -464,6 +533,9 @@ export class CallRegistry {
   }
 
   toPublic(call: LiveCall): RoomCall {
+    const sharer = [...call.legs.values()].find((leg) => leg.sharing)
+    const sharedAt = sharer?.sharedAt
+
     return {
       roomId: call.roomId,
       provider: call.provider,
@@ -473,6 +545,13 @@ export class CallRegistry {
         deviceId: leg.deviceId,
       })),
       limit: this.#provider.limits.maxParticipants,
+      // Both or neither: a share with no instant behind it would be a slot that
+      // cannot say when it was taken, and the one thing this field is for is
+      // being the single answer to who is sharing.
+      sharing:
+        sharer && sharedAt
+          ? { userId: sharer.userId, deviceId: sharer.deviceId, startedAt: sharedAt }
+          : null,
     }
   }
 

@@ -383,3 +383,74 @@ describe('the connection ending', () => {
     expect(socket.sent.filter((one) => one.event === 'heartbeat')).toHaveLength(beats)
   })
 })
+
+describe('a share taken over', () => {
+  /** Enough of a provider to see what the client asks it to do. */
+  function fakeRtc() {
+    return {
+      join: vi.fn(async () => {}),
+      leave: vi.fn(async () => {}),
+      setMicrophone: vi.fn(async () => {}),
+      setCamera: vi.fn(async () => {}),
+      startScreenShare: vi.fn(async () => true),
+      stopScreenShare: vi.fn(async () => {}),
+      setVideoSubscriptions: vi.fn(),
+      useDevices: vi.fn(async () => {}),
+      on: vi.fn(() => () => {}),
+    }
+  }
+
+  async function withRtc() {
+    const socket = fakeSocket()
+    const rtc = fakeRtc()
+    const events: ClientEvent[] = []
+
+    const client = createOfisClient({
+      url: 'http://localhost',
+      deviceId: 'ada-laptop',
+      connect: () => socket,
+      rtc: () => rtc,
+    })
+    client.on((event) => events.push(event))
+
+    socket.answer('office:enter', { ok: true, snapshot: snapshot() })
+    await client.enter({ email: 'ada@example.com', name: 'Ada' })
+
+    return { socket, rtc, events }
+  }
+
+  it('stops the capture without being asked twice', async () => {
+    const { socket, rtc } = await withRtc()
+
+    socket.fire('call:share_ended', {
+      roomId: 'studio',
+      reason: 'taken_over',
+      byUserId: 'grace',
+    })
+
+    /*
+     * Here rather than in the UI, because it is not a drawing decision: the
+     * operating system is recording a screen, the server has given the slot to
+     * somebody else, and a client that only redrew would go on capturing for
+     * nobody.
+     */
+    expect(rtc.stopScreenShare).toHaveBeenCalledTimes(1)
+  })
+
+  it('says who took it, so the person can be told rather than left guessing', async () => {
+    const { socket, events } = await withRtc()
+
+    socket.fire('call:share_ended', {
+      roomId: 'studio',
+      reason: 'taken_over',
+      byUserId: 'grace',
+    })
+
+    expect(events.at(-1)).toEqual({
+      type: 'share.ended',
+      roomId: 'studio',
+      reason: 'taken_over',
+      byUserId: 'grace',
+    })
+  })
+})

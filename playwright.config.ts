@@ -24,6 +24,16 @@ const FAKE_MEDIA = [
   // Without this, a headless Chromium will not generate host candidates for a
   // loopback connection and two tabs on one machine never connect.
   '--allow-loopback-in-peer-connection',
+  /*
+   * And a screen to share, chosen without anybody clicking.
+   *
+   * `getDisplayMedia` opens a picker no automated test can press, so Chromium is
+   * told which source to answer with. It is the browser's picker that is being
+   * skipped and not the product's own decisions: everything the share story adds —
+   * who holds the slot, whose view follows it, what the other three people see —
+   * happens after this and is what the test is about.
+   */
+  '--auto-select-desktop-capture-source=Entire screen',
 ]
 
 export default defineConfig({

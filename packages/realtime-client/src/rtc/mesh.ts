@@ -15,6 +15,12 @@ import {
   type RtcHandler,
   type Signaller,
 } from './adapter.js'
+import {
+  desktopConstraints,
+  describeShareError,
+  shareCancelled,
+  type ShareOptions,
+} from './screen.js'
 
 /**
  * The built-in provider's client half: peer-to-peer WebRTC in a full mesh.
@@ -45,8 +51,28 @@ interface Peer {
   polite: boolean
   makingOffer: boolean
   ignoreOffer: boolean
-  senders: { audio: RTCRtpSender | null; video: RTCRtpSender | null; screen: RTCRtpSender | null }
+  senders: {
+    audio: RTCRtpSender | null
+    video: RTCRtpSender | null
+    screen: RTCRtpSender | null
+    /** A shared tab's own sound, when the browser gave us one. Usually null. */
+    screenAudio: RTCRtpSender | null
+  }
   wantsVideo: boolean
+  /**
+   * Every video stream this peer is sending, by stream id.
+   *
+   * Held rather than emitted straight through, because which one is the camera and
+   * which is the screen is not knowable from the track: two video streams arrive
+   * from the same peer and nothing in either says that one is a face and the other
+   * is a spreadsheet. The answer comes over signalling, and may arrive before or
+   * after the track it describes.
+   */
+  videoStreams: Map<string, MediaStream>
+  /** Which of them the peer says is its screen. Null when it is not sharing. */
+  shareStreamId: string | null
+  /** What we last told the app, so a re-classification emits the difference only. */
+  shown: { camera: string | null; screen: string | null }
   connectTimer: ReturnType<typeof setTimeout> | null
 }
 
@@ -128,6 +154,53 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
   }
 
   /**
+   * Get hold of a screen, a window or a tab.
+   *
+   * Two paths, and the difference is who asked. With a source id the person has
+   * already chosen from a picker their host drew — on a desktop app, where there is
+   * no browser picker to open — so this captures it and asks nothing. Without one,
+   * the browser's own picker is the right answer and the better one: it is the
+   * picker people already know, and it is the only one that can offer a single tab.
+   */
+  async function captureScreen(sourceId?: string): Promise<MediaStream | null> {
+    if (sourceId) {
+      try {
+        return await navigator.mediaDevices.getUserMedia(desktopConstraints(sourceId))
+      } catch (cause) {
+        // No picker was involved, so there is nothing the person could have
+        // cancelled: whatever went wrong here is worth saying.
+        emit({ type: 'failed', reason: describeShareError(cause) })
+        return null
+      }
+    }
+
+    const video = { frameRate: { ideal: SCREEN_CEILING.maxFramerate } }
+
+    try {
+      /*
+       * Audio is asked for and never taken.
+       *
+       * Where the browser supports it, asking is what puts an unticked "also share
+       * tab audio" box in its picker — so the person decides, and the default is
+       * off. Not asking would mean a share of a video call or a demo with the sound
+       * missing and no way to add it.
+       */
+      return await navigator.mediaDevices.getDisplayMedia({ video, audio: true })
+    } catch (cause) {
+      if (shareCancelled(cause)) return null
+
+      // Some browsers refuse the whole request rather than ignoring the audio they
+      // cannot provide. The screen is the point; the sound is not worth losing it.
+      try {
+        return await navigator.mediaDevices.getDisplayMedia({ video, audio: false })
+      } catch (retry) {
+        if (!shareCancelled(retry)) emit({ type: 'failed', reason: describeShareError(retry) })
+        return null
+      }
+    }
+  }
+
+  /**
    * Own microphone level, measured locally.
    *
    * Client-side because in a mesh there is no server in the media path to
@@ -189,8 +262,11 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       polite: selfDeviceId < participant.deviceId,
       makingOffer: false,
       ignoreOffer: false,
-      senders: { audio: null, video: null, screen: null },
+      senders: { audio: null, video: null, screen: null, screenAudio: null },
       wantsVideo: true,
+      videoStreams: new Map(),
+      shareStreamId: null,
+      shown: { camera: null, screen: null },
       connectTimer: null,
     }
 
@@ -222,10 +298,27 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
     connection.ontrack = ({ track, streams }) => {
       const stream = streams[0]
       if (!stream) return
-      const source: 'camera' | 'screen' | 'audio' =
-        track.kind === 'audio' ? 'audio' : stream.id === screenStreamIdOf(peer) ? 'screen' : 'camera'
-      emit({ type: 'track', deviceId: peer.deviceId, stream, source })
-      track.onended = () => emit({ type: 'track.ended', deviceId: peer.deviceId, source })
+
+      /*
+       * A shared tab's sound travels inside the share's own stream, so it is not
+       * the voice: it goes out of the share, where what is making the noise is on
+       * screen, rather than out of the element playing this person's microphone —
+       * which it would otherwise replace, leaving somebody inaudible for as long
+       * as they share a tab.
+       */
+      if (track.kind === 'audio') {
+        if (stream.id === peer.shareStreamId) return
+        emit({ type: 'track', deviceId: peer.deviceId, stream, source: 'audio' })
+        track.onended = () => emit({ type: 'track.ended', deviceId: peer.deviceId, source: 'audio' })
+        return
+      }
+
+      peer.videoStreams.set(stream.id, stream)
+      track.onended = () => {
+        peer.videoStreams.delete(stream.id)
+        syncVideo(peer)
+      }
+      syncVideo(peer)
     }
 
     connection.onconnectionstatechange = () => {
@@ -262,13 +355,57 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
     return peer
   }
 
-  function screenStreamIdOf(peer: Peer): string | undefined {
-    // The share is the second video stream from a peer; the transceiver's mid
-    // is the reliable discriminator, and this is the pragmatic version of it.
-    return peer.connection
-      .getTransceivers()
-      .find((transceiver) => transceiver.mid === '2')
-      ?.receiver.track.id
+  /**
+   * Work out which of a peer's video streams is the camera and which is the screen,
+   * and tell the app only about what changed.
+   *
+   * The two inputs — the streams that have arrived and the stream id the peer says
+   * is its screen — arrive independently, and either can come first. So this is
+   * recomputed on both and is deliberately idempotent: calling it twice with the
+   * same inputs emits nothing, and a share announced a moment after its track
+   * arrived corrects itself by moving that stream from one slot to the other.
+   *
+   * A second video stream nobody announced is left alone rather than guessed at. A
+   * spreadsheet drawn in a face tile looks like a bug in the tiles, and a peer that
+   * never announces is a peer running something other than this adapter.
+   */
+  function syncVideo(peer: Peer): void {
+    const screen =
+      peer.shareStreamId && peer.videoStreams.has(peer.shareStreamId) ? peer.shareStreamId : null
+    const camera = [...peer.videoStreams.keys()].find((id) => id !== screen) ?? null
+
+    for (const [source, id] of [
+      ['camera', camera],
+      ['screen', screen],
+    ] as const) {
+      if (peer.shown[source] === id) continue
+      peer.shown[source] = id
+
+      const stream = id === null ? undefined : peer.videoStreams.get(id)
+      if (stream) emit({ type: 'track', deviceId: peer.deviceId, stream, source })
+      else emit({ type: 'track.ended', deviceId: peer.deviceId, source })
+    }
+  }
+
+  /**
+   * Tell a peer which stream is our screen.
+   *
+   * Over signalling rather than over the call's own events, because it is nobody
+   * else's business: it is a stream id, it means nothing outside this pair of
+   * connections, and a provider whose SDK labels its own tracks never sends it. The
+   * core relays it without looking inside, exactly as it does an offer.
+   *
+   * Sent before the track is added, which is what keeps the receiver from having to
+   * guess: signalling is one hop over an open socket and media needs a
+   * renegotiation, so the description arrives first in any ordinary case — and the
+   * receiver corrects itself in the case where it does not.
+   */
+  function announceShare(peer: Peer): void {
+    signaller.send({
+      to: peer.deviceId,
+      type: 'share',
+      payload: { streamId: screen?.id ?? null, active: screen !== null },
+    })
   }
 
   async function restart(peer: Peer): Promise<void> {
@@ -301,10 +438,26 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       await applyVideoCeiling(peer.senders.video, peer.wantsVideo)
     }
 
-    const screenTrack = screen?.getVideoTracks()[0]
-    if (screenTrack && !peer.senders.screen) {
-      peer.senders.screen = peer.connection.addTrack(screenTrack, screen!)
+    const sharing = screen
+    const screenTrack = sharing?.getVideoTracks()[0]
+    if (sharing && screenTrack && !peer.senders.screen) {
+      // Which stream is the screen, said before the stream itself turns up.
+      announceShare(peer)
+      peer.senders.screen = peer.connection.addTrack(screenTrack, sharing)
       await applyScreenCeiling(peer.senders.screen)
+
+      /*
+       * A shared tab's own sound, if the person ticked the browser's box.
+       *
+       * Sent inside the share's stream rather than beside it, so it arrives as part
+       * of the thing making the noise: what is playing comes out of the share, and
+       * this person's voice keeps coming out of their own element.
+       */
+      const soundTrack = sharing.getAudioTracks()[0]
+      if (soundTrack && !peer.senders.screenAudio) {
+        peer.senders.screenAudio = peer.connection.addTrack(soundTrack, sharing)
+        await applyAudioCeiling(peer.senders.screenAudio)
+      }
     }
   }
 
@@ -443,6 +596,21 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
     if (!peer) return
 
     try {
+      /*
+       * Which of this peer's streams is its screen.
+       *
+       * Not media and not negotiation: it is the one thing about a share the
+       * receiver cannot see for itself, and it arrives on the same channel because
+       * that is the channel the pair of them already have.
+       */
+      if (message.type === 'share') {
+        const payload = message.payload as { streamId?: unknown; active?: unknown } | null
+        const streamId = typeof payload?.streamId === 'string' ? payload.streamId : null
+        peer.shareStreamId = payload?.active === true ? streamId : null
+        syncVideo(peer)
+        return
+      }
+
       if (message.type === 'candidate') {
         await peer.connection.addIceCandidate(message.payload as RTCIceCandidateInit)
         return
@@ -541,6 +709,11 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       camera = null
       screen = null
 
+      // Said as well as done. Leaving stops the capture, and a stream the UI still
+      // believes in is a share still drawn over an office nobody is in a call in.
+      emit({ type: 'local', stream: null, source: 'camera' })
+      emit({ type: 'local', stream: null, source: 'screen' })
+
       if (statsTimer) clearInterval(statsTimer)
       if (levelTimer) clearInterval(levelTimer)
       statsTimer = null
@@ -567,21 +740,21 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
 
     setCamera,
 
-    async startScreenShare() {
-      try {
-        screen = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: { ideal: SCREEN_CEILING.maxFramerate } },
-          // Tab audio where the browser supports it, off unless asked for.
-          audio: false,
-        })
-      } catch {
-        // The person closed the picker. Not an error, and nothing to report.
-        return false
-      }
+    async startScreenShare(options?: ShareOptions) {
+      const captured = await captureScreen(options?.sourceId)
+      // Either the person closed the picker, which is not a failure and says
+      // nothing, or the capture failed and has already said so.
+      if (!captured) return false
+      screen = captured
 
-      // Stopping from the browser's own sharing bar, or by closing the window,
-      // has to clean up here too — forgetting to stop is the common failure and
-      // the browser's control is the one people actually reach for.
+      /*
+       * Stopping from outside this app has to clean up inside it.
+       *
+       * The browser's own sharing bar and closing the shared window are how people
+       * actually stop, and forgetting to stop at all is the commonest failure in any
+       * call product — so the track ending is treated as the person having stopped,
+       * which it is.
+       */
       const track = screen.getVideoTracks()[0]
       if (track) {
         track.onended = () => {
@@ -597,14 +770,24 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
 
     async stopScreenShare() {
       if (!screen) return
-      for (const peer of peers.values()) {
-        if (peer.senders.screen) {
-          peer.connection.removeTrack(peer.senders.screen)
-          peer.senders.screen = null
-        }
-      }
-      for (const track of screen.getTracks()) track.stop()
+
+      // Stopped before anything is unpublished: the capture is what the operating
+      // system is recording, and it is the thing that must stop first.
+      for (const capture of screen.getTracks()) capture.stop()
       screen = null
+
+      for (const peer of peers.values()) {
+        for (const kind of ['screen', 'screenAudio'] as const) {
+          const sender = peer.senders[kind]
+          if (!sender) continue
+          peer.connection.removeTrack(sender)
+          peer.senders[kind] = null
+        }
+        // And told, so a peer holding the last frame knows it is not a share any
+        // more rather than keeping a still of a spreadsheet on screen.
+        announceShare(peer)
+      }
+
       emit({ type: 'local', stream: null, source: 'screen' })
       state()
     },

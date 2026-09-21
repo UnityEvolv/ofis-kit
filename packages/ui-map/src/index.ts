@@ -55,6 +55,24 @@ export {
   type ReactionFloatProps,
   type ReactionPickerProps,
 } from './Reactions.js'
+/**
+ * Showing a screen, and the two questions that sometimes come first.
+ *
+ * The pickers are a seam rather than a feature: on the web the browser asks, and a
+ * desktop host supplies its own list of screens and windows because its browser
+ * cannot. Nothing here knows Electron exists.
+ */
+export {
+  ScreenSourcePicker,
+  ShareStage,
+  SharingBanner,
+  TakeOverDialog,
+  describeShare,
+  type ScreenSourcePickerProps,
+  type ShareStageProps,
+} from './Share.js'
+export { useShare, useShareView, type Share, type UseShareOptions } from './useShare.js'
+export { Control, controlClasses, type ControlProps } from './controls.js'
 export { DevicePanel, PermissionPrimer, type DevicePanelProps } from './DevicePanel.js'
 export { RoomBar, type RoomBarProps } from './RoomBar.js'
 export { StatusControl, type StatusControlProps } from './StatusControl.js'

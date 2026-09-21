@@ -90,6 +90,20 @@ never import a provider SDK. `ofiskit/no-provider-sdk-outside-adapter` is the
 check; the reason is that a UI component asking an SDK a question makes every app
 ship that SDK, and swapping providers stops being configuration.
 
+Sharing a screen adds one small seam beside it, for the platform rather than the
+provider: **where the list of shareable screens and windows comes from**. On the
+web there is nothing to supply, because `getDisplayMedia` opens the browser's own
+picker — the one people already know, and the only one that can offer a single tab.
+A desktop shell has no such dialog, so it supplies the list and the shared picker
+draws it, leaving out its own window because sharing the window that is doing the
+sharing is an infinite mirror. Nothing in the packages imports Electron or knows it
+exists; they take a provider or they take none.
+
+One share at a time is not the picker's rule but the call's: the call holds a single
+share slot, so a second share takes it and the displaced client is told on its own
+socket to stop capturing. A field that can hold one value is a stronger guarantee
+than the same rule written across every participant's flags.
+
 ## Two more hooks
 
 Smaller, and unbound here on purpose:

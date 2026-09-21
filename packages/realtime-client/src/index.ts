@@ -23,11 +23,13 @@ export {
   occupancy,
   peopleIn,
   raisedHands,
+  sharerIn,
   statusIsChosen,
   you,
   yourRoom,
   type DiffOutcome,
   type OfficeState,
+  type Sharer,
 } from './office-state.js'
 
 /**
@@ -50,6 +52,23 @@ export {
 } from './rtc/adapter.js'
 
 export { meshAdapter, describeMediaError } from './rtc/mesh.js'
+
+/**
+ * Choosing what to share, on a platform whose browser cannot ask.
+ *
+ * Interfaces and two pure functions. There is no desktop app in this repository
+ * and nothing here imports Electron: a host that has one supplies the list of
+ * screens and windows, and the shared picker draws it the same way everywhere.
+ */
+export {
+  describeShareError,
+  desktopConstraints,
+  shareCancelled,
+  usableSources,
+  type ScreenSource,
+  type ScreenSourceProvider,
+  type ShareOptions,
+} from './rtc/screen.js'
 
 /**
  * Choosing a microphone, a camera and a speaker, and coping when the browser says

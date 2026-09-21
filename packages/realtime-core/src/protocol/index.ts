@@ -110,6 +110,18 @@ export interface RoomCall {
   participants: Array<{ userId: string; deviceId: string }>
   /** The provider's cap, so the UI can say "full" without knowing the provider. */
   limit: number
+  /**
+   * The one screen being shared, or nothing.
+   *
+   * **One slot, so one share.** A field that can hold a single value is a stronger
+   * guarantee than the same rule spelled out across every leg's `sharing` flag,
+   * where two of them being true at once is a state the type permits. Starting a
+   * second share takes this slot and the previous sharer is told to stop.
+   *
+   * A share does not count against capacity: capacity is people, and this is an
+   * extra track from somebody already counted. What it costs is bandwidth.
+   */
+  sharing: { userId: string; deviceId: string; startedAt: string } | null
 }
 
 /** One ICE server, in the shape a browser's RTCPeerConnection takes. */
@@ -257,7 +269,18 @@ export interface SignalMessage {
   to: string
   /** Filled in by the server on the way out, so nobody can claim to be somebody. */
   from?: string
-  type: 'offer' | 'answer' | 'candidate'
+  /**
+   * What this message is.
+   *
+   * The first three are WebRTC's. `share` is the built-in provider saying which of
+   * its two video streams is the screen, which the receiver cannot work out for
+   * itself: two streams arrive from the same peer and nothing in either of them
+   * says that one is a face and the other is a spreadsheet. It travels here rather
+   * than as a call event because it is provider-internal — a provider whose SDK
+   * labels its own tracks never sends it, and the core relays it without looking
+   * inside, exactly as it does an offer.
+   */
+  type: 'offer' | 'answer' | 'candidate' | 'share'
   payload: unknown
 }
 
@@ -450,6 +473,25 @@ export interface ServerEvents {
     deviceId: string
     reaction: string
     at: string
+  }) => void
+  /**
+   * Your screen share has stopped, and this is who stopped it.
+   *
+   * Sent to the sharer's own connection alone, because it is the only client that
+   * has a capture to tear down — everybody else learns the share is over from the
+   * call in the next diff, which is the same way they learned it had started.
+   *
+   * The capture itself is the reason this event exists at all: a share the server
+   * has forgotten about but the operating system is still recording is the worst
+   * possible outcome, so the one client holding the screen is told directly rather
+   * than left to notice.
+   */
+  'call:share_ended': (event: {
+    roomId: string
+    /** Somebody else took the slot. The only way a share ends other than stopping it. */
+    reason: 'taken_over'
+    /** Who took it, so the sentence can name them rather than saying "somebody". */
+    byUserId: string
   }) => void
   /**
    * Somebody is knocking.

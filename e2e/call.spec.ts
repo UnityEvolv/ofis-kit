@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Browser, type Page } from '@playwright/test'
 
 import { join, leave, officeIsEmpty, room, seeIn, walkIn } from './helpers.js'
 
@@ -455,6 +455,106 @@ test('a reaction appears over the right person and clears on its own', async ({ 
    * rather than something that will still be on screen in an hour.
    */
   await expect(ada.page.getByTestId('reaction-float')).toHaveCount(0, { timeout: 15_000 })
+
+  await leave(ada)
+  await leave(grace)
+})
+
+/**
+ * Two people in the studio call, microphones on.
+ *
+ * The share tests all start here, and none of them is about joining.
+ */
+async function calling(browser: Browser, names: string[]) {
+  const people = []
+  for (const name of names) {
+    const person = await walkIn(browser, name)
+    await join(person.page, 'Studio')
+    await person.page.getByRole('button', { name: 'Turn on microphone' }).click()
+    await expect(person.page.getByRole('button', { name: 'Leave call' })).toBeVisible()
+    people.push(person)
+  }
+  return people
+}
+
+test('a share takes over everybody’s view, and gives it back', async ({ browser }) => {
+  const [ada, grace] = await calling(browser, ['Ada', 'Grace'])
+  if (!ada || !grace) throw new Error('both people are needed')
+
+  // Grace is looking at the office, which is where the automatic switch matters:
+  // somebody on the map would otherwise never see what was put on screen.
+  await expect(grace.page.getByRole('region', { name: /office map/i })).toBeVisible()
+
+  await ada.page.getByRole('button', { name: 'Share your screen' }).click()
+
+  /*
+   * The story's done-when, from the other person's browser.
+   *
+   * Chromium picked the source without a click, and everything after that is the
+   * product: the slot, the diff, the view switching, and the stage.
+   */
+  await expect(grace.page.getByTestId('call-view')).toBeVisible({ timeout: 15_000 })
+  await expect(grace.page.getByLabel('Ada: shared screen')).toBeVisible({ timeout: 15_000 })
+
+  /*
+   * And it is really the screen, playing.
+   *
+   * A stream from a peer carries nothing that says whether it is a face or a
+   * spreadsheet, so the sharer says which of its streams is the screen and the
+   * receiver files it accordingly. An element with a name and no frames in it would
+   * satisfy everything above and be exactly the bug that mistake produces.
+   */
+  await expect
+    .poll(
+      () =>
+        grace.page
+          .getByLabel('Ada: shared screen')
+          .evaluate((element) => (element as HTMLVideoElement).videoWidth),
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThan(0)
+
+  // And the sharer has a reminder and a way out, in whichever view they are in.
+  await expect(ada.page.getByTestId('sharing-banner')).toBeVisible()
+  // Never a mirror: her own screen is not played back to her.
+  await expect(ada.page.getByTestId('share-stage')).toHaveText(/you are sharing your screen/i)
+
+  await ada.page.getByTestId('sharing-banner').getByRole('button', { name: /stop sharing/i }).click()
+
+  // Back to the map she was on, which is the half that makes the switch acceptable
+  // rather than annoying.
+  await expect(grace.page.getByTestId('share-stage')).toHaveCount(0, { timeout: 15_000 })
+  await expect(grace.page.getByRole('region', { name: /office map/i })).toBeVisible()
+  await expect(ada.page.getByTestId('sharing-banner')).toHaveCount(0)
+
+  await leave(ada)
+  await leave(grace)
+})
+
+test('a second share asks first, and then takes the slot', async ({ browser }) => {
+  const [ada, grace] = await calling(browser, ['Ada', 'Grace'])
+  if (!ada || !grace) throw new Error('both people are needed')
+
+  await ada.page.getByRole('button', { name: 'Share your screen' }).click()
+  await expect(grace.page.getByLabel('Ada: shared screen')).toBeVisible({ timeout: 15_000 })
+
+  // The control says what it would do rather than what it is, because pressing it
+  // ends somebody else's share.
+  await grace.page.getByRole('button', { name: 'Share your screen instead' }).click()
+
+  const dialog = grace.page.getByRole('dialog')
+  await expect(dialog).toContainText(/ada is sharing/i)
+  await dialog.getByRole('button', { name: 'Take over' }).click()
+
+  /*
+   * One slot, so one share.
+   *
+   * Ada's own client stops capturing because the server told her socket to, which is
+   * the only way a share can end on a machine the server cannot reach into.
+   */
+  await expect(ada.page.getByLabel('Grace: shared screen')).toBeVisible({ timeout: 15_000 })
+  await expect(ada.page.getByTestId('sharing-banner')).toHaveCount(0)
+  await expect(grace.page.getByTestId('sharing-banner')).toBeVisible()
 
   await leave(ada)
   await leave(grace)

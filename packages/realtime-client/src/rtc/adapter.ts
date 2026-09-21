@@ -1,5 +1,7 @@
 import type { IceServer, SignalMessage } from '@unityevolv/ofiskit-realtime-core/protocol'
 
+import type { ShareOptions } from './screen.js'
+
 /**
  * The RTC provider interface, client half.
  *
@@ -82,8 +84,18 @@ export interface RtcClientAdapter {
 
   setMicrophone(on: boolean): Promise<void>
   setCamera(on: boolean): Promise<void>
-  /** Returns false when the person cancelled the browser's picker. */
-  startScreenShare(): Promise<boolean>
+  /**
+   * Start sharing, and say whether it started.
+   *
+   * False covers both the person closing the picker and a capture that failed, and
+   * the difference is not the caller's business: a failure has already been
+   * reported as a `failed` event, and a cancellation is not a failure at all.
+   *
+   * With no options the browser's own picker chooses what to share. A `sourceId`
+   * means the host drew the picker — a desktop app, where the browser has none —
+   * and the person has already chosen.
+   */
+  startScreenShare(options?: ShareOptions): Promise<boolean>
   stopScreenShare(): Promise<void>
 
   /**
