@@ -417,6 +417,7 @@ function callOf(roomId: string, userIds: string[], limit = 4): RoomCall {
     startedAt: '2026-01-01T09:00:00.000Z',
     participants: userIds.map((userId) => ({ userId, deviceId: `${userId}-laptop` })),
     limit,
+    sharing: null,
   }
 }
 

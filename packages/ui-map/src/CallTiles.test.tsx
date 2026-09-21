@@ -61,6 +61,7 @@ function callOf(names: string[]): { call: RoomCall; people: Map<string, PublicPr
       startedAt: '2026-01-01T09:00:00.000Z',
       participants: everyone.map((name) => ({ userId: name, deviceId: `${name}-laptop` })),
       limit: 4,
+      sharing: null,
     },
     people: new Map(everyone.map((name) => [name, person(name)])),
   }

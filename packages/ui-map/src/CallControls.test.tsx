@@ -22,6 +22,7 @@ function call(overrides: Partial<RoomCall> = {}): RoomCall {
     startedAt: '2026-01-01T09:00:00.000Z',
     participants: [],
     limit: 4,
+    sharing: null,
     ...overrides,
   }
 }
@@ -253,5 +254,36 @@ describe('raising a hand and reacting', () => {
 
     const picker = screen.getByTestId('reaction-picker')
     expect(within(picker).getAllByRole('button')).toHaveLength(REACTIONS.length)
+  })
+})
+
+/**
+ * The share control, which is three different acts behind one button.
+ *
+ * The label is the whole of what this bar owes somebody: pressing it while another
+ * person is sharing ends their share, and a button reading "Share your screen" that
+ * quietly does that is the kind of surprise the labels here exist to avoid.
+ */
+describe('sharing', () => {
+  it('offers to share when nobody is', () => {
+    bar({ inCall: true, muted: false })
+
+    expect(screen.getByRole('button', { name: 'Share your screen' })).toBeInTheDocument()
+  })
+
+  it('says it would take over when somebody else is sharing', () => {
+    bar({ inCall: true, muted: false, sharedByOther: 'Grace' })
+
+    // One slot per call, so this is not the same act as starting the first share.
+    expect(screen.getByRole('button', { name: 'Share your screen instead' })).toBeInTheDocument()
+  })
+
+  it('offers to stop, and shows itself as pressed, while you are sharing', async () => {
+    const { user, onToggleShare } = bar({ inCall: true, muted: false, sharing: true })
+
+    const stop = screen.getByRole('button', { name: 'Stop sharing your screen' })
+    expect(stop).toHaveAttribute('aria-pressed', 'true')
+    await user.click(stop)
+    expect(onToggleShare).toHaveBeenCalled()
   })
 })

@@ -1,4 +1,9 @@
-import type { DeviceKind, OfficeSnapshot, PublicPresence } from '@unityevolv/ofiskit-realtime-core/protocol'
+import type {
+  DeviceKind,
+  OfficeSnapshot,
+  PublicPresence,
+  RoomCall,
+} from '@unityevolv/ofiskit-realtime-core/protocol'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -12,6 +17,7 @@ import {
   occupancy,
   peopleIn,
   raisedHands,
+  sharerIn,
   yourRoom,
 } from './office-state.js'
 
@@ -304,6 +310,7 @@ describe('hands up', () => {
               deviceId: `${userId}-laptop`,
             })),
             limit: 4,
+            sharing: null,
           },
         ],
       }),
@@ -360,5 +367,77 @@ describe('hands up', () => {
     })
 
     expect(handRaised(stale)).toBe(false)
+  })
+})
+
+/**
+ * Who is sharing a screen.
+ *
+ * Asked of the call rather than worked out by scanning everybody's devices, because
+ * the call holds one slot: there is exactly one answer, and every client in the room
+ * reads the same one.
+ */
+describe('the screen being shared', () => {
+  const room = 'studio'
+
+  function office(sharing: RoomCall['sharing']) {
+    return fromSnapshot(
+      snapshot({
+        people: [
+          person({ userId: 'ada', displayName: 'Ada', roomId: room }),
+          person({ userId: 'grace', displayName: 'Grace', roomId: room }),
+        ],
+        you: { userId: 'ada', deviceId: 'ada-laptop', manual: null },
+        calls: [
+          {
+            roomId: room,
+            provider: 'builtin',
+            startedAt: '2026-01-01T09:00:00.000Z',
+            participants: [
+              { userId: 'ada', deviceId: 'ada-laptop' },
+              { userId: 'grace', deviceId: 'grace-laptop' },
+            ],
+            limit: 4,
+            sharing,
+          },
+        ],
+      }),
+    )
+  }
+
+  it('is nobody when the slot is empty', () => {
+    expect(sharerIn(office(null), room)).toBeNull()
+  })
+
+  it('names the person, because the answer is usually wanted in a sentence', () => {
+    const state = office({
+      userId: 'grace',
+      deviceId: 'grace-laptop',
+      startedAt: '2026-01-01T09:10:00.000Z',
+    })
+
+    expect(sharerIn(state, room)).toEqual({
+      userId: 'grace',
+      deviceId: 'grace-laptop',
+      displayName: 'Grace',
+      startedAt: '2026-01-01T09:10:00.000Z',
+    })
+  })
+
+  it('still answers for somebody the office has not heard of yet', () => {
+    // A diff can name a sharer a beat before the person themselves arrives. An
+    // empty name is testable by the caller, where a thrown error would take the
+    // whole call view down over a caption.
+    const state = office({
+      userId: 'nobody',
+      deviceId: 'nobody-laptop',
+      startedAt: '2026-01-01T09:10:00.000Z',
+    })
+
+    expect(sharerIn(state, room)?.displayName).toBe('')
+  })
+
+  it('is nobody in a room with no call in it', () => {
+    expect(sharerIn(office(null), 'library')).toBeNull()
   })
 })

@@ -489,8 +489,13 @@ export class OfficeEngine {
      * in the state it left — same mute, same camera — and the seat being held is
      * what stops the room filling past somebody who is still on their way back.
      * The share is not restored: it belonged to a screen that is no longer there.
+     * It is given up here rather than when they come back, because the slot would
+     * otherwise be held by a device that has stopped sending — a frozen last frame
+     * on everybody's screen, or nothing at all, for the length of the grace period.
      */
+    this.#calls.releaseShare(officeId, presence.roomId, connection.deviceId)
     this.#calls.hold(officeId, presence.roomId, connection.deviceId, until)
+    this.#announceCall(officeId, presence.roomId)
 
     const reconnecting = { ...presence, devices: [], reconnectingUntil: until }
     await this.#store.put(reconnecting)
@@ -1028,15 +1033,43 @@ export class OfficeEngine {
     const presence = await this.#store.get(connection.officeId, connection.identity.id)
     if (!presence) return
 
-    const call = this.#calls.setMedia(connection.officeId, presence.roomId, connection.deviceId, {
+    const officeId = connection.officeId
+    const call = this.#calls.setMedia(officeId, presence.roomId, connection.deviceId, {
       muted: Boolean(state?.muted),
       cameraOn: Boolean(state?.cameraOn),
-      sharing: Boolean(state?.sharing),
     })
     if (!call) return
 
-    this.#announceCall(connection.officeId, presence.roomId)
-    await this.#announcePerson(connection.officeId, presence)
+    /*
+     * A share goes through the call's one slot, not through this leg.
+     *
+     * Which is what makes "one share at a time" true rather than intended: the
+     * slot belongs to the call, so a second client starting a share takes it, and
+     * there is no arrangement of racing clients that ends with two.
+     *
+     * The displaced sharer is told on its own socket, because it is the only one
+     * with a capture still running. A share the server has forgotten about while
+     * the operating system is still recording the screen is the worst outcome
+     * available here, so it is never left to be noticed.
+     */
+    if (state?.sharing) {
+      const claim = this.#calls.claimShare(officeId, presence.roomId, connection.deviceId)
+      for (const displaced of claim?.displaced ?? []) {
+        const target = this.#connectionFor(officeId, displaced.deviceId)
+        if (target) {
+          this.#transport.toConnection(target, 'call:share_ended', {
+            roomId: presence.roomId,
+            reason: 'taken_over',
+            byUserId: connection.identity.id,
+          })
+        }
+      }
+    } else {
+      this.#calls.releaseShare(officeId, presence.roomId, connection.deviceId)
+    }
+
+    this.#announceCall(officeId, presence.roomId)
+    await this.#announcePerson(officeId, presence)
   }
 
   /**
@@ -1223,6 +1256,23 @@ export class OfficeEngine {
    * nowhere, so nothing crosses between rooms and an offer cannot be sent to
    * somebody who is not in a conversation with you.
    */
+  /**
+   * The open connection a device is on, in this office.
+   *
+   * The two things that are per-screen rather than per-person — relaying a
+   * signalling message and telling a client to stop capturing its screen — both
+   * need exactly one socket, and reaching the room or the person instead would be
+   * sending private plumbing to people it means nothing to.
+   */
+  #connectionFor(officeId: string, deviceId: string): string | null {
+    for (const candidate of this.#connections.values()) {
+      if (candidate.deviceId === deviceId && candidate.officeId === officeId) {
+        return candidate.connectionId
+      }
+    }
+    return null
+  }
+
   async signal(connectionId: string, message: SignalMessage): Promise<void> {
     const connection = this.#connections.get(connectionId)
     if (!connection?.identity || !connection.officeId) return
@@ -1237,12 +1287,10 @@ export class OfficeEngine {
     // otherwise the address is a way to reach an arbitrary socket.
     if (!call || !call.legs.has(connection.deviceId) || !call.legs.has(to)) return
 
-    const target = [...this.#connections.values()].find(
-      (candidate) => candidate.deviceId === to && candidate.officeId === connection.officeId,
-    )
+    const target = this.#connectionFor(connection.officeId, to)
     if (!target) return
 
-    this.#transport.toConnection(target.connectionId, 'signal', {
+    this.#transport.toConnection(target, 'signal', {
       // Filled in here rather than trusted from the sender, so nobody can claim
       // to be somebody else's camera.
       from: connection.deviceId,

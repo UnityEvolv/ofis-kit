@@ -1,7 +1,8 @@
-import { Icon, Popover, Tooltip } from '@unityevolv/unitykit'
+import { Icon, Popover } from '@unityevolv/unitykit'
 import type { Reaction, RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import { useEffect } from 'react'
 
+import { Control, controlClasses } from './controls.js'
 import { ReactionPicker } from './Reactions.js'
 
 /**
@@ -33,6 +34,15 @@ export interface CallControlsProps {
   muted: boolean
   cameraOn: boolean
   sharing: boolean
+  /**
+   * Somebody else's name, when they are the one sharing.
+   *
+   * Only so the control can say what pressing it would do. There is one share per
+   * call, so pressing it here means taking the slot, and a button labelled "Share
+   * your screen" that silently ends somebody else's is the kind of surprise this
+   * bar exists to avoid.
+   */
+  sharedByOther?: string | null
   callView: boolean
   call: RoomCall | null
   /** Your own hand, so the control can say whether pressing it puts it up or down. */
@@ -51,7 +61,8 @@ export interface CallControlsProps {
 }
 
 export function CallControls(props: CallControlsProps) {
-  const { available, inCall, muted, cameraOn, sharing, callView, call, handRaised } = props
+  const { available, inCall, muted, cameraOn, sharing, sharedByOther, callView, call, handRaised } =
+    props
 
   // Full is about the call rather than the room, and about other people rather
   // than you: somebody already in it is never told it is full.
@@ -127,8 +138,24 @@ export function CallControls(props: CallControlsProps) {
               onClick={props.onToggleCamera}
             />
 
+            {/*
+              Sharing, and taking over.
+              
+              One slot per call, so pressing this while somebody else is sharing is
+              a different act with a different label: it ends their share. It is not
+              disabled for it — asking is the right answer, because the person who
+              needs to show something next is usually right that they do — and the
+              question itself is the host's to ask, since the host is what knows
+              whether there is a picker to open first.
+            */}
             <Control
-              label={sharing ? 'Stop sharing your screen' : 'Share your screen'}
+              label={
+                sharing
+                  ? 'Stop sharing your screen'
+                  : sharedByOther
+                    ? 'Share your screen instead'
+                    : 'Share your screen'
+              }
               icon="share"
               active={sharing}
               disabled={blocked}
@@ -217,77 +244,5 @@ export function CallControls(props: CallControlsProps) {
 
       {props.trailing}
     </div>
-  )
-}
-
-interface ControlProps {
-  label: string
-  icon:
-    | 'mic'
-    | 'mic-off'
-    | 'video'
-    | 'video-off'
-    | 'share'
-    | 'raise-hand'
-    | 'reactions'
-    | 'call-view'
-    | 'settings'
-  hint?: string
-  active?: boolean
-  danger?: boolean
-  disabled?: boolean
-  reason?: string | null
-  onClick(): void
-}
-
-/**
- * One look for every control in this bar.
- *
- * Extracted because the reaction picker's trigger is not a `Control` — a popover
- * opens its own panel — and a second copy of these classes is how two buttons in
- * the same row end up a pixel different from each other.
- */
-function controlClasses({
-  active,
-  danger,
-  disabled,
-}: {
-  active?: boolean
-  danger?: boolean
-  disabled?: boolean
-}): string {
-  return [
-    'inline-flex h-9 w-9 items-center justify-center rounded-lg',
-    'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary',
-    disabled
-      ? 'cursor-not-allowed opacity-40'
-      : danger
-        ? // Muted is a state worth noticing at a glance, because talking while
-          // muted is the commonest thing that happens in any call product.
-          'bg-error/15 text-error hover:bg-error/25'
-        : active
-          ? 'bg-primary text-primary-content hover:bg-primary/90'
-          : 'hover:bg-base-200',
-  ].join(' ')
-}
-
-function Control({ label, icon, hint, active, danger, disabled, reason, onClick }: ControlProps) {
-  const button = (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      aria-pressed={active ?? false}
-      className={controlClasses({ active, danger, disabled })}
-    >
-      <Icon name={icon} size="sm" />
-    </button>
-  )
-
-  return (
-    <Tooltip content={disabled && reason ? reason : hint ? `${label} (${hint})` : label}>
-      {button}
-    </Tooltip>
   )
 }
