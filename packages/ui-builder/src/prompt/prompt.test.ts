@@ -17,7 +17,7 @@ import { applyPreset, defaultSlots, renderPrompt, type PromptDocument } from './
  * `{{theme}}` at somebody.
  */
 const here = dirname(fileURLToPath(import.meta.url))
-const documentPath = join(here, '..', '..', '..', 'docs', 'background-prompt.json')
+const documentPath = join(here, '..', '..', '..', '..', 'docs', 'background-prompt.json')
 
 let prompt: PromptDocument
 
