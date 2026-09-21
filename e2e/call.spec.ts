@@ -372,3 +372,90 @@ test('a call is visible from outside the room, and the speaker lights up inside 
   await leave(grace)
   await leave(cleo)
 })
+
+test('a raised hand reaches everybody and moves that person to the front', async ({ browser }) => {
+  // The story's done-when. Six people would be the honest demonstration of the
+  // paging half, but the provider's cap is four — so the ordering is asserted on
+  // the strip, which is the thing paging reads.
+  const ada = await walkIn(browser, 'Ada')
+  const grace = await walkIn(browser, 'Grace')
+  const cleo = await walkIn(browser, 'Cleo')
+
+  for (const person of [ada, grace, cleo]) {
+    await join(person.page, 'Studio')
+    await person.page.getByRole('button', { name: 'Turn on microphone' }).click()
+    await expect(person.page.getByRole('button', { name: 'Leave call' })).toBeVisible()
+  }
+
+  await cleo.page.getByRole('button', { name: 'Raise your hand' }).click()
+
+  // Everybody sees it, and the avatar on the map says it as well as drawing it.
+  await expect(ada.page.getByRole('img', { name: /^Cleo,.*hand raised/i })).toBeVisible({
+    timeout: 10_000,
+  })
+
+  /*
+   * And she is first among the others.
+   *
+   * Your own tile is pinned and is not one of the five, so the order being asserted
+   * is the order of everybody else — which is exactly what paging slices.
+   */
+  await expect
+    .poll(
+      async () =>
+        ada.page
+          .getByTestId('call-tiles')
+          .getByTestId(/^tile-/)
+          .evaluateAll((tiles) =>
+            tiles.map((tile) => tile.textContent?.replace(/\s+/g, ' ').trim() ?? ''),
+          ),
+      { timeout: 10_000 },
+    )
+    .toEqual([
+      expect.stringContaining('You'),
+      expect.stringContaining('Cleo'),
+      expect.stringContaining('Grace'),
+    ])
+
+  // Pressing it again puts it down, and the badge goes with it.
+  await cleo.page.getByRole('button', { name: 'Lower your hand' }).click()
+  await expect(ada.page.getByRole('img', { name: /^Cleo,.*hand raised/i })).toHaveCount(0, {
+    timeout: 10_000,
+  })
+
+  for (const person of [ada, grace, cleo]) await leave(person)
+})
+
+test('a reaction appears over the right person and clears on its own', async ({ browser }) => {
+  const ada = await walkIn(browser, 'Ada')
+  const grace = await walkIn(browser, 'Grace')
+
+  await join(ada.page, 'Studio')
+  await join(grace.page, 'Studio')
+  for (const person of [ada, grace]) {
+    await person.page.getByRole('button', { name: 'Turn on microphone' }).click()
+    await expect(person.page.getByRole('button', { name: 'Leave call' })).toBeVisible()
+  }
+
+  await grace.page.getByRole('button', { name: 'React' }).click()
+  await grace.page.getByRole('button', { name: /react with applause/i }).click()
+
+  // Over Grace's tile on Ada's screen, and nowhere near Ada's own.
+  const gracesTile = ada.page.getByTestId(/^tile-/).filter({ hasText: 'Grace' })
+  await expect(gracesTile.getByTestId('reaction-float')).toBeVisible({ timeout: 10_000 })
+  await expect(
+    ada.page.getByTestId(/^tile-/).filter({ hasText: 'You' }).getByTestId('reaction-float'),
+  ).toHaveCount(0)
+
+  /*
+   * And it goes by itself, with nobody dismissing it.
+   *
+   * Nothing about a reaction is stored — not on the server, not in the office
+   * state, not on the client — so this is the assertion that it really is an event
+   * rather than something that will still be on screen in an hour.
+   */
+  await expect(ada.page.getByTestId('reaction-float')).toHaveCount(0, { timeout: 15_000 })
+
+  await leave(ada)
+  await leave(grace)
+})

@@ -30,6 +30,7 @@ function device(deviceId: string, kind: DeviceKind = 'web'): PublicPresence['dev
     sharing: false,
     speaking: false,
     lastSpokeAt: null,
+    handRaisedAt: null,
   }
 }
 
@@ -329,5 +330,75 @@ describe('the one visual language for status', () => {
     expect(describeStatus('in_call')).toBe('In a call')
     expect(describeStatus('away', { text: 'Lunch' })).toBe('Away — Lunch')
     expect(describeStatus('away', { text: 'Lunch', emoji: '🥪' })).toBe('Away — 🥪 Lunch')
+  })
+})
+
+/**
+ * A hand up, and a reaction, on the map.
+ *
+ * Both are drawn on the avatar rather than only on the tile, because most of the
+ * office is looking at the map: somebody who asked to speak is visible to people
+ * who are not in the call at all.
+ */
+describe('asking to speak, and reacting, from the map', () => {
+  const inCall = (overrides: Partial<PublicPresence['devices'][number]> = {}) => ({
+    ...device('ada-laptop'),
+    inCall: true,
+    muted: false,
+    ...overrides,
+  })
+
+  it('says a hand is raised, as well as drawing one', () => {
+    render(
+      <PersonAvatar
+        person={person({
+          userId: 'ada',
+          status: 'in_call',
+          devices: [inCall({ handRaisedAt: '2026-01-01T09:01:00.000Z' })],
+        })}
+        size={64}
+      />,
+    )
+
+    expect(screen.getByRole('img', { name: /hand raised/i })).toBeInTheDocument()
+  })
+
+  it('draws nothing for a hand on a device that is not in the call', () => {
+    render(
+      <PersonAvatar
+        person={person({
+          userId: 'ada',
+          devices: [{ ...device('ada-laptop'), handRaisedAt: '2026-01-01T09:01:00.000Z' }],
+        })}
+        size={64}
+      />,
+    )
+
+    expect(screen.queryByRole('img', { name: /hand raised/i })).not.toBeInTheDocument()
+  })
+
+  it('floats a reaction over the person, without touching the label', () => {
+    // The label is what a screen reader reads on every render. A reaction is an
+    // event and belongs in a live region, which the host announces — putting it in
+    // the label would make it a property of the person instead.
+    render(
+      <PersonAvatar
+        person={person({ userId: 'ada' })}
+        size={64}
+        reactions={[{ id: 1, userId: 'ada', deviceId: 'ada-laptop', reaction: '🎉' }]}
+      />,
+    )
+
+    expect(screen.getByTestId('reaction-float')).toHaveTextContent('🎉')
+    expect(screen.getByRole('img', { name: /^ada,/i }).getAttribute('aria-label')).not.toMatch(
+      /🎉/,
+    )
+  })
+
+  it('draws no float at all when nothing is in the air', () => {
+    // An empty positioned element over every avatar in the office is a layer
+    // nobody needs and something for a click to land on.
+    render(<PersonAvatar person={person({ userId: 'ada' })} size={64} />)
+    expect(screen.queryByTestId('reaction-float')).not.toBeInTheDocument()
   })
 })

@@ -48,6 +48,23 @@ export type ClientEvent =
   /** You were let in. An invitation to move, not a reservation. */
   | { type: 'admitted'; roomId: string; byUserId: string }
   | { type: 'template.changed' }
+  /**
+   * Somebody in your room reacted.
+   *
+   * An event rather than state, because a reaction is not state: it floats over
+   * whoever sent it for a few seconds and then it is gone, and nothing about it is
+   * stored here or on the server. A client that was not listening missed it,
+   * which is what happens with a nod in a room.
+   */
+  | {
+      type: 'reaction'
+      roomId: string
+      userId: string
+      /** Which screen it came from, so it floats over the right tile. */
+      deviceId: string
+      reaction: string
+      at: string
+    }
   /** A move or an action the server refused, with the reason to show. */
   | { type: 'refused'; action: string; code: string; message: string }
   | { type: 'status'; status: ConnectionStatus }
@@ -138,6 +155,16 @@ export interface OfisClient {
     secondDevice?: 'move' | 'add'
   }): Promise<Ack<{ call: CallJoinResponse }>>
   leaveCall(): Promise<Ack>
+
+  /**
+   * Put your hand up, or take it down.
+   *
+   * A socket event and not media, so it behaves identically on the built-in
+   * provider and on anybody else's — and it loads no provider SDK to do it.
+   */
+  raiseHand(raised: boolean): Promise<Ack>
+  /** React, without interrupting. Rate limited by the server, which may refuse. */
+  react(reaction: string): Promise<Ack>
 
   /** The provider's client half. What the controls bar and the tiles talk to. */
   rtc: RtcClientAdapter
@@ -260,6 +287,12 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
   )
 
   socket.on('template:changed', () => emit({ type: 'template.changed' }))
+
+  socket.on(
+    'call:reaction',
+    (event: { roomId: string; userId: string; deviceId: string; reaction: string; at: string }) =>
+      emit({ type: 'reaction', ...event }),
+  )
 
   /**
    * How the adapter reaches the other legs.
@@ -483,6 +516,23 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
       // nobody is left looking at a tile for a camera that has already stopped.
       await rtc.leave()
       return ask('call:leave')
+    },
+
+    raiseHand: (raised) => ask('call:hand', { raised }),
+
+    /**
+     * React, and say so if it was refused.
+     *
+     * The refusal is announced like any other, because a reaction that silently
+     * does nothing looks like a broken button — and the limit is the reason it
+     * would happen.
+     */
+    async react(reaction) {
+      const result = await ask('call:react', { reaction })
+      if (!result.ok) {
+        emit({ type: 'refused', action: 'call:react', code: result.code, message: result.message })
+      }
+      return result
     },
 
     rtc,

@@ -29,6 +29,7 @@ import {
 } from './calls.js'
 import { silentLogger, type Logger } from './logger.js'
 import {
+  REACTIONS,
   Refusal,
   type Ack,
   type ActivityRequest,
@@ -81,6 +82,27 @@ const KNOCK_TTL_MS = 60_000
  */
 const KNOCK_LIMIT = 5
 const KNOCK_WINDOW_MS = 60_000
+
+/**
+ * Six reactions in ten seconds, per person.
+ *
+ * Also not a security limit. A reaction floats over somebody's face for a few
+ * seconds, so a held key is a screen nobody else can read — and the person doing
+ * it usually has no idea. Per person rather than per room, because the thing
+ * being limited is one person's enthusiasm and not the room's total.
+ */
+const REACTION_LIMIT = 6
+const REACTION_WINDOW_MS = 10_000
+
+/**
+ * How long somebody may talk with their hand up before it comes down.
+ *
+ * The hand means "I would like to speak". Once you are speaking, it has done its
+ * job, and leaving it up makes the queue a lie. Three seconds rather than
+ * instantly, because a two-word interjection while somebody else finishes is not
+ * your turn.
+ */
+const HAND_LOWER_AFTER_MS = 3_000
 
 /** One open socket. */
 interface Connection {
@@ -168,6 +190,13 @@ export interface OfficeEngineOptions {
    * cannot sit through a minute to watch a knock expire.
    */
   knockTtlMs?: number
+  /**
+   * How long somebody may speak with their hand up before it comes down.
+   *
+   * Configurable for the same reason as the other two: a test should not have to
+   * sit through three seconds of somebody talking to watch a hand drop.
+   */
+  handLowerAfterMs?: number
 }
 
 export class OfficeEngine {
@@ -185,6 +214,15 @@ export class OfficeEngine {
   readonly #graceTimers = new Map<string, ReturnType<typeof setTimeout>>()
   /** knockId → the timer that gives up on it. In memory, like everything else. */
   readonly #knockTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  /**
+   * deviceId → the timer that lowers a raised hand because its owner is talking.
+   *
+   * A timer on the connection rather than anything swept: a hand belongs to a leg
+   * in a call, and a leg cannot outlive the socket holding it. That is the same
+   * rule as the knock timers and the grace period, and it is why there is no
+   * scheduler anywhere in this repository.
+   */
+  readonly #handTimers = new Map<string, ReturnType<typeof setTimeout>>()
   /**
    * Who has been let into a locked room.
    *
@@ -1019,8 +1057,130 @@ export class OfficeEngine {
     })
     if (!call) return
 
+    /*
+     * Speaking for more than a moment takes your own hand down.
+     *
+     * Started here rather than checked later, because a client reports speaking
+     * only when it changes: somebody talking steadily sends one event and then
+     * nothing, so there is no later moment to check at. The timer is cancelled
+     * the moment they stop, which is what makes a short interjection while
+     * somebody else finishes not count as your turn.
+     */
+    if (speaking) this.#lowerHandAfterSpeaking(connection.officeId, presence.roomId, connection.deviceId)
+    else this.#clearHandTimer(connection.deviceId)
+
     this.#announceCall(connection.officeId, presence.roomId)
     await this.#announcePerson(connection.officeId, presence)
+  }
+
+  /**
+   * Put a hand up, or take it down.
+   *
+   * Per device, like everything else about a call: a leg is a screen, and somebody
+   * in the call from a laptop and a phone raised a hand on one of them.
+   */
+  async raiseHand(connectionId: string, raised: boolean): Promise<Ack> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { officeId, presence } = resolved
+
+    const connection = this.#connections.get(connectionId)
+    if (!connection) return fail(Refusal.NOT_AUTHENTICATED, 'This connection is not open.')
+
+    const call = this.#calls.setHand(officeId, presence.roomId, connection.deviceId, raised)
+    if (!call) return fail(Refusal.NOT_IN_CALL, 'You are not in a call.')
+
+    // A hand that is coming down has no reason to be watched any more, and one
+    // going up should not inherit a timer from the last time it was up.
+    this.#clearHandTimer(connection.deviceId)
+
+    this.#announceCall(officeId, presence.roomId)
+    await this.#announcePerson(officeId, presence)
+    return done()
+  }
+
+  /**
+   * React, without interrupting.
+   *
+   * **Nothing is stored.** This is the one thing in the engine that is sent and
+   * forgotten: it is not presence, it is not a diff, and it is not in the
+   * snapshot. Somebody who was not looking missed it, which is exactly what
+   * happens with a nod in a room.
+   *
+   * To the room rather than the office, because a reaction is part of a
+   * conversation and means nothing three rooms away.
+   */
+  async react(connectionId: string, reaction: string): Promise<Ack> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { identity, officeId, presence } = resolved
+
+    const connection = this.#connections.get(connectionId)
+    if (!connection) return fail(Refusal.NOT_AUTHENTICATED, 'This connection is not open.')
+
+    // The set is closed so that every client draws the same thing. Anything else
+    // is refused rather than passed through, because a client that sent it would
+    // be showing something nobody else can.
+    if (!(REACTIONS as readonly string[]).includes(reaction)) {
+      return fail(Refusal.REACTION_UNKNOWN, 'That is not one of the reactions.')
+    }
+
+    const call = this.#calls.get(officeId, presence.roomId)
+    if (!call?.legs.has(connection.deviceId)) {
+      return fail(Refusal.NOT_IN_CALL, 'You are not in a call.')
+    }
+
+    const verdict = await this.#options.limiter.take(
+      `react:${identity.id}`,
+      REACTION_LIMIT,
+      REACTION_WINDOW_MS,
+    )
+    if (!verdict.allowed) {
+      return fail(Refusal.REACTION_RATE_LIMITED, 'That is plenty of reactions for one moment.')
+    }
+
+    this.#transport.toRoom(officeId, presence.roomId, 'call:reaction', {
+      roomId: presence.roomId,
+      userId: identity.id,
+      deviceId: connection.deviceId,
+      reaction,
+      at: new Date(this.#now()).toISOString(),
+    })
+    return done()
+  }
+
+  /** Watch one leg, and lower its hand if it is still talking in a moment. */
+  #lowerHandAfterSpeaking(officeId: string, roomId: string, deviceId: string): void {
+    if (this.#handTimers.has(deviceId)) return
+    const leg = this.#calls.get(officeId, roomId)?.legs.get(deviceId)
+    if (!leg || leg.handRaisedAt === null) return
+
+    const timer = setTimeout(() => {
+      this.#handTimers.delete(deviceId)
+      void this.#lowerHand(officeId, roomId, deviceId)
+    }, this.#options.handLowerAfterMs ?? HAND_LOWER_AFTER_MS)
+    // Never holds the process open: a hand coming down is not worth staying alive
+    // for, which is the same reason the knock timers are unreferenced.
+    timer.unref?.()
+    this.#handTimers.set(deviceId, timer)
+  }
+
+  async #lowerHand(officeId: string, roomId: string, deviceId: string): Promise<void> {
+    const call = this.#calls.setHand(officeId, roomId, deviceId, false)
+    if (!call) return
+
+    const leg = [...call.legs.values()].find((candidate) => candidate.deviceId === deviceId)
+    const presence = leg ? await this.#store.get(officeId, leg.userId) : null
+
+    this.#announceCall(officeId, roomId)
+    if (presence) await this.#announcePerson(officeId, presence)
+  }
+
+  #clearHandTimer(deviceId: string): void {
+    const timer = this.#handTimers.get(deviceId)
+    if (!timer) return
+    clearTimeout(timer)
+    this.#handTimers.delete(deviceId)
   }
 
   /**
@@ -1124,6 +1284,11 @@ export class OfficeEngine {
   async #leaveCallLeg(officeId: string, roomId: string, deviceId: string): Promise<boolean> {
     const before = this.#calls.get(officeId, roomId)
     if (!before?.legs.has(deviceId)) return false
+
+    // The hand goes with the leg. It is on the leg rather than on the person, so
+    // leaving takes it down by removing the thing it was on — and this only has to
+    // stop the timer that was watching it.
+    this.#clearHandTimer(deviceId)
 
     const after = await this.#calls.leave(officeId, roomId, deviceId)
 
@@ -1557,6 +1722,8 @@ export class OfficeEngine {
     this.#graceTimers.clear()
     for (const timer of this.#knockTimers.values()) clearTimeout(timer)
     this.#knockTimers.clear()
+    for (const timer of this.#handTimers.values()) clearTimeout(timer)
+    this.#handTimers.clear()
     this.#admissions.clear()
     this.#unsubscribe?.()
     this.#unsubscribe = null
@@ -1615,6 +1782,7 @@ function toPublic(
         sharing: leg?.sharing ?? false,
         speaking: leg?.speaking ?? false,
         lastSpokeAt: leg?.lastSpokeAt ?? null,
+        handRaisedAt: leg?.handRaisedAt ?? null,
       }
     }),
     arrivedAt: presence.arrivedAt,

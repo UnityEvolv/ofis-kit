@@ -1,5 +1,7 @@
 import type { OfisClient, PublicPresence, RtcEvent } from '@unityevolv/ofiskit-realtime-client'
-import { useEffect, useMemo, useReducer, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+
+import { useClientEvents } from './hooks.js'
 
 /**
  * Everything the call UI needs, gathered from the adapter's events.
@@ -160,32 +162,144 @@ export function useCallMedia(client: OfisClient): CallMedia & {
 /**
  * Who should be on screen, and in what order.
  *
- * Most recent speaker first, so whoever is talking is always among the five
- * visible tiles, and somebody who has not spoken drops to the end.
+ * **Raised hands first, in the order they went up**, then the most recent speaker,
+ * then everybody else. Both halves matter for the same reason: only five tiles are
+ * visible, so being last in this list means being paged off screen — and somebody
+ * who has asked to speak is the last person who should disappear. Whoever asked
+ * first is listed first, because the queue is the whole value of a raised hand.
  *
- * The ordering is a **pure function of the office state**. `lastSpokeAt` is
- * stamped by the server when somebody starts speaking, so everybody in the call
- * sees the same five faces — a client that joined a minute ago has no less idea
- * of who spoke recently than one that has been listening throughout.
+ * The ordering is a **pure function of the office state**. `lastSpokeAt` and
+ * `handRaisedAt` are both stamped by the server, so everybody in the call sees the
+ * same five faces in the same order — a client that joined a minute ago has no
+ * less idea of who spoke recently, or who asked first, than one that has been
+ * listening throughout.
  */
 export function speakerOrder(
   participants: ReadonlyArray<{ userId: string; deviceId: string }>,
   people: ReadonlyMap<string, PublicPresence>,
 ): string[] {
-  const spokeAt = (deviceId: string, userId: string): number => {
-    const device = people.get(userId)?.devices.find((one) => one.deviceId === deviceId)
-    return device?.lastSpokeAt ? Date.parse(device.lastSpokeAt) : 0
-  }
+  const legOf = (deviceId: string, userId: string) =>
+    people.get(userId)?.devices.find((one) => one.deviceId === deviceId)
 
   return participants
-    .map((one) => ({ ...one, at: spokeAt(one.deviceId, one.userId) }))
+    .map((one) => {
+      const leg = legOf(one.deviceId, one.userId)
+      return {
+        ...one,
+        raisedAt: leg?.handRaisedAt ? Date.parse(leg.handRaisedAt) : null,
+        spokeAt: leg?.lastSpokeAt ? Date.parse(leg.lastSpokeAt) : 0,
+      }
+    })
     .sort((a, b) => {
-      if (a.at !== b.at) return b.at - a.at
+      // A hand up outranks anything anybody has said, and the earlier hand
+      // outranks the later one. Compared as two nullable values rather than by
+      // sorting on a number, because "no hand" is not a time and arithmetic on a
+      // sentinel is how an ordering like this quietly goes wrong.
+      if (a.raisedAt !== null && b.raisedAt !== null) {
+        if (a.raisedAt !== b.raisedAt) return a.raisedAt - b.raisedAt
+      } else if (a.raisedAt !== null) return -1
+      else if (b.raisedAt !== null) return 1
+
+      if (a.spokeAt !== b.spokeAt) return b.spokeAt - a.spokeAt
       // A stable tie-break, so people who have never spoken keep their places
       // rather than shuffling on every render.
       return a.deviceId.localeCompare(b.deviceId)
     })
     .map((one) => one.deviceId)
+}
+
+/**
+ * How long a reaction floats before it is gone.
+ *
+ * Long enough to be seen across a room full of tiles, short enough that two in a
+ * row do not stack into a wall. Nothing is stored anywhere: when this elapses the
+ * reaction has not been archived, it has stopped existing.
+ */
+export const REACTION_VISIBLE_MS = 4_000
+
+/** One reaction, in the air. */
+export interface LiveReaction {
+  /** Local, and only so React can key two identical emoji apart. */
+  id: number
+  userId: string
+  deviceId: string
+  reaction: string
+}
+
+let reactionId = 0
+
+const groupBy = (
+  reactions: readonly LiveReaction[],
+  key: 'userId' | 'deviceId',
+): Map<string, LiveReaction[]> => {
+  const grouped = new Map<string, LiveReaction[]>()
+  for (const one of reactions) {
+    const list = grouped.get(one[key])
+    if (list) list.push(one)
+    else grouped.set(one[key], [one])
+  }
+  return grouped
+}
+
+/**
+ * The reactions in the air right now.
+ *
+ * Held here and nowhere else — not in the office state, not on the server. A
+ * reaction is an event, and treating it as state is how a product ends up with a
+ * screen full of yesterday's applause.
+ *
+ * Grouped two ways because it is drawn in two places: over a tile, which is a
+ * device, and over an avatar on the map, which is a person.
+ */
+export function useReactions(
+  client: OfisClient,
+  visibleMs: number = REACTION_VISIBLE_MS,
+): { byDevice: ReadonlyMap<string, LiveReaction[]>; byUser: ReadonlyMap<string, LiveReaction[]> } {
+  const [live, setLive] = useState<LiveReaction[]>([])
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
+
+  useClientEvents(
+    client,
+    useCallback(
+      (event) => {
+        if (event.type !== 'reaction') return
+
+        reactionId += 1
+        const id = reactionId
+        setLive((current) => [
+          ...current,
+          {
+            id,
+            userId: event.userId,
+            deviceId: event.deviceId,
+            reaction: event.reaction,
+          },
+        ])
+
+        const timer = setTimeout(() => {
+          timers.current.delete(timer)
+          setLive((current) => current.filter((one) => one.id !== id))
+        }, visibleMs)
+        timers.current.add(timer)
+      },
+      [visibleMs],
+    ),
+  )
+
+  // Leaving the office mid-reaction must not leave a timer holding a setState for
+  // a component that has gone.
+  useEffect(() => {
+    const pending = timers.current
+    return () => {
+      for (const timer of pending) clearTimeout(timer)
+      pending.clear()
+    }
+  }, [])
+
+  return useMemo(
+    () => ({ byDevice: groupBy(live, 'deviceId'), byUser: groupBy(live, 'userId') }),
+    [live],
+  )
 }
 
 /**

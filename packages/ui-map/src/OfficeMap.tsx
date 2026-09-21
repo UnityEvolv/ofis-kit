@@ -9,6 +9,7 @@ import { RoomBar } from './RoomBar.js'
 import { fitCanvas, readingOrder, roomInDirection, toPixels, type CanvasBox } from './layout.js'
 import { placeInRoom } from './placement.js'
 import { useMeasured, usePersisted, useReducedMotion } from './hooks.js'
+import type { LiveReaction } from './useCall.js'
 import { useTheme } from './theme.js'
 
 /**
@@ -32,6 +33,13 @@ export interface OfficeMapProps {
   imageUrl(name: string): string
   /** Capacity is an office setting; the free office has none. */
   capacityOf?(room: Room): number | null
+  /**
+   * Reactions in the air, by person. From `useReactions`.
+   *
+   * By person rather than by device here, because an avatar is a person — the same
+   * reaction is keyed by device for the tiles, which are screens.
+   */
+  reactions?: ReadonlyMap<string, LiveReaction[]>
   onJoin(roomId: string): void
   onKnock(roomId: string): void
   onLock(roomId: string): void
@@ -39,7 +47,7 @@ export interface OfficeMapProps {
 }
 
 export function OfficeMap(props: OfficeMapProps) {
-  const { template, state, imageUrl, capacityOf } = props
+  const { template, state, imageUrl, capacityOf, reactions } = props
   const { theme } = useTheme()
   const reducedMotion = useReducedMotion()
 
@@ -229,6 +237,7 @@ export function OfficeMap(props: OfficeMapProps) {
                           {...(token.deviceId ? { deviceId: token.deviceId } : {})}
                           linked={token.linked}
                           reducedMotion={reducedMotion}
+                          reactions={reactions?.get(token.person.userId) ?? []}
                         />
                       </li>
                     )
@@ -291,7 +300,7 @@ export function OfficeMap(props: OfficeMapProps) {
  * disagree — which is the only reason it is safe to offer at all.
  */
 export function RoomListView(props: OfficeMapProps) {
-  const { template, state, capacityOf } = props
+  const { template, state, capacityOf, reactions } = props
   const yourRoomId = yourRoom(state)
   const reducedMotion = useReducedMotion()
 
@@ -335,7 +344,12 @@ export function RoomListView(props: OfficeMapProps) {
                 <ul className="mt-2 flex flex-wrap gap-3 px-1" aria-label={`People in ${room.name}`}>
                   {people.map((person) => (
                     <li key={person.userId}>
-                      <PersonAvatar person={person} size={56} reducedMotion={reducedMotion} />
+                      <PersonAvatar
+                        person={person}
+                        size={56}
+                        reducedMotion={reducedMotion}
+                        reactions={reactions?.get(person.userId) ?? []}
+                      />
                     </li>
                   ))}
                 </ul>

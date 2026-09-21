@@ -6,10 +6,12 @@ import {
   applyDiff,
   emptyOffice,
   fromSnapshot,
+  handRaised,
   isLocked,
   isPhoneOnly,
   occupancy,
   peopleIn,
+  raisedHands,
   yourRoom,
 } from './office-state.js'
 
@@ -30,6 +32,7 @@ function device(deviceId: string, kind: DeviceKind = 'web'): PublicPresence['dev
     sharing: false,
     speaking: false,
     lastSpokeAt: null,
+    handRaisedAt: null,
   }
 }
 
@@ -261,5 +264,101 @@ describe('the office on the client', () => {
     if (outcome.kind !== 'applied') return
     expect(outcome.state.people.get('grace')?.roomId).toBe('library')
     expect(isLocked(outcome.state, 'library')).toBe(true)
+  })
+})
+
+/**
+ * The queue of raised hands.
+ *
+ * The order is the whole value: whoever asked first is listed first, and it is the
+ * same list on every client because the server stamps the instant rather than each
+ * client noticing at a slightly different moment.
+ */
+describe('hands up', () => {
+  const inCall = (deviceId: string, handRaisedAt: string | null) => ({
+    ...device(deviceId),
+    inCall: true,
+    muted: false,
+    handRaisedAt,
+  })
+
+  const room = 'studio'
+
+  function office(hands: Array<{ userId: string; at: string | null }>) {
+    return fromSnapshot(
+      snapshot({
+        people: hands.map(({ userId, at }) =>
+          person({
+            userId,
+            roomId: room,
+            devices: [inCall(`${userId}-laptop`, at)],
+          }),
+        ),
+        calls: [
+          {
+            roomId: room,
+            provider: 'builtin',
+            startedAt: '2026-01-01T09:00:00.000Z',
+            participants: hands.map(({ userId }) => ({
+              userId,
+              deviceId: `${userId}-laptop`,
+            })),
+            limit: 4,
+          },
+        ],
+      }),
+    )
+  }
+
+  it('lists nobody when nobody has asked', () => {
+    expect(raisedHands(office([{ userId: 'ada', at: null }]), room)).toEqual([])
+  })
+
+  it('lists them in the order they went up, not the order they joined', () => {
+    // Ada joined first and asked second. The queue is about asking.
+    const state = office([
+      { userId: 'ada', at: '2026-01-01T09:05:00.000Z' },
+      { userId: 'grace', at: '2026-01-01T09:01:00.000Z' },
+    ])
+
+    expect(raisedHands(state, room)).toEqual(['grace-laptop', 'ada-laptop'])
+  })
+
+  it('leaves out the people who have not asked', () => {
+    const state = office([
+      { userId: 'ada', at: null },
+      { userId: 'grace', at: '2026-01-01T09:01:00.000Z' },
+    ])
+
+    expect(raisedHands(state, room)).toEqual(['grace-laptop'])
+  })
+
+  it('has nothing to say about a room with no call in it', () => {
+    expect(raisedHands(office([{ userId: 'ada', at: null }]), 'somewhere-else')).toEqual([])
+  })
+
+  it('says whether one person has a hand up, across their devices', () => {
+    // Drawn once on the map however many screens they are on: a hand up on the
+    // laptop is this person asking to speak.
+    const ada = person({
+      userId: 'ada',
+      roomId: room,
+      devices: [inCall('laptop', '2026-01-01T09:01:00.000Z'), inCall('phone', null)],
+    })
+
+    expect(handRaised(ada)).toBe(true)
+    expect(handRaised(person({ userId: 'grace' }))).toBe(false)
+  })
+
+  it('ignores a hand on a device that is not in the call', () => {
+    // It cannot happen through the server, which refuses a hand from outside the
+    // call — and if it ever did, a hand nobody in the conversation can act on is
+    // not one worth drawing.
+    const stale = person({
+      userId: 'ada',
+      devices: [{ ...device('laptop'), handRaisedAt: '2026-01-01T09:01:00.000Z' }],
+    })
+
+    expect(handRaised(stale)).toBe(false)
   })
 })

@@ -11,8 +11,10 @@ import type { ErrorEnvelope } from '@unityevolv/ofiskit-template'
  *
  * It lives here rather than in the client package because there has to be one
  * copy: two definitions of the same event drift, and the drift shows up as a
- * room that is locked on one screen and open on another. The client depends on
- * this package for the types and imports nothing from it at runtime.
+ * room that is locked on one screen and open on another. The client takes its
+ * types from here and, at runtime, only the handful of small constants both
+ * sides have to agree on — the reaction set below. The engine is behind this
+ * package's other entry point and is never reachable from a client.
  *
  * Event names are `noun:verb`, lower case, per the conventions. Everything a
  * client sends is acknowledged, and every acknowledgement is either
@@ -65,6 +67,18 @@ export interface PublicPresence {
      * recently than one that has been listening throughout.
      */
     lastSpokeAt: string | null
+    /**
+     * When this device raised its hand, or null if it has not.
+     *
+     * An instant rather than a flag, because the order of raising is the whole
+     * point: whoever asked first is listed first, and a boolean cannot say that.
+     * Stamped by the server, so everybody in the call sees the same queue.
+     *
+     * Raising again while already raised keeps the original instant — otherwise
+     * a double click would move somebody to the back of the queue they are
+     * already at the front of.
+     */
+    handRaisedAt: string | null
   }>
   /**
    * Already resolved, so clients render it rather than working it out again.
@@ -258,6 +272,31 @@ export interface SpeakingRequest {
   speaking: boolean
 }
 
+/** Up, or down. One control, pressed twice. */
+export interface HandRequest {
+  raised: boolean
+}
+
+/**
+ * The reactions, and all of them.
+ *
+ * A closed set rather than any emoji, and it lives here because both sides have
+ * to agree: the server refuses anything not in it, and the picker draws exactly
+ * this list. Two copies of a list like this drift, and the drift is a reaction
+ * that one client shows and another does not.
+ *
+ * Six, because a picker somebody has to read is a picker nobody uses in the
+ * middle of a sentence. Applause and agreement first, since those are what
+ * people actually reach for.
+ */
+export const REACTIONS = ['👍', '👏', '🎉', '😂', '❤️', '😮'] as const
+
+export type Reaction = (typeof REACTIONS)[number]
+
+export interface ReactionRequest {
+  reaction: string
+}
+
 export interface StatusRequest {
   /** null puts the person back on automatic. */
   manual: ManualStatus | null
@@ -345,6 +384,21 @@ export interface ClientEvents {
     ack: (result: Ack<{ call: CallJoinResponse }>) => void,
   ) => void
   'call:leave': (ack: (result: Ack) => void) => void
+  /**
+   * Put a hand up, or take it down.
+   *
+   * Acknowledged, unlike the media reports: it is a deliberate press rather than
+   * a stream of level readings, and somebody who is not in the call has to be
+   * told rather than left looking at a control that did nothing.
+   */
+  'call:hand': (request: HandRequest, ack: (result: Ack) => void) => void
+  /**
+   * React, without interrupting.
+   *
+   * Acknowledged because it can be refused: a reaction is rate limited, and
+   * "nothing happened" is not an answer somebody can act on.
+   */
+  'call:react': (request: ReactionRequest, ack: (result: Ack) => void) => void
   /** No acknowledgement: these arrive constantly and nobody waits on them. */
   'call:media': (request: MediaStateRequest) => void
   'call:speaking': (request: SpeakingRequest) => void
@@ -377,6 +431,26 @@ export interface ServerEvents {
   'office:diff': (diff: OfficeDiff) => void
   /** A signalling message from another leg, with `from` filled in by the server. */
   signal: (message: SignalMessage & { from: string }) => void
+  /**
+   * Somebody reacted.
+   *
+   * Not a diff, because a reaction is not state: it floats over the person who
+   * sent it for a few seconds and then it is gone, and **nothing is stored** —
+   * not on the server, not in the office state, not anywhere. A client that was
+   * not listening at the time simply missed it, which is the same thing that
+   * happens in a room.
+   *
+   * Sent to the room rather than the office: a reaction is part of a
+   * conversation, and it means nothing three rooms away.
+   */
+  'call:reaction': (event: {
+    roomId: string
+    userId: string
+    /** Which screen it came from, so it floats over the right tile. */
+    deviceId: string
+    reaction: string
+    at: string
+  }) => void
   /**
    * Somebody is knocking.
    *
@@ -471,6 +545,11 @@ export const Refusal = {
   KNOCK_UNKNOWN: 'knock.unknown',
   /** Enough. A knock interrupts everyone in the room. */
   KNOCK_RATE_LIMITED: 'knock.rate_limited',
+
+  /** Not one of the six. The set is closed so that every client draws the same thing. */
+  REACTION_UNKNOWN: 'reaction.unknown',
+  /** Enough. A held key is not a conversation. */
+  REACTION_RATE_LIMITED: 'reaction.rate_limited',
 
   /** The request did not match the contract. */
   MALFORMED: 'request.malformed',

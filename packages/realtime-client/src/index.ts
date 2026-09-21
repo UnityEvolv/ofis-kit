@@ -13,6 +13,7 @@ export {
   callSeats,
   emptyOffice,
   fromSnapshot,
+  handRaised,
   isLocked,
   isMuted,
   isPhoneOnly,
@@ -21,6 +22,7 @@ export {
   lockedBy,
   occupancy,
   peopleIn,
+  raisedHands,
   statusIsChosen,
   you,
   yourRoom,
@@ -77,6 +79,18 @@ export {
   type OfisClient,
   type OfisClientOptions,
 } from './client.js'
+
+/**
+ * The reactions, from the one place they are defined.
+ *
+ * The only runtime value this package takes from the core, and it is a frozen
+ * array of six strings — not the engine, which lives behind the package's other
+ * entry point and is never reachable from here. It has to be the same list on
+ * both sides: the server refuses anything not in it, and the picker draws
+ * exactly it. Two copies would drift, and the drift is a reaction one person
+ * sends and nobody else can see.
+ */
+export { REACTIONS, type Reaction } from '@unityevolv/ofiskit-realtime-core/protocol'
 
 /**
  * The wire types, re-exported from the one place they are defined.

@@ -4,15 +4,18 @@ import { useEffect, useRef, useState } from 'react'
 
 import { useReducedMotion } from './hooks.js'
 import { StatusDot } from './status.js'
-import type { CallMedia } from './useCall.js'
+import { ReactionFloat } from './Reactions.js'
+import type { CallMedia, LiveReaction } from './useCall.js'
 
 /**
  * The tiles for the people in your call.
  *
- * Five at a time, whatever the size of the call, ordered by most recent speaker.
- * Both halves matter: the five bounds what each person downloads, and the ordering
- * makes sure the five are the ones worth seeing. Only visible tiles receive video;
- * everybody else is audio-only until they are paged to.
+ * Five at a time, whatever the size of the call, ordered by raised hand and then
+ * by most recent speaker. Both halves matter: the five bounds what each person
+ * downloads, and the ordering makes sure the five are the ones worth seeing — a
+ * person who has asked to speak is the last one who should be paged off screen.
+ * Only visible tiles receive video; everybody else is audio-only until they are
+ * paged to.
  *
  * **No audio here.** The voices come out of the one audio sink, which keeps
  * playing when a tile is paged out of the visible five, when somebody has no
@@ -33,6 +36,13 @@ export interface CallTilesProps {
   /** Ordered by most recent speaker. From `useSpeakerOrder`. */
   order: string[]
   media: CallMedia
+  /**
+   * Reactions in the air, by device. From `useReactions`.
+   *
+   * Passed in rather than subscribed to here, because the same reaction is drawn
+   * over a tile and over an avatar on the map and both have to be the same one.
+   */
+  reactions?: ReadonlyMap<string, LiveReaction[]>
   you: { userId: string; deviceId: string }
   /** A strip across the top, or a column down the right. The canvas shape decides. */
   placement: 'top' | 'right' | 'grid'
@@ -42,7 +52,7 @@ export interface CallTilesProps {
 }
 
 export function CallTiles(props: CallTilesProps) {
-  const { call, people, order, media, you, placement } = props
+  const { call, people, order, media, reactions, you, placement } = props
   const [page, setPage] = useState(0)
 
   // Your own tile is pinned at the front and is not one of the five, so seeing
@@ -92,6 +102,7 @@ export function CallTiles(props: CallTilesProps) {
         placement={placement}
         quality={null}
         mutedForMe={false}
+        reactions={reactions?.get(you.deviceId) ?? []}
         onMuteForMe={props.onMuteForMe}
       />
 
@@ -106,6 +117,7 @@ export function CallTiles(props: CallTilesProps) {
             placement={placement}
             quality={media.quality.get(deviceId) ?? null}
             mutedForMe={media.mutedForMe.has(deviceId)}
+            reactions={reactions?.get(deviceId) ?? []}
             onMuteForMe={props.onMuteForMe}
           />
         )
@@ -156,6 +168,8 @@ interface TileProps {
   placement: 'top' | 'right' | 'grid'
   quality: { relayed: boolean; packetLoss: number; roundTripMs: number } | null
   mutedForMe: boolean
+  /** What is in the air over this person. Empty draws nothing. */
+  reactions?: readonly LiveReaction[]
   onMuteForMe(deviceId: string, muted: boolean): void
 }
 
@@ -167,6 +181,7 @@ function Tile({
   placement,
   quality,
   mutedForMe,
+  reactions,
   onMuteForMe,
 }: TileProps) {
   const video = useRef<HTMLVideoElement>(null)
@@ -187,6 +202,7 @@ function Tile({
    */
   const reducedMotion = useReducedMotion()
   const speaking = device?.speaking ?? false
+  const handRaised = device?.handRaisedAt != null
 
   return (
     <div
@@ -233,6 +249,9 @@ function Tile({
         </div>
       )}
 
+      {/* Over the picture, and never over the name strip or the mute button. */}
+      <ReactionFloat reactions={reactions ?? []} size={placement === 'top' ? 20 : 30} />
+
       <div className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-base-100/85 px-1 py-0.5 text-[10px] backdrop-blur-sm">
         {person && <StatusDot status={person.status} size={8} labelled={false} />}
         <span className="min-w-0 flex-1 truncate">
@@ -244,6 +263,17 @@ function Tile({
           */}
           {speaking && <span className="sr-only">, speaking</span>}
         </span>
+
+        {/*
+          A hand up, said as well as drawn — and drawn on the strip rather than
+          over the picture, because the ordering already brings this tile forward
+          and a second large marker on top of somebody's face is shouting.
+        */}
+        {handRaised && (
+          <span className="text-primary">
+            <Icon name="raise-hand" size="xs" title="Hand raised" />
+          </span>
+        )}
 
         {device?.muted && (
           <span className="text-error">

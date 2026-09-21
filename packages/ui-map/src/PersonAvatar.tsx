@@ -1,8 +1,10 @@
 import { Icon, Tooltip } from '@unityevolv/unitykit'
 import type { PublicPresence } from '@unityevolv/ofiskit-realtime-client'
-import { isMuted, isPhoneOnly, isSharing, isSpeaking } from '@unityevolv/ofiskit-realtime-client'
+import { handRaised, isMuted, isPhoneOnly, isSharing, isSpeaking } from '@unityevolv/ofiskit-realtime-client'
 
+import { ReactionFloat } from './Reactions.js'
 import { StatusDot, describeStatus } from './status.js'
+import type { LiveReaction } from './useCall.js'
 
 /**
  * One person, standing in a room.
@@ -29,6 +31,8 @@ export interface PersonAvatarProps {
   linked?: boolean
   /** Drops the pulse on the speaking ring. The ring itself stays. */
   reducedMotion?: boolean
+  /** What is in the air over this person right now. From `useReactions`. */
+  reactions?: readonly LiveReaction[]
   onClick?(): void
 }
 
@@ -71,6 +75,7 @@ export function PersonAvatar({
   deviceId,
   linked = false,
   reducedMotion = false,
+  reactions,
   onClick,
 }: PersonAvatarProps) {
   const device = deviceId ? person.devices.find((one) => one.deviceId === deviceId) : undefined
@@ -86,6 +91,7 @@ export function PersonAvatar({
   const speaking = device ? device.inCall && device.speaking : isSpeaking(person)
   const microphoneOff = device ? device.inCall && device.muted : isMuted(person)
   const sharing = device ? device.sharing : isSharing(person)
+  const hand = device ? device.inCall && device.handRaisedAt !== null : handRaised(person)
 
   const face = Math.round(size * 0.62)
   const description = describeStatus(person.status, person.custom)
@@ -105,6 +111,7 @@ export function PersonAvatar({
     // Every badge drawn in a corner of this avatar, said. A ring on a picture is
     // invisible to a screen reader, and "who is talking" is most of what somebody
     // wants from a room they cannot see.
+    hand ? 'hand raised' : '',
     sharing ? 'sharing their screen' : '',
     microphoneOff ? 'microphone off' : '',
     speaking ? 'speaking' : '',
@@ -119,6 +126,9 @@ export function PersonAvatar({
       data-testid="person-avatar"
     >
       <span className="relative inline-flex" style={{ width: face, height: face }}>
+        {/* Over the face, and only for a few seconds. Nothing about it is stored. */}
+        <ReactionFloat reactions={reactions ?? []} size={Math.max(16, Math.round(face * 0.5))} />
+
         {/*
           The link between two avatars for one person is a ring, drawn as a
           sibling rather than a border so it cannot change the avatar's size and
@@ -168,6 +178,23 @@ export function PersonAvatar({
             style={{ width: face, height: face, fontSize: Math.max(10, face * 0.38) }}
           >
             {initials(person.displayName)}
+          </span>
+        )}
+
+        {/*
+          A hand up, above the head, which is where a hand goes.
+
+          The one badge drawn outside the avatar's circle rather than in a corner of
+          it: from across the map a raised hand is the thing somebody most needs to
+          notice, and a corner badge among three other corner badges is not
+          noticed.
+        */}
+        {hand && (
+          <span
+            aria-hidden="true"
+            className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-base-100 px-0.5 leading-none text-primary"
+          >
+            <Icon name="raise-hand" size="xs" />
           </span>
         )}
 

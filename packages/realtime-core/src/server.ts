@@ -220,6 +220,15 @@ function bind(socket: Socket, engine: OfficeEngine, officeId: string, logger: Lo
   )
   socket.on('call:leave', (ack) => handle(ack, () => engine.leaveCall(id), 'call:leave'))
 
+  // Acknowledged, unlike the media reports below: both are deliberate presses,
+  // and both can be refused — so "nothing happened" would not be an answer.
+  socket.on('call:hand', (request, ack) =>
+    handle(ack, () => engine.raiseHand(id, Boolean(request?.raised)), 'call:hand'),
+  )
+  socket.on('call:react', (request, ack) =>
+    handle(ack, () => engine.react(id, String(request?.reaction ?? '')), 'call:react'),
+  )
+
   // No acknowledgement on any of these: they arrive many times a second while
   // somebody is talking, and nobody waits on them.
   socket.on('call:media', (request) => {

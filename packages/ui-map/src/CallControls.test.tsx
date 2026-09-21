@@ -1,5 +1,6 @@
 import type { RoomCall } from '@unityevolv/ofiskit-realtime-client'
-import { render, screen } from '@testing-library/react'
+import { REACTIONS } from '@unityevolv/ofiskit-realtime-client'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -30,6 +31,8 @@ function bar(props: Partial<CallControlsProps> = {}) {
     onToggleMic: vi.fn(),
     onToggleCamera: vi.fn(),
     onToggleShare: vi.fn(),
+    onToggleHand: vi.fn(),
+    onReact: vi.fn(),
     onToggleCallView: vi.fn(),
     onLeaveCall: vi.fn(),
     onOpenDevices: vi.fn(),
@@ -42,6 +45,7 @@ function bar(props: Partial<CallControlsProps> = {}) {
       muted
       cameraOn={false}
       sharing={false}
+      handRaised={false}
       callView={false}
       call={null}
       {...handlers}
@@ -192,5 +196,62 @@ describe('the controls bar', () => {
     const { user, onToggleMic } = bar({ available: false })
     await user.keyboard('m')
     expect(onToggleMic).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The two signals that need no media.
+ *
+ * Asking to speak and reacting are what somebody does *instead* of unmuting, which
+ * is why they sit beside the microphone — and why they are only offered while in
+ * the call, since neither reaches anybody who is not in the conversation.
+ */
+describe('raising a hand and reacting', () => {
+  it('offers neither until you are in the call', () => {
+    bar({ inCall: false })
+
+    expect(screen.queryByRole('button', { name: /raise your hand/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^react$/i })).not.toBeInTheDocument()
+  })
+
+  it('raises a hand, and says whether pressing it puts one up or takes it down', async () => {
+    // The label says what will happen rather than what is true now, like the
+    // microphone: a control reading "Raise" while your hand is up is a control
+    // that lies.
+    const { user, onToggleHand } = bar({ inCall: true, muted: false })
+
+    const raise = screen.getByRole('button', { name: 'Raise your hand' })
+    expect(raise).toHaveAttribute('aria-pressed', 'false')
+    await user.click(raise)
+    expect(onToggleHand).toHaveBeenCalled()
+  })
+
+  it('shows a hand that is up as pressed, and offers to lower it', () => {
+    bar({ inCall: true, muted: false, handRaised: true })
+
+    const lower = screen.getByRole('button', { name: 'Lower your hand' })
+    expect(lower).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('opens the picker and sends exactly what was pressed', async () => {
+    const { user, onReact } = bar({ inCall: true, muted: false })
+
+    await user.click(screen.getByRole('button', { name: 'React' }))
+
+    // Every one is a real button with a real name: an emoji on its own is not a
+    // label, and "thumbs up" is.
+    const applause = screen.getByRole('button', { name: /react with applause/i })
+    await user.click(applause)
+
+    expect(onReact).toHaveBeenCalledWith('👏')
+  })
+
+  it('offers the whole set and nothing else', async () => {
+    // Closed on purpose, and the same list the server validates against.
+    const { user } = bar({ inCall: true, muted: false })
+    await user.click(screen.getByRole('button', { name: 'React' }))
+
+    const picker = screen.getByTestId('reaction-picker')
+    expect(within(picker).getAllByRole('button')).toHaveLength(REACTIONS.length)
   })
 })
