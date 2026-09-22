@@ -7,8 +7,10 @@ name: Demo
 # on the visitor's device is a person, and the office runs in one of them — so
 # deploying it is uploading a folder, and nothing UnityEvolv operates is involved.
 #
-# The custom domain is set in the repository's Pages settings rather than with a
-# CNAME file, so the repository names no host and a fork deploys to its own.
+# Served under the repository's name (`/ofis-kit/`) on the organisation's Pages
+# domain, so the build is told that path. A repository with a custom domain of its
+# own sets the `PAGES_BASE` variable to `/` instead. Neither is written here, so
+# the repository names no host and a fork deploys under its own name.
 
 on:
   push:
@@ -45,6 +47,8 @@ jobs:
 
       - name: Build the packages and the Pages app
         run: npm run build:pages
+        env:
+          PAGES_BASE: ${{ vars.PAGES_BASE || format('/{0}/', github.event.repository.name) }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
