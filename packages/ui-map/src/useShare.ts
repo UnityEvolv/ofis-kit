@@ -30,6 +30,15 @@ export interface UseShareOptions {
   /** Whether the call is filling the window, and how to change that. */
   callView: boolean
   setCallView(next: boolean): void
+  /**
+   * The call is always full size here, so a share has nothing to switch.
+   *
+   * On a phone the call view is not a preference but a rule. Following a share
+   * there would save "full size" as the layout to go back to and then write it
+   * into the remembered preference when the share ended, so the next time the same
+   * person opened the office on a wide screen it would open in call view.
+   */
+  fixed?: boolean
 }
 
 export function useShare(
@@ -49,7 +58,11 @@ export function useShare(
       ? media.local.screen
       : (media.peers.get(sharedBy.deviceId)?.screen ?? null)
 
-  useShareView({ sharing: sharedBy !== null, ...options })
+  useShareView({
+    sharing: sharedBy !== null && !options.fixed,
+    callView: options.callView,
+    setCallView: options.setCallView,
+  })
 
   /*
    * A share starting or stopping, said once.

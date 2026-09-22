@@ -311,7 +311,7 @@ describe('the office map', () => {
     expect(within(list).getByRole('img', { name: /grace, available/i })).toBeInTheDocument()
   })
 
-  it('counts the rest behind a button when a room holds more people than cells', async () => {
+  it('counts the rest as an avatar when a room holds more people than cells', async () => {
     // The seeded workspace has one 2x1 area, so two cells and five people is one
     // face and a +4 — the counter takes the last cell rather than the room
     // overflowing.
@@ -333,8 +333,10 @@ describe('the office map', () => {
     const counter = screen.getByRole('button', { name: /more in Workspace/i })
     expect(counter).toHaveTextContent('+4')
 
+    // Opens onto the people it stands for, drawn as people.
     await person_.click(counter)
-    expect(screen.getByText('e')).toBeInTheDocument()
+    const grid = screen.getByRole('list', { name: /4 more in Workspace/i })
+    expect(within(grid).getByRole('img', { name: /^e, available/i })).toBeInTheDocument()
   })
 
   it('shows a disabled join with the reason under it when a room is full', () => {
@@ -594,18 +596,111 @@ describe('the list view', () => {
     expect(onJoin).toHaveBeenCalledWith(workspace.id)
   })
 
-  it('lists the rooms in the same order the map tabs through them', () => {
+  it('puts reception and the break room first, then the rest in the order the map reads', () => {
+    // The two rooms every office has are the ones somebody looks for without
+    // knowing the office, and they are the part of the list that never moves.
     const { template } = draw({ list: true })
-    const expected = [...template.rooms]
+    const reading = [...template.rooms]
+      .filter((one) => one.type !== 'reception' && one.type !== 'break')
       .sort((a, b) =>
         Math.abs(a.rect.y - b.rect.y) < 0.08 ? a.rect.x - b.rect.x : a.rect.y - b.rect.y,
       )
       .map((one) => one.name)
+    const reception = template.rooms.find((one) => one.type === 'reception')!.name
+    const breakRoom = template.rooms.find((one) => one.type === 'break')!.name
 
     const names = screen
       .getAllByTestId(/^room-bar-/)
       .map((bar) => bar.querySelector('span[title]')?.getAttribute('title'))
 
-    expect(names).toEqual(expected)
+    expect(names).toEqual([reception, breakRoom, ...reading])
+  })
+
+  it('draws reception and the break room side by side, and every other room full width', () => {
+    draw({ list: true })
+
+    const cards = screen.getAllByTestId(/^room-bar-/).map((bar) => bar.closest('li'))
+    const [first, second, ...others] = cards
+
+    expect(first?.className).not.toMatch(/col-span-2/)
+    expect(second?.className).not.toMatch(/col-span-2/)
+    for (const card of others) expect(card?.className).toMatch(/col-span-2/)
+  })
+
+  it('keeps them in one list, so a screen reader hears one set of rooms', () => {
+    draw({ list: true })
+
+    const lists = new Set(
+      screen.getAllByTestId(/^room-bar-/).map((bar) => bar.closest('li')?.parentElement),
+    )
+    expect(lists.size).toBe(1)
+  })
+})
+
+/**
+ * Keys pressed on a room's own controls belong to those controls.
+ *
+ * The room is a focusable group, and Enter on the room walks you in. Every control
+ * inside it — Join, Lock, the overflow counter — sits inside that group, so a key
+ * pressed on one of them used to reach the room as well: Enter on Lock did nothing
+ * and Enter on the counter walked you into the room instead of opening it.
+ */
+describe('keys pressed on a room’s own controls', () => {
+  const crowd = (roomId: string) =>
+    ['a', 'b', 'c', 'd', 'e'].map((id, index) =>
+      person({ userId: id, roomId, arrivedAt: `2026-01-01T09:0${index}:00.000Z` }),
+    )
+
+  it('opens the overflow counter with Enter, rather than walking into the room', async () => {
+    const user = userEvent.setup()
+    const template = office()
+    const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+    const { onJoin } = draw({ template, people: crowd(workspace.id) })
+
+    screen.getByRole('button', { name: /more in Workspace/i }).focus()
+    await user.keyboard('{Enter}')
+
+    expect(onJoin).not.toHaveBeenCalled()
+    expect(screen.getByTestId('overflow-grid')).toBeInTheDocument()
+  })
+
+  it('opens it with Space too', async () => {
+    const user = userEvent.setup()
+    const template = office()
+    const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+    const { onJoin } = draw({ template, people: crowd(workspace.id) })
+
+    screen.getByRole('button', { name: /more in Workspace/i }).focus()
+    await user.keyboard(' ')
+
+    expect(onJoin).not.toHaveBeenCalled()
+    expect(screen.getByTestId('overflow-grid')).toBeInTheDocument()
+  })
+
+  it('locks the room you are in from the keyboard', async () => {
+    const user = userEvent.setup()
+    const template = office()
+    const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+    const { onLock } = draw({
+      template,
+      people: [person({ userId: 'ada', roomId: workspace.id })],
+    })
+
+    screen.getByRole('button', { name: 'Lock' }).focus()
+    await user.keyboard('{Enter}')
+
+    expect(onLock).toHaveBeenCalledWith(workspace.id)
+  })
+
+  it('still walks into a room when Enter is pressed on the room itself', async () => {
+    const user = userEvent.setup()
+    const template = office()
+    const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+    const { onJoin } = draw({ template })
+
+    screen.getByRole('group', { name: /^Workspace,/i }).focus()
+    await user.keyboard('{Enter}')
+
+    expect(onJoin).toHaveBeenCalledWith(workspace.id)
   })
 })

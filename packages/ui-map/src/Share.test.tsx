@@ -1,4 +1,5 @@
-import type { ScreenSource } from '@unityevolv/ofiskit-realtime-client'
+import type { OfficeState, OfisClient, ScreenSource } from '@unityevolv/ofiskit-realtime-client'
+import { fromSnapshot } from '@unityevolv/ofiskit-realtime-client'
 import { render, renderHook, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -10,7 +11,8 @@ import {
   TakeOverDialog,
   describeShare,
 } from './Share.js'
-import { useShareView } from './useShare.js'
+import type { CallMedia } from './useCall.js'
+import { useShare, useShareView } from './useShare.js'
 
 /**
  * Showing a screen.
@@ -253,5 +255,85 @@ describe('everybody’s view when a share starts', () => {
     // The automatic switch is a default and not a lock, and a choice made a moment
     // ago outranks a layout saved before it.
     expect(setCallView).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * On a phone the call is always full size, so a share has nothing to switch.
+ *
+ * Following it there saved "full size" as the layout to go back to, and then wrote
+ * it into the remembered preference when the share ended — so the next wide screen
+ * the same person opened would open in call view.
+ */
+describe('a share on a screen where the call view is fixed', () => {
+  const sharing = (): OfficeState =>
+    fromSnapshot({
+      officeId: 'office',
+      seq: 1,
+      people: ['ada', 'grace'].map((userId) => ({
+        userId,
+        displayName: userId,
+        roomId: 'studio',
+        devices: [
+          {
+            deviceId: `${userId}-laptop`,
+            kind: 'web' as const,
+            inCall: true,
+            muted: false,
+            cameraOn: false,
+            sharing: userId === 'grace',
+            speaking: false,
+            lastSpokeAt: null,
+            handRaisedAt: null,
+          },
+        ],
+        status: 'in_call' as const,
+        arrivedAt: '2026-01-01T09:00:00.000Z',
+      })),
+      locks: [],
+      calls: [
+        {
+          roomId: 'studio',
+          provider: 'builtin',
+          startedAt: '2026-01-01T09:00:00.000Z',
+          participants: [
+            { userId: 'ada', deviceId: 'ada-laptop' },
+            { userId: 'grace', deviceId: 'grace-laptop' },
+          ],
+          limit: 4,
+          sharing: {
+            userId: 'grace',
+            deviceId: 'grace-laptop',
+            startedAt: '2026-01-01T09:05:00.000Z',
+          },
+        },
+      ],
+      you: { userId: 'ada', deviceId: 'ada-laptop', manual: null },
+    })
+
+  const client = { on: () => () => {} } as unknown as OfisClient
+  const media: CallMedia = {
+    peers: new Map(),
+    local: { camera: null, screen: null },
+    quality: new Map(),
+    mutedForMe: new Set(),
+    problems: [],
+    degraded: null,
+  }
+
+  it('leaves the view alone when it is fixed', () => {
+    const setCallView = vi.fn()
+    renderHook(() =>
+      useShare(client, sharing(), media, { callView: true, setCallView, fixed: true }),
+    )
+
+    expect(setCallView).not.toHaveBeenCalled()
+  })
+
+  it('still follows the share where the view is a choice', () => {
+    const setCallView = vi.fn()
+    renderHook(() => useShare(client, sharing(), media, { callView: false, setCallView }))
+
+    expect(setCallView).toHaveBeenCalledWith(true)
   })
 })

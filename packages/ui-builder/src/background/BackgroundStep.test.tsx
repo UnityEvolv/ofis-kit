@@ -5,11 +5,11 @@ import { fileURLToPath } from 'node:url'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { PromptDocument } from './prompt.js'
-import { PromptStep, backgroundFileName } from './PromptStep.js'
+import type { PromptDocument } from '../prompt/prompt.js'
+import { BackgroundStep, backgroundFileName } from './BackgroundStep.js'
 
 /**
- * The image step's dark version: offered for an SVG and only an SVG, made in the
+ * The background step's dark version: offered for an SVG and only an SVG, made in the
  * browser, put in the dark slot, and handed back as a file to keep.
  *
  * jsdom decodes no images and makes no object URLs, so both are stood in for:
@@ -68,47 +68,43 @@ const LIGHT_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440"><rect fill="#fbf6ee"/></svg>'
 
 function step() {
-  const onImages = vi.fn()
+  const onImage = vi.fn()
   render(
-    <PromptStep
+    <BackgroundStep
       document={prompt}
       shape="landscape"
-      onShapeChange={() => {}}
-      onImages={onImages}
-      onContinue={() => {}}
-      hasLightImage={false}
+      images={{ light: null, dark: null }}
+      onImage={onImage}
     />,
   )
-  return { onImages }
+  return { onImage }
 }
 
 function upload(file: File) {
-  fireEvent.change(screen.getByLabelText(/^Background image/), { target: { files: [file] } })
+  fireEvent.change(screen.getByLabelText(/^Light image/), { target: { files: [file] } })
 }
 
 describe('generating the dark version', () => {
   it('is offered once an SVG background is in', async () => {
-    const { onImages } = step()
+    const { onImage } = step()
     expect(screen.queryByRole('button', { name: 'Generate dark version' })).toBeNull()
 
     upload(new File([LIGHT_SVG], 'my office.svg', { type: 'image/svg+xml' }))
 
     expect(await screen.findByRole('button', { name: 'Generate dark version' })).toBeTruthy()
-    expect(onImages).toHaveBeenCalledWith({ light: 'blob:1', lightFile: 'office-light.svg' })
+    expect(onImage).toHaveBeenCalledWith('light', 'blob:1', 'office-light.svg')
   })
 
   it('is not offered for a picture, whose colours cannot be rewritten', async () => {
-    const { onImages } = step()
+    const { onImage } = step()
     upload(new File(['not really a png'], 'office.png', { type: 'image/png' }))
 
-    await waitFor(() =>
-      expect(onImages).toHaveBeenCalledWith({ light: 'blob:1', lightFile: 'office-light.png' }),
-    )
+    await waitFor(() => expect(onImage).toHaveBeenCalledWith('light', 'blob:1', 'office-light.png'))
     expect(screen.queryByRole('button', { name: 'Generate dark version' })).toBeNull()
   })
 
   it('fills the dark slot with a darker SVG, and offers it to keep', async () => {
-    const { onImages } = step()
+    const { onImage } = step()
     upload(new File([LIGHT_SVG], 'office.svg', { type: 'image/svg+xml' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Generate dark version' }))
@@ -117,11 +113,7 @@ describe('generating the dark version', () => {
     expect(link.getAttribute('download')).toBe('office-dark.svg')
     expect(screen.getByRole('status').textContent).toMatch(/Dark version ready/)
 
-    expect(onImages).toHaveBeenLastCalledWith({
-      light: '',
-      dark: 'blob:2',
-      darkFile: 'office-dark.svg',
-    })
+    expect(onImage).toHaveBeenLastCalledWith('dark', 'blob:2', 'office-dark.svg')
 
     const dark = await made[1]!.text()
     expect(made[1]!.type).toBe('image/svg+xml')
