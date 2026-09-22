@@ -1,7 +1,7 @@
 import type { PublicPresence, RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { CallTiles, TILES_VISIBLE } from './CallTiles.js'
 import { speakerOrder } from './useCall.js'
@@ -417,5 +417,94 @@ describe('the order a hand changes', () => {
     ])
 
     expect(speakerOrder(participants, people)[0]).toBe('talker-laptop')
+  })
+})
+
+/**
+ * The call view fills the screen, and crops nobody.
+ *
+ * The grid measures itself and sizes every tile to the biggest it can be at the
+ * video's own shape — a two-by-two filling a desktop window, a column on a phone
+ * held upright — and the picture inside is contained rather than cropped to fit.
+ */
+describe('the call grid', () => {
+  const realObserver = globalThis.ResizeObserver
+
+  /** Pretend the grid's area measured this big, the way a browser would report it. */
+  function screenOf(width: number, height: number) {
+    globalThis.ResizeObserver = class {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe() {
+        this.callback(
+          [{ contentRect: { width, height } } as ResizeObserverEntry],
+          this as unknown as ResizeObserver,
+        )
+      }
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver
+  }
+
+  afterEach(() => {
+    globalThis.ResizeObserver = realObserver
+  })
+
+  const sizeOf = (deviceId: string) => {
+    const tile = screen.getByTestId(`tile-${deviceId}`)
+    return { width: tile.style.width, height: tile.style.height }
+  }
+
+  it('fills a desktop window with a two-by-two for four people', () => {
+    screenOf(1424, 784)
+    tiles({ names: ['grace', 'alan', 'hedy'], placement: 'grid' })
+
+    expect(screen.getByTestId('call-grid')).toHaveAttribute('data-columns', '2')
+    // Big tiles filling the window — nearly half its width each — all one size.
+    expect(Number.parseFloat(sizeOf('you-laptop').width)).toBeGreaterThan(680)
+    expect(sizeOf('hedy-laptop')).toEqual(sizeOf('you-laptop'))
+  })
+
+  it('stacks four people in a column on a phone held upright', () => {
+    screenOf(374, 560)
+    tiles({ names: ['grace', 'alan', 'hedy'], placement: 'grid' })
+
+    expect(screen.getByTestId('call-grid')).toHaveAttribute('data-columns', '1')
+  })
+
+  it('shows every picture whole rather than cropping it to its tile', () => {
+    screenOf(374, 560)
+    const stream = { id: 'grace-camera' } as MediaStream
+    tiles({
+      names: ['grace'],
+      placement: 'grid',
+      media: media({ peers: new Map([['grace-laptop', { camera: stream }]]) }),
+    })
+
+    const video = screen.getByTestId('tile-grace-laptop').querySelector('video')
+    expect(video?.className).toMatch(/object-contain/)
+    expect(video?.className).not.toMatch(/object-cover/)
+  })
+
+  it('keeps a sensible size until the space has been measured', () => {
+    // The first render, before the browser has reported anything.
+    tiles({ names: ['grace'], placement: 'grid' })
+
+    expect(screen.getByTestId('tile-you-laptop').className).toMatch(/w-72/)
+  })
+
+  it('is clipped, so no tile can ever be drawn over the controls below it', () => {
+    tiles({ names: ['grace', 'alan', 'hedy'], placement: 'grid' })
+    expect(screen.getByTestId('call-grid').className).toMatch(/overflow-hidden/)
+  })
+
+  it('puts the pager in a row of its own under the grid, not in a tile’s place', () => {
+    screenOf(1424, 784)
+    tiles({ names: ['a', 'b', 'c', 'd', 'e', 'f'], placement: 'grid' })
+
+    const pager = screen.getByTestId('call-pager')
+    expect(screen.getByTestId('call-grid')).not.toContainElement(pager)
+    expect(pager.className).toMatch(/flex-row/)
+    // You and five visible: the pager is not counted as a tile.
+    expect(screen.getByTestId('call-grid')).toHaveAttribute('data-columns', '3')
   })
 })

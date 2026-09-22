@@ -25,9 +25,9 @@ import {
   useCallMedia,
   useReactions,
   useShare,
+  useSounds,
   useSpeakerOrder,
   useTheme,
-  type OfficeView,
 } from '@unityevolv/ofiskit-ui-map'
 import { tilePlacement } from '@unityevolv/ofiskit-ui-map'
 import { hostsCalls, type Template } from '@unityevolv/ofiskit-template'
@@ -37,6 +37,7 @@ import { officeImageUrl } from './config.js'
 import { hostScreenSources } from './screenSources.js'
 import { useCallControls } from './useCallControls.js'
 import { useKnocks } from './useKnocks.js'
+import { useOfficeView } from './useOfficeView.js'
 
 /**
  * The office, full window.
@@ -62,7 +63,8 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   const state = useOffice(client)
   const announce = useAnnounce()
   const { choice, setChoice } = useTheme()
-  const [view, setView] = usePersisted<OfficeView>('ofiskit:view', 'map')
+  // Map or list, and whether this is a phone: a phone opens on the list.
+  const { view, setView, narrow } = useOfficeView()
   const [pickingDevices, setPickingDevices] = useState(false)
   /**
    * The chosen microphone, camera and speaker, remembered.
@@ -98,6 +100,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   const call = useCallControls(client, state, {
     available: Boolean(room && hostsCalls(room.type)),
     screenSources,
+    narrow,
   })
 
   /*
@@ -166,6 +169,25 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   const reactions = useReactions(client)
 
   /**
+   * The office's sounds: a knock at your door, a chime when somebody walks in.
+   *
+   * On unless the person turns them off, and remembered per device like the rest
+   * of its audio choices — somebody may want them at their desk and not on the
+   * laptop they bring to meetings. Arrivals in reception make no sound, because
+   * reception is where everybody arrives.
+   */
+  const [soundsOn, setSoundsOn] = usePersisted('ofiskit:sounds', true)
+  const quietRoomIds = useMemo(
+    () => template.rooms.filter((one) => one.type === 'reception').map((one) => one.id),
+    [template.rooms],
+  )
+  useSounds(client, state, {
+    enabled: soundsOn,
+    quietRoomIds,
+    ...(devices.speakerDeviceId ? { speakerDeviceId: devices.speakerDeviceId } : {}),
+  })
+
+  /**
    * The screen somebody is showing, and what that does to this view.
    *
    * Everybody's client switches to the call when a share starts and goes back to the
@@ -176,6 +198,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   const share = useShare(client, state, media, {
     callView: call.callView,
     setCallView: call.setCallView,
+    fixed: call.callViewFixed,
   })
 
   const knocks = useKnocks(client, template)
@@ -327,6 +350,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
         sharedByOther={call.sharedByOther}
         handRaised={call.handRaised}
         callView={call.callView}
+        callViewFixed={call.callViewFixed}
         call={call.call}
         onToggleMic={call.toggleMic}
         onToggleCamera={call.toggleCamera}
@@ -337,11 +361,17 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
         onLeaveCall={call.leaveCall}
         onOpenDevices={() => setPickingDevices(true)}
         leading={
-          <div className="flex min-w-0 items-center gap-1">
+          // On a phone this shares its row with the status, and it is the part that
+          // gives way: a basis of zero lets it shrink and truncate the room's name
+          // rather than push the status onto a line of its own.
+          <div className="flex min-w-0 items-center gap-1 max-sm:flex-1">
             <span className="truncate text-sm">
               {room ? (
                 <>
-                  You are in <span className="font-medium">{room.name}</span>
+                  {/* The room is the information; the sentence around it is the
+                      first thing to go when the bar is a phone's width. */}
+                  <span className="max-sm:hidden">You are in </span>
+                  <span className="font-medium">{room.name}</span>
                 </>
               ) : (
                 'Finding your desk…'
@@ -350,44 +380,72 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
 
             {room && reception && room.id !== reception.id && (
               <Button size="sm" variant="ghost" onClick={() => void client.leaveRoom()}>
-                <Icon name="chevron-left" size="sm" /> Back to {reception.name}
+                <Icon name="chevron-left" size="sm" />
+                <span className="max-sm:sr-only">Back to {reception.name}</span>
               </Button>
             )}
           </div>
         }
         trailing={
-          <div className="flex items-center gap-1">
+          /*
+           * One group on a wide screen; three deliberate rows on a phone.
+           *
+           * Nothing here is folded into a menu. On a phone the wrapper dissolves
+           * (`contents`), so each control becomes an item of the bar itself and the
+           * bar lays them out in rows it can fit: the call controls on top, where
+           * you are and your status in the middle, and the view, the theme and
+           * leaving at the bottom. The break before the last row is placed rather
+           * than left to chance, so a long room name shortens instead of shuffling
+           * the controls between rows.
+           */
+          <div className="flex items-center gap-1 max-sm:contents">
             {/*
               In the bar, because this app has no header. unityofis puts the same
               component in the app shell's header and adds its org presets — which
               is the whole of the difference.
             */}
-            <StatusControl
-              you={yourPresence(state)}
-              chosen={statusIsChosen(state)}
-              fromBreakRoom={!statusIsChosen(state) && room?.type === 'break'}
-              onSetStatus={(manual) => void client.setStatus(manual)}
-              onSetCustom={(custom) => void client.setCustomStatus(custom)}
-            />
+            {/* Capped on a phone, where it shares a row with the room's name: a long
+                custom status would otherwise leave the name a single letter wide. */}
+            <span className="flex min-w-0 max-sm:max-w-[55%]">
+              <StatusControl
+                you={yourPresence(state)}
+                chosen={statusIsChosen(state)}
+                fromBreakRoom={!statusIsChosen(state) && room?.type === 'break'}
+                onSetStatus={(manual) => void client.setStatus(manual)}
+                onSetCustom={(custom) => void client.setCustomStatus(custom)}
+                sounds={{ on: soundsOn, onChange: setSoundsOn }}
+              />
+            </span>
 
-            <ViewToggle view={view} onChange={setView} />
+            {/* The line break between the second row and the third, on a phone. */}
+            <span aria-hidden="true" className="hidden h-0 basis-full max-sm:block" />
+
+            {/* Not while a phone is showing a call: the call has the whole screen,
+                so switching the office behind it between map and list would change
+                something nobody can see. */}
+            {!call.callViewFixed || !call.callView ? (
+              <ViewToggle view={view} onChange={setView} />
+            ) : null}
 
             {/*
               Theme is per person, so two people in the same room may be looking at
               different background images over identical geometry.
             */}
-            <Select
-              // Named for assistive technology without a visible label, because the
-              // three options say what it is and a bar is not the place for a
-              // heading over a control that is two words wide.
-              aria-label="Theme"
-              value={choice}
-              onChange={(event) => setChoice(event.target.value as typeof choice)}
-            >
-              <option value="system">System theme</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </Select>
+            <span className="flex max-sm:ml-auto">
+              <Select
+                // Named for assistive technology without a visible label, because
+                // the three options say what it is and a bar is not the place for a
+                // heading over a control that is two words wide.
+                aria-label="Theme"
+                size="sm"
+                value={choice}
+                onChange={(event) => setChoice(event.target.value as typeof choice)}
+              >
+                <option value="system">System theme</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </Select>
+            </span>
 
             <Button size="sm" variant="ghost" onClick={onLeave}>
               <Icon name="log-out" size="sm" /> Leave

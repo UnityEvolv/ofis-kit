@@ -63,13 +63,16 @@ export function ShareStage({ sharerName, mine, stream, speakerDeviceId, onStop }
     return (
       <div
         data-testid="share-stage"
-        className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 bg-base-200 p-6 text-center"
+        // Scrolls rather than spills when the screen is short — a phone on its
+        // side leaves about a hundred pixels here, and the stop button used to
+        // land on top of the sharing banner below it.
+        className="flex min-h-0 flex-1 flex-col items-center [justify-content:safe_center] gap-3 overflow-y-auto bg-base-200 p-6 text-center [@media(max-height:480px)]:gap-1 [@media(max-height:480px)]:p-2"
       >
-        <span className="text-primary">
+        <span className="text-primary [@media(max-height:480px)]:hidden">
           <Icon name="share" size="lg" />
         </span>
         <p className="text-sm font-medium">You are sharing your screen.</p>
-        <p className="max-w-sm text-xs text-base-content/70">
+        <p className="max-w-sm text-xs text-base-content/70 [@media(max-height:480px)]:hidden">
           Everybody in the call can see it. Your own screen is not shown back to you,
           because that would be a picture of a picture.
         </p>

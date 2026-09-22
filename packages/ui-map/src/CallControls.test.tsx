@@ -287,3 +287,27 @@ describe('sharing', () => {
     expect(onToggleShare).toHaveBeenCalled()
   })
 })
+
+/**
+ * Where the call is always full size, there is no toggle for it.
+ *
+ * On a phone the call takes the screen for as long as it lasts, so a control that
+ * offers to show the office instead would be a control that does nothing.
+ */
+describe('a call that is always full size', () => {
+  it('offers the toggle where it can do something', () => {
+    bar({ inCall: true, muted: false })
+
+    expect(screen.getByRole('button', { name: /show the call full size/i })).toBeInTheDocument()
+  })
+
+  it('leaves it out where it cannot', () => {
+    bar({ inCall: true, muted: false, callView: true, callViewFixed: true })
+
+    expect(
+      screen.queryByRole('button', { name: /show the (office map|call full size)/i }),
+    ).not.toBeInTheDocument()
+    // Everything else in the call is still there.
+    expect(screen.getByRole('button', { name: /leave call/i })).toBeInTheDocument()
+  })
+})

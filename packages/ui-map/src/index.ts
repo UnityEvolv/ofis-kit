@@ -72,11 +72,20 @@ export {
   type ShareStageProps,
 } from './Share.js'
 export { useShare, useShareView, type Share, type UseShareOptions } from './useShare.js'
+export { createSounds, type Sounds } from './sounds.js'
+export { useSounds, type UseSoundsOptions } from './useSounds.js'
+export { tileLayout, VIDEO_ASPECT, type TileLayout } from './tileLayout.js'
 export { Control, controlClasses, type ControlProps } from './controls.js'
 export { DevicePanel, PermissionPrimer, type DevicePanelProps } from './DevicePanel.js'
 export { RoomBar, type RoomBarProps } from './RoomBar.js'
 export { StatusControl, type StatusControlProps } from './StatusControl.js'
 export { PersonAvatar, type PersonAvatarProps } from './PersonAvatar.js'
+export {
+  OVERFLOW_COLUMNS,
+  OVERFLOW_ROWS,
+  OverflowAvatar,
+  type OverflowAvatarProps,
+} from './Overflow.js'
 export { StatusDot, describeStatus, statusLabel, STATUS_LOOKS, type StatusDotProps } from './status.js'
 
 export {
