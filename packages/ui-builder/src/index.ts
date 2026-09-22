@@ -12,7 +12,15 @@
 export { OfficeBuilder, type OfficeBuilderProps } from './OfficeBuilder.js'
 export { BuilderCanvas, type BuilderCanvasProps } from './canvas/BuilderCanvas.js'
 export type { ChangeOptions, OnChange, Selection, Tool } from './canvas/types.js'
+export { BuilderSteps, type BuilderStepsProps } from './BuilderSteps.js'
 export { PromptStep, type PromptStepProps } from './prompt/PromptStep.js'
+export {
+  BackgroundStep,
+  backgroundFileName,
+  type BackgroundImages,
+  type BackgroundStepProps,
+} from './background/BackgroundStep.js'
+export { darkVersion } from './background/darkVersion.js'
 export { useHistory, type History } from './history.js'
 export {
   applyPreset,

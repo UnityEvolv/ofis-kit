@@ -1,11 +1,10 @@
 import { Alert, Button, Icon } from '@unityevolv/unitykit'
 import {
-  OfficeBuilder,
-  PromptStep,
+  BuilderSteps,
   loadPromptDocument,
   type PromptDocument,
 } from '@unityevolv/ofiskit-ui-builder'
-import { createTemplate, type CanvasShape, type Template } from '@unityevolv/ofiskit-template'
+import type { Template } from '@unityevolv/ofiskit-template'
 import { useEffect, useState } from 'react'
 
 /**
@@ -22,13 +21,6 @@ import { useEffect, useState } from 'react'
 export function BuilderPage({ onBack }: { onBack?: () => void }) {
   const [prompt, setPrompt] = useState<PromptDocument | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
-  const [step, setStep] = useState<'image' | 'draw'>('image')
-  const [shape, setShape] = useState<CanvasShape>('landscape')
-  const [images, setImages] = useState<{ light: string | null; dark: string | null }>({
-    light: null,
-    dark: null,
-  })
-  const [template, setTemplate] = useState<Template | null>(null)
 
   // Fetched rather than bundled, so improving the prompt reaches every author
   // without releasing the builder.
@@ -37,22 +29,6 @@ export function BuilderPage({ onBack }: { onBack?: () => void }) {
       .then(setPrompt)
       .catch((cause: unknown) => setFailed(cause instanceof Error ? cause.message : 'unknown'))
   }, [])
-
-  function start() {
-    setTemplate(
-      createTemplate({
-        name: 'My office',
-        canvas: shape,
-        // The file names the host will use once the images are in place beside
-        // template.json. The builder shows the loaded files, not these.
-        images: {
-          light: 'office-light.webp',
-          ...(images.dark ? { dark: 'office-dark.webp' } : {}),
-        },
-      }),
-    )
-    setStep('draw')
-  }
 
   function download(finished: Template) {
     const blob = new Blob([`${JSON.stringify(finished, null, 2)}\n`], { type: 'application/json' })
@@ -75,7 +51,7 @@ export function BuilderPage({ onBack }: { onBack?: () => void }) {
         )}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1">
         {failed && (
           <Alert variant="danger" className="m-4">
             The background prompt could not be loaded: {failed}
@@ -84,40 +60,26 @@ export function BuilderPage({ onBack }: { onBack?: () => void }) {
 
         {!prompt && !failed && <p className="p-6 text-sm text-base-content/70">Loading…</p>}
 
-        {prompt && step === 'image' && (
-          <PromptStep
+        {prompt && (
+          <BuilderSteps
             document={prompt}
-            shape={shape}
-            onShapeChange={setShape}
-            hasLightImage={images.light !== null}
-            onImages={(next) =>
-              setImages((current) => ({
-                light: next.light || current.light,
-                dark: next.dark ?? current.dark,
-              }))
-            }
-            onContinue={start}
+            saveLabel="Download template.json"
+            onSave={download}
+            saveHint={(files) => (
+              <>
+                When you are done, download <code>template.json</code> and put it in the{' '}
+                <code>config</code> folder next to your background images, named{' '}
+                <code>{files.light}</code>
+                {files.dark && (
+                  <>
+                    {' '}
+                    and <code>{files.dark}</code>
+                  </>
+                )}
+                . Restart the server and that is your office.
+              </>
+            )}
           />
-        )}
-
-        {prompt && step === 'draw' && template && (
-          <>
-            <Alert variant="info" className="mx-4 mt-4">
-              When you are done, download <code>template.json</code> and put it in the{' '}
-              <code>config</code> folder next to your background images, named{' '}
-              <code>office-light.webp</code> and <code>office-dark.webp</code>. Restart the server
-              and that is your office.
-            </Alert>
-
-            <OfficeBuilder
-              template={template}
-              imageUrl={images.light}
-              darkImageUrl={images.dark}
-              saveLabel="Download template.json"
-              onSave={download}
-              onPickImage={() => setStep('image')}
-            />
-          </>
         )}
       </div>
     </div>

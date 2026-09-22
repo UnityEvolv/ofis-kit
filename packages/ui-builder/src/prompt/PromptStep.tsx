@@ -1,4 +1,4 @@
-import { Alert, Button, Field, Icon, Input, Textarea } from '@unityevolv/unitykit'
+import { Alert, Button, Icon, Input, Textarea } from '@unityevolv/unitykit'
 import { CANVAS_SHAPES, type CanvasShape } from '@unityevolv/ofiskit-template'
 import { useMemo, useState } from 'react'
 
@@ -11,7 +11,7 @@ import {
 } from './prompt.js'
 
 /**
- * Step one, before a single room is drawn: get the picture.
+ * Step one, before a single room is drawn: the prompt for the picture.
  *
  * An author who opens a drawing tool with no background has nothing to draw on,
  * and "find a top-down floor plan" is not a task most people can do. So this
@@ -27,66 +27,16 @@ export interface PromptStepProps {
   document: PromptDocument
   shape: CanvasShape
   onShapeChange(shape: CanvasShape): void
-  /** The light image, and optionally the dark one. Both are object URLs here. */
-  onImages(images: { light: string; dark?: string }): void
-  onContinue(): void
-  hasLightImage: boolean
+  /** What choosing a different shape would undo, said before it happens. */
+  shapeChangeWarning?: string
 }
 
 export function PromptStep(props: PromptStepProps) {
   const { document: prompt, shape } = props
   const [values, setValues] = useState<SlotValues>(() => defaultSlots(prompt))
   const [copied, setCopied] = useState(false)
-  const [problem, setProblem] = useState<string | null>(null)
 
   const text = useMemo(() => renderPrompt(prompt, shape, values), [prompt, shape, values])
-
-  /**
-   * Check the image before anything is drawn on it.
-   *
-   * The ratio has to match the canvas, or every room the author places will be
-   * slightly wrong against the picture underneath. Catching it here costs them
-   * one regeneration; catching it later costs them the whole layout.
-   */
-  async function accept(file: File, slot: 'light' | 'dark') {
-    const url = URL.createObjectURL(file)
-    const image = new Image()
-
-    const ok = await new Promise<boolean>((resolve) => {
-      image.onload = () => resolve(true)
-      image.onerror = () => resolve(false)
-      image.src = url
-    })
-
-    if (!ok) {
-      setProblem('That file could not be read as an image.')
-      URL.revokeObjectURL(url)
-      return
-    }
-
-    const wanted = prompt.canvases[shape].ratio.split(':').map(Number)
-    const target = (wanted[0] ?? 1) / (wanted[1] ?? 1)
-    const actual = image.width / image.height
-
-    if (Math.abs(actual - target) > 0.03) {
-      setProblem(
-        `That image is ${image.width}x${image.height}, which is not ${prompt.canvases[shape].ratio}. ` +
-          `Rooms would sit slightly wrong against it. Generate it at ${prompt.canvases[shape].resolution}.`,
-      )
-      URL.revokeObjectURL(url)
-      return
-    }
-
-    if (image.width < 1200) {
-      setProblem(
-        `That image is only ${image.width} pixels wide. It will look soft on a large screen.`,
-      )
-    } else {
-      setProblem(null)
-    }
-
-    props.onImages(slot === 'light' ? { light: url } : { light: '', dark: url })
-  }
 
   return (
     <div className="mx-auto grid max-w-5xl gap-6 p-4 lg:grid-cols-[1fr_20rem]">
@@ -125,6 +75,12 @@ export function PromptStep(props: PromptStepProps) {
               </button>
             ))}
           </div>
+
+          {props.shapeChangeWarning && (
+            <Alert variant="warn" className="mt-3">
+              {props.shapeChangeWarning}
+            </Alert>
+          )}
         </div>
 
         <div>
@@ -202,53 +158,6 @@ export function PromptStep(props: PromptStepProps) {
             ))}
           </ul>
         </div>
-
-        {problem && <Alert variant="warn">{problem}</Alert>}
-
-        {/*
-          A file input is the one control here the kit does not wrap, so these
-          two take Field's render-prop form and spread what it gives them. That
-          is what associates the label with the input; a label on the wrapper
-          alone points at nothing.
-        */}
-        <div className="space-y-2">
-          <Field label="Background image" help="Required. The office is drawn on this.">
-            {(control) => (
-              <input
-                {...control}
-                type="file"
-                accept="image/*"
-                className="file-input file-input-bordered file-input-sm w-full"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) void accept(file, 'light')
-                }}
-              />
-            )}
-          </Field>
-
-          <Field
-            label="Dark version"
-            help="Optional. The same scene recoloured, never a different layout."
-          >
-            {(control) => (
-              <input
-                {...control}
-                type="file"
-                accept="image/*"
-                className="file-input file-input-bordered file-input-sm w-full"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) void accept(file, 'dark')
-                }}
-              />
-            )}
-          </Field>
-        </div>
-
-        <Button className="w-full" disabled={!props.hasLightImage} onClick={props.onContinue}>
-          Start drawing rooms
-        </Button>
       </div>
     </div>
   )
