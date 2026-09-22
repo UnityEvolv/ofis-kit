@@ -3,15 +3,23 @@
 A virtual office you can run yourself. One floor plan, people standing in rooms,
 and a four-person call in any of them.
 
+**[Try the demo →](https://unityevolv.com/ofis-kit/)** The whole office runs in
+your browser: walk in, then open the page in a second tab and walk in as someone
+else. Move between rooms, lock one and answer the knock, and call yourself. A few
+simulated colleagues keep it busy, and nothing leaves your device.
+
 ```
 git clone https://github.com/UnityEvolv/ofis-kit
 cd ofis-kit
 docker compose -f deploy/docker-compose.yml up
 ```
 
-Open the URL it prints, type an email and a name, and you are in reception. A
-second browser window is a second person. Three containers, five minutes, and a
-team is in a room.
+Open `http://localhost:8080`, type an email and a name, and you are in
+reception. A private window is a second person. Three containers, five minutes,
+and a team is in a room.
+
+To put it on a server for a team — HTTPS, the relay, the firewall, and every
+setting — see **[Hosting ofiskit](docs/hosting.md)**.
 
 ## What it is
 
@@ -56,7 +64,9 @@ The template names the picture for each theme (`images.light`, and optionally
 
 Replace those and you have replaced the office. The builder — a standalone page
 in the same app, with no server side — draws a layout on a background image and
-exports `template.json`; it also hands you a prompt for generating the picture.
+exports `template.json`; it also hands you a prompt for generating the picture,
+and makes the dark version from an SVG. It is at `/builder` on any running copy,
+and [in the demo](https://unityevolv.com/ofis-kit/builder).
 
 ## Building on it
 
