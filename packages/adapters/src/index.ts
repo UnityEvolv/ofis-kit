@@ -6,33 +6,7 @@
  * of these, and the free office's implementations are short enough to read in
  * one sitting — which is the clearest possible statement of where the boundary is.
  */
-export type {
-  AuthenticationRefused,
-  ConnectionContext,
-  Decision,
-  Identity,
-  IdentityAdapter,
-  Permission,
-  PermissionQuestion,
-  TypedEmailCredentials,
-} from './identity.js'
-export { allow, idForEmail, refuse, typedEmailIdentity } from './identity.js'
+export * from './portable.js'
 
-export type { FileTemplateSourceOptions, TemplateSource } from './template-source.js'
-export { TemplateInvalid, fileTemplateSource, staticTemplateSource } from './template-source.js'
-
-export type {
-  AccessRevoked,
-  EventBus,
-  ExternalStatusChanged,
-  HostEvent,
-  HostEventHandler,
-  TemplateChanged,
-} from './events.js'
-export { localEventBus, silentEventBus } from './events.js'
-
-export type { RateLimiter, RateLimitVerdict } from './rate-limit.js'
-export { memoryRateLimiter, unlimited } from './rate-limit.js'
-
-/** Re-exported so nothing has to import the template package to report an error. */
-export type { ErrorEnvelope } from '@unityevolv/ofiskit-template'
+export type { FileTemplateSourceOptions } from './template-file.js'
+export { fileTemplateSource } from './template-file.js'

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,7 +9,8 @@ import { describe, expect, it } from 'vitest'
 import { localEventBus, silentEventBus } from './events.js'
 import { idForEmail, typedEmailIdentity } from './identity.js'
 import { memoryRateLimiter, unlimited } from './rate-limit.js'
-import { TemplateInvalid, fileTemplateSource } from './template-source.js'
+import { fileTemplateSource } from './template-file.js'
+import { TemplateInvalid } from './template-source.js'
 
 describe('the typed-email identity adapter', () => {
   const adapter = typedEmailIdentity()
@@ -30,9 +32,19 @@ describe('the typed-email identity adapter', () => {
     expect('id' in first && 'id' in second && first.id === second.id).toBe(true)
   })
 
-  it('mints a valid UUID, with the version and variant bits set', () => {
-    const id = idForEmail('grace@example.com')
+  it('mints a valid UUID, with the version and variant bits set', async () => {
+    const id = await idForEmail('grace@example.com')
     expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+  })
+
+  it('gives the same id it always has, now that it hashes with Web Crypto', async () => {
+    // Moving off node:crypto must not change anybody's id: the digest is the
+    // same SHA-256, laid out the same way.
+    const digest = createHash('sha256').update('grace@example.com').digest('hex')
+    const id = await idForEmail(' Grace@Example.com ')
+
+    expect(id.replaceAll('-', '').slice(0, 12)).toBe(digest.slice(0, 12))
+    expect(id.slice(-12)).toBe(digest.slice(20, 32))
   })
 
   it('refuses something that is not an email, and a blank name', async () => {

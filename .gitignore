@@ -5,6 +5,7 @@ coverage/
 .env
 .env.local
 app/dist/
+app/dist-pages/
 docs-site/
 test-results/
 playwright-report/

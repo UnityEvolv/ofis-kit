@@ -8,7 +8,6 @@
  */
 
 declare const __PAGES__: boolean
-declare const __DEMO_URL__: string
 
 export interface PublicConfig {
   officeId: string
@@ -23,13 +22,19 @@ export interface PublicConfig {
    * corporate firewall.
    */
   hasTurn: boolean
+  /**
+   * Present when the office runs in this browser rather than on a server: the
+   * Pages demo. Everyone in it is a tab on this device. `shared` is false in a
+   * browser without Web Locks, where each tab has an office to itself.
+   */
+  inBrowser?: { shared: boolean }
 }
 
-/** True in the Pages build, which has the builder but no office. */
+/**
+ * True in the Pages build: the demo, where the whole office runs in the browser
+ * because there is no server to run it on.
+ */
 export const isPagesBuild = __PAGES__
-
-/** Where the live office is, for the Pages build to link to. Empty if unset. */
-export const demoUrl = __DEMO_URL__
 
 export async function loadConfig(): Promise<PublicConfig> {
   const response = await fetch('/config')
@@ -69,16 +74,27 @@ export function officeImageUrl(name: string): string {
 export function deviceId(): string {
   const KEY = 'ofiskit:device'
   try {
-    const existing = localStorage.getItem(KEY)
+    const existing = identityStorage().getItem(KEY)
     if (existing) return existing
     const fresh = globalThis.crypto.randomUUID()
-    localStorage.setItem(KEY, fresh)
+    identityStorage().setItem(KEY, fresh)
     return fresh
   } catch {
     // Private windows and blocked storage: a per-session id still works, it just
     // makes a reload look like a new device.
     return globalThis.crypto.randomUUID()
   }
+}
+
+/**
+ * Where who-you-are is kept: this browser, or in the demo this tab.
+ *
+ * On a server every tab of one browser is one device, and one person. In the demo
+ * every tab is a colleague — that is how one laptop fills an office — so the
+ * device and the person are kept per tab, and survive a reload of it.
+ */
+function identityStorage(): Storage {
+  return isPagesBuild ? sessionStorage : localStorage
 }
 
 /** What was typed on the way in, so a refresh does not ask again. */
@@ -91,7 +107,7 @@ const ENTRY_KEY = 'ofiskit:entry'
 
 export function rememberEntry(entry: Entry): void {
   try {
-    localStorage.setItem(ENTRY_KEY, JSON.stringify(entry))
+    identityStorage().setItem(ENTRY_KEY, JSON.stringify(entry))
   } catch {
     // Not worth mentioning; they will type it again.
   }
@@ -99,7 +115,7 @@ export function rememberEntry(entry: Entry): void {
 
 export function recallEntry(): Entry | null {
   try {
-    const stored = localStorage.getItem(ENTRY_KEY)
+    const stored = identityStorage().getItem(ENTRY_KEY)
     return stored ? (JSON.parse(stored) as Entry) : null
   } catch {
     return null
@@ -108,7 +124,7 @@ export function recallEntry(): Entry | null {
 
 export function forgetEntry(): void {
   try {
-    localStorage.removeItem(ENTRY_KEY)
+    identityStorage().removeItem(ENTRY_KEY)
   } catch {
     // Nothing to do.
   }

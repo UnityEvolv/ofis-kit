@@ -13,7 +13,10 @@
     "build:pages": "vite build --mode pages"
   },
   "dependencies": {
+    "@unityevolv/ofiskit-adapters": "0.1.0",
+    "@unityevolv/ofiskit-presence-store": "0.1.0",
     "@unityevolv/ofiskit-realtime-client": "0.1.0",
+    "@unityevolv/ofiskit-realtime-core": "0.1.0",
     "@unityevolv/ofiskit-template": "0.1.0",
     "@unityevolv/ofiskit-ui-builder": "0.1.0",
     "@unityevolv/ofiskit-ui-map": "0.1.0",

@@ -48,6 +48,12 @@ jobs:
       - name: Build packages and app
         run: npm run build
 
+      # The demo on Pages is a second build of the same app, with the office
+      # running in the browser. Built here too, so a change that breaks it fails
+      # the pull request rather than the deploy after merge.
+      - name: Build the Pages demo
+        run: npm run --workspace ofiskit-app build:pages
+
       # Tailwind does not scan node_modules, so a wrong @source path leaves the
       # kit's components with their classes and none of their CSS — silently.
       - name: The kit's classes actually generated CSS
