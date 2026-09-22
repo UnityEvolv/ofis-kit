@@ -1,7 +1,8 @@
 import { Alert, Button, Field, Icon, Input, Textarea } from '@unityevolv/unitykit'
 import { CANVAS_SHAPES, type CanvasShape } from '@unityevolv/ofiskit-template'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
+import { darkVersion } from './darkVersion.js'
 import {
   applyPreset,
   defaultSlots,
@@ -27,10 +28,26 @@ export interface PromptStepProps {
   document: PromptDocument
   shape: CanvasShape
   onShapeChange(shape: CanvasShape): void
-  /** The light image, and optionally the dark one. Both are object URLs here. */
-  onImages(images: { light: string; dark?: string }): void
+  /**
+   * The light image, and optionally the dark one. Both are object URLs here.
+   *
+   * With each, the name the file should have in the host's config folder, which
+   * keeps the type it was uploaded as: `office-light.svg` for an SVG, not a
+   * `.webp` name for a file that is not one.
+   */
+  onImages(images: { light: string; dark?: string; lightFile?: string; darkFile?: string }): void
   onContinue(): void
   hasLightImage: boolean
+}
+
+/** The name a background should have beside template.json, keeping its type. */
+export function backgroundFileName(file: File, slot: 'light' | 'dark'): string {
+  const extension = isSvg(file) ? 'svg' : (/\.([a-z0-9]+)$/i.exec(file.name)?.[1] ?? 'png')
+  return `office-${slot}.${extension.toLowerCase()}`
+}
+
+function isSvg(file: File): boolean {
+  return file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)
 }
 
 export function PromptStep(props: PromptStepProps) {
@@ -38,8 +55,46 @@ export function PromptStep(props: PromptStepProps) {
   const [values, setValues] = useState<SlotValues>(() => defaultSlots(prompt))
   const [copied, setCopied] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  /** The light image, when it is an SVG: the only kind a dark version can be made from. */
+  const [lightSvg, setLightSvg] = useState<File | null>(null)
+  /** A dark version made here, which the author needs as a file; they never had one. */
+  const [generated, setGenerated] = useState<{ url: string; name: string } | null>(null)
+  const [generating, setGenerating] = useState(false)
 
   const text = useMemo(() => renderPrompt(prompt, shape, values), [prompt, shape, values])
+
+  // The download link's URL is this step's own; the one handed to the host is not.
+  useEffect(
+    () => () => {
+      if (generated) URL.revokeObjectURL(generated.url)
+    },
+    [generated],
+  )
+
+  /**
+   * Make the dark version from the light SVG, and put it in the dark slot.
+   *
+   * Through the same checks as an uploaded file, so a generated picture is held to
+   * the same shape as one somebody made by hand.
+   */
+  async function generateDark() {
+    if (!lightSvg) return
+    setGenerating(true)
+    try {
+      const svg = darkVersion(await lightSvg.text())
+      const name = backgroundFileName(lightSvg, 'dark')
+      const file = new File([svg], name, { type: 'image/svg+xml' })
+      if (await accept(file, 'dark')) {
+        setGenerated({ url: URL.createObjectURL(file), name })
+      }
+    } catch (cause) {
+      setProblem(
+        `The dark version could not be made: ${cause instanceof Error ? cause.message : 'unknown'}.`,
+      )
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   /**
    * Check the image before anything is drawn on it.
@@ -48,7 +103,7 @@ export function PromptStep(props: PromptStepProps) {
    * slightly wrong against the picture underneath. Catching it here costs them
    * one regeneration; catching it later costs them the whole layout.
    */
-  async function accept(file: File, slot: 'light' | 'dark') {
+  async function accept(file: File, slot: 'light' | 'dark'): Promise<boolean> {
     const url = URL.createObjectURL(file)
     const image = new Image()
 
@@ -61,7 +116,7 @@ export function PromptStep(props: PromptStepProps) {
     if (!ok) {
       setProblem('That file could not be read as an image.')
       URL.revokeObjectURL(url)
-      return
+      return false
     }
 
     const wanted = prompt.canvases[shape].ratio.split(':').map(Number)
@@ -74,7 +129,7 @@ export function PromptStep(props: PromptStepProps) {
           `Rooms would sit slightly wrong against it. Generate it at ${prompt.canvases[shape].resolution}.`,
       )
       URL.revokeObjectURL(url)
-      return
+      return false
     }
 
     if (image.width < 1200) {
@@ -85,7 +140,18 @@ export function PromptStep(props: PromptStepProps) {
       setProblem(null)
     }
 
-    props.onImages(slot === 'light' ? { light: url } : { light: '', dark: url })
+    const name = backgroundFileName(file, slot)
+    if (slot === 'light') {
+      // A new light picture makes any dark version made from the old one stale.
+      setLightSvg(isSvg(file) ? file : null)
+      setGenerated(null)
+      props.onImages({ light: url, lightFile: name })
+    } else {
+      // Replaced by whatever came in now; generating sets it again straight after.
+      setGenerated(null)
+      props.onImages({ light: '', dark: url, darkFile: name })
+    }
+    return true
   }
 
   return (
@@ -244,6 +310,39 @@ export function PromptStep(props: PromptStepProps) {
               />
             )}
           </Field>
+
+          {/*
+            Only for an SVG: its colours are text and can be rewritten, where a
+            photo's would need a filter that dims the lamps along with the walls.
+          */}
+          {lightSvg && (
+            <div className="space-y-1">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full"
+                disabled={generating}
+                onClick={() => void generateDark()}
+              >
+                Generate dark version
+              </Button>
+              <p className="text-xs text-base-content/70">
+                Made from your SVG: walls and floors darken, lamps stay lit. Nothing is uploaded.
+              </p>
+            </div>
+          )}
+
+          <p role="status" className="text-xs">
+            {generated && (
+              <>
+                Dark version ready.{' '}
+                <a href={generated.url} download={generated.name} className="link">
+                  Download {generated.name}
+                </a>{' '}
+                and put it beside template.json.
+              </>
+            )}
+          </p>
         </div>
 
         <Button className="w-full" disabled={!props.hasLightImage} onClick={props.onContinue}>
