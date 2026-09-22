@@ -53,7 +53,16 @@ export function startDemoHost(options: {
   /** Who is in each group, which is what Socket.IO's rooms are for on the server. */
   const groups = new Map<string, Set<string>>()
 
-  const send = (message: ToClient) => channel.postMessage(message)
+  /*
+   * Nothing is sent once closing starts. The engine may still be finishing work
+   * when the host goes — an acknowledgement for a request already in flight, a
+   * batch of changes waiting to be sent — and all of it is for connections that
+   * are gone: the next host rebuilds the office from whoever says hello to it.
+   */
+  let closing = false
+  const send = (message: ToClient) => {
+    if (!closing) channel.postMessage(message)
+  }
   const toGroup = (group: string, event: string, args: unknown[]) => {
     const members = [...(groups.get(group) ?? [])]
     if (members.length > 0) send({ kind: 'event', to: members, event, args })
@@ -159,6 +168,7 @@ export function startDemoHost(options: {
 
   return {
     async close() {
+      closing = true
       for (const conn of [...connections.keys()]) drop(conn)
       await engine.close()
       channel.close()
