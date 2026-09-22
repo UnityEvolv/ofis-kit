@@ -97,6 +97,7 @@ export {
   type ConnectionStatus,
   type OfisClient,
   type OfisClientOptions,
+  type SocketLike,
 } from './client.js'
 
 /**

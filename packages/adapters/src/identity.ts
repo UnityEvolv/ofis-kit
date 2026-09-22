@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto'
-
 import type { ErrorEnvelope } from '@unityevolv/ofiskit-template'
 
 /**
@@ -138,9 +136,17 @@ export interface IdentityAdapter {
  *
  * The email is lower-cased and trimmed first, so `Ada@Example.com ` and
  * `ada@example.com` are one person rather than two standing in the same room.
+ *
+ * Hashed with Web Crypto, which Node (20 and later), browsers and React Native
+ * all have, so this package runs anywhere the engine does. It is asynchronous only
+ * because that API is.
  */
-export function idForEmail(email: string): string {
-  const digest = createHash('sha256').update(email.trim().toLocaleLowerCase()).digest('hex')
+export async function idForEmail(email: string): Promise<string> {
+  const bytes = new TextEncoder().encode(email.trim().toLocaleLowerCase())
+  const hash = await globalThis.crypto.subtle.digest('SHA-256', bytes)
+  const digest = Array.from(new Uint8Array(hash), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
   const version8 = `8${digest.slice(13, 16)}`
   // Variant bits: the first character of this group must be 8, 9, a or b.
   const variant = `${'89ab'[Number.parseInt(digest[16] ?? '0', 16) % 4]}${digest.slice(17, 20)}`
@@ -197,7 +203,7 @@ export function typedEmailIdentity(): IdentityAdapter {
         }
       }
 
-      return { id: idForEmail(email), displayName: name }
+      return { id: await idForEmail(email), displayName: name }
     },
 
     // Yes to everything. The free office has one office, no roles and no plan,

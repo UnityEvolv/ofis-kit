@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { copyFile, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -8,6 +8,7 @@ import { defineConfig, type Plugin } from 'vite'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const promptDocument = join(here, '..', 'docs', 'background-prompt.json')
+const configDir = join(here, '..', 'config')
 
 /**
  * Serve the background prompt from the one copy of it.
@@ -49,27 +50,74 @@ function backgroundPrompt(): Plugin {
 }
 
 /**
+ * The office's pictures, for the Pages build, which has no server to serve them.
+ *
+ * The server serves whatever `config/template.json` names from `/office/`. Here
+ * the same files are copied to the same path, so the app asks for them in the
+ * same place either way. Read from the template, so replacing the office in
+ * `config/` replaces the demo's too, with nothing to keep in step.
+ */
+function officeImages(): Plugin {
+  return {
+    name: 'ofiskit:office-images',
+    async generateBundle() {
+      const template = JSON.parse(await readFile(join(configDir, 'template.json'), 'utf8')) as {
+        images: { light: string; dark?: string }
+      }
+      const names = new Set([template.images.light, template.images.dark].filter(Boolean))
+      for (const name of names) {
+        this.emitFile({
+          type: 'asset',
+          fileName: `office/${name}`,
+          source: await readFile(join(configDir, name as string)),
+        })
+      }
+    },
+  }
+}
+
+/**
+ * Every path opens the app, on a host that only serves files.
+ *
+ * GitHub Pages answers a path it has no file for with `404.html`. Making that the
+ * app means `/builder`, opened directly or reloaded, reaches the app's own
+ * routing instead of a GitHub error page.
+ */
+function spaFallback(outDir: string): Plugin {
+  return {
+    name: 'ofiskit:spa-fallback',
+    async closeBundle() {
+      await copyFile(join(outDir, 'index.html'), join(outDir, '404.html'))
+    },
+  }
+}
+
+/**
  * Two builds from one app.
  *
- * The office needs a live Node process for presence and signalling, so it
- * cannot be static files. The builder and the documentation are entirely
- * client-side, so they can — and that is what goes on Pages, with a link out to
- * wherever the live demo is running.
+ * The normal build is served by the Node process, which runs the office. The
+ * Pages build is the demo: static files, with the whole office running in the
+ * browser (`src/demo/`) because there is no server to run it on — every tab on
+ * the device is a person, and nothing leaves it.
  *
- * `PAGES_BASE` and `PUBLIC_DEMO_URL` are the only two things that differ, and
- * both are configuration. Nothing in the source names a host, which is what
- * lets somebody build this for their own fork with nothing edited.
+ * `PAGES_BASE` is the only thing that differs between hosts, and it is
+ * configuration. Nothing in the source names a host, which is what lets somebody
+ * build this for their own fork with nothing edited.
  */
 export default defineConfig(({ mode }) => {
   const pages = mode === 'pages'
 
   return {
-    plugins: [react(), tailwind(), backgroundPrompt()],
+    plugins: [
+      react(),
+      tailwind(),
+      backgroundPrompt(),
+      ...(pages ? [officeImages(), spaFallback(join(here, 'dist-pages'))] : []),
+    ],
     base: pages ? (process.env.PAGES_BASE ?? '/') : '/',
 
     define: {
       __PAGES__: JSON.stringify(pages),
-      __DEMO_URL__: JSON.stringify(process.env.PUBLIC_DEMO_URL ?? ''),
     },
 
     build: {

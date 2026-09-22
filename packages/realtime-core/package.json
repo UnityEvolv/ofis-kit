@@ -8,6 +8,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./portable": { "types": "./dist/portable.d.ts", "import": "./dist/portable.js" },
     "./protocol": { "types": "./dist/protocol/index.d.ts", "import": "./dist/protocol/index.js" }
   },
   "files": ["dist"],

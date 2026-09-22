@@ -28,6 +28,7 @@ export default tseslint.config(
   {
     ignores: [
       '**/dist/**',
+      'app/dist-pages/**',
       '**/coverage/**',
       '**/node_modules/**',
       '**/storybook-static/**',

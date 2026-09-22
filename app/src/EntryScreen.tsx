@@ -14,12 +14,18 @@ export interface EntryScreenProps {
   onEnter(entry: { email: string; name: string }): Promise<string | null>
   /** True on the public demo, which anybody with the link can walk into. */
   demo: boolean
+  /**
+   * Present when the office runs in this browser: the Pages demo, where everyone
+   * is a tab on this device. Replaces the public-demo warning, which is about
+   * strangers, with how to fill the office, which is about tabs.
+   */
+  inBrowser?: { shared: boolean }
   /** False when no relay is configured; calls then fail on strict networks. */
   hasTurn: boolean
   initial?: { email: string; name: string } | null
 }
 
-export function EntryScreen({ onEnter, demo, hasTurn, initial }: EntryScreenProps) {
+export function EntryScreen({ onEnter, demo, inBrowser, hasTurn, initial }: EntryScreenProps) {
   const [email, setEmail] = useState(initial?.email ?? '')
   const [name, setName] = useState(initial?.name ?? '')
   const [problem, setProblem] = useState<string | null>(null)
@@ -35,11 +41,28 @@ export function EntryScreen({ onEnter, demo, hasTurn, initial }: EntryScreenProp
   return (
     <main className="grid min-h-full place-items-center p-4">
       <div className="w-full max-w-sm">
-        {demo && (
-          <Alert variant="warn" title="This is a public demo" className="mb-4">
-            Anyone with the link can walk in. Please do not say anything private. The office empties
-            whenever the server restarts, because nothing here is stored.
+        {inBrowser ? (
+          <Alert variant="info" title="This office runs in your browser" className="mb-4">
+            {inBrowser.shared ? (
+              <>
+                Every tab is a person. Walk in here, then open this page in another tab and walk in
+                as someone else: you can move between rooms, knock, and call each other. The Bot
+                colleagues are simulated. Nothing leaves this device.
+              </>
+            ) : (
+              <>
+                This browser cannot share an office between tabs, so this tab has one to itself,
+                with a few simulated colleagues. Nothing leaves this device.
+              </>
+            )}
           </Alert>
+        ) : (
+          demo && (
+            <Alert variant="warn" title="This is a public demo" className="mb-4">
+              Anyone with the link can walk in. Please do not say anything private. The office
+              empties whenever the server restarts, because nothing here is stored.
+            </Alert>
+          )
         )}
 
         <form onSubmit={submit} className="space-y-3">
@@ -76,7 +99,7 @@ export function EntryScreen({ onEnter, demo, hasTurn, initial }: EntryScreenProp
           Said before a call rather than during one. A call that will not connect
           is the worst thing to find out about while somebody is waiting.
         */}
-        {!hasTurn && (
+        {!hasTurn && !inBrowser && (
           <p className="mt-4 text-xs text-base-content/60">
             No relay server is configured. Calls will work between people on the same network, and
             may not connect across a corporate firewall.

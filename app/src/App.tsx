@@ -1,21 +1,13 @@
 import { Alert, Spinner } from '@unityevolv/unitykit'
-import { createOfisClient, type OfisClient } from '@unityevolv/ofiskit-realtime-client'
+import type { OfisClient } from '@unityevolv/ofiskit-realtime-client'
 import { AnnouncerProvider } from '@unityevolv/ofiskit-ui-map'
 import type { Template } from '@unityevolv/ofiskit-template'
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 
 import { EntryScreen } from './EntryScreen.js'
 import { OfficePage } from './OfficePage.js'
-import {
-  deviceId,
-  forgetEntry,
-  loadConfig,
-  recallEntry,
-  rememberEntry,
-  socketUrl,
-  type Entry,
-  type PublicConfig,
-} from './config.js'
+import { forgetEntry, recallEntry, rememberEntry, type Entry, type PublicConfig } from './config.js'
+import { openOffice } from './office.js'
 
 /**
  * The builder is loaded only when somebody opens it.
@@ -105,18 +97,11 @@ function Office({ onBuilder }: { onBuilder(): void }) {
 
     void (async () => {
       try {
-        const loaded = await loadConfig()
-        const response = await fetch('/v1/template')
-        if (!response.ok) throw new Error('This office has no layout.')
-        const layout = (await response.json()) as Template
-        if (cancelled) return
-
-        const connection = createOfisClient({
-          url: socketUrl(),
-          path: loaded.socketPath,
-          deviceId: deviceId(),
-          kind: 'web',
-        })
+        const { config: loaded, template: layout, client: connection } = await openOffice()
+        if (cancelled) {
+          connection.close()
+          return
+        }
 
         setConfig(loaded)
         setTemplate(layout)
@@ -184,6 +169,7 @@ function Office({ onBuilder }: { onBuilder(): void }) {
       <EntryScreen
         onEnter={enter}
         demo={config.demo}
+        {...(config.inBrowser ? { inBrowser: config.inBrowser } : {})}
         hasTurn={config.hasTurn}
         initial={remembered}
       />

@@ -1,0 +1,63 @@
+name: Demo
+
+# The demo on GitHub Pages: the whole office running in the browser, built from
+# main on every merge, like the kit's Storybook.
+#
+# Static files and nothing else. There is no server behind the demo — every tab
+# on the visitor's device is a person, and the office runs in one of them — so
+# deploying it is uploading a folder, and nothing UnityEvolv operates is involved.
+#
+# The custom domain is set in the repository's Pages settings rather than with a
+# CNAME file, so the repository names no host and a fork deploys to its own.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# What deploying to Pages needs, and nothing more. The id token is how the deploy
+# action proves which workflow it is running in; it is not a secret, and no
+# secret is available to this workflow either.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one half way through publishing.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the packages and the Pages app
+        run: npm run build:pages
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/dist-pages
+
+  deploy:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
