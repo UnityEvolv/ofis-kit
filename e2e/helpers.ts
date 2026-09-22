@@ -1,4 +1,11 @@
-import { expect, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import {
+  expect,
+  type APIRequestContext,
+  type Browser,
+  type BrowserContext,
+  type BrowserContextOptions,
+  type Page,
+} from '@playwright/test'
 
 /**
  * The bits every end-to-end test needs.
@@ -25,9 +32,16 @@ export async function walkIn(
    * The call test uses it to watch every peer connection the page makes, which has
    * to be installed before the app's own script runs.
    */
-  options: { before?: (page: Page) => Promise<void> } = {},
+  options: {
+    before?: (page: Page) => Promise<void>
+    /** A different screen: the phone tests pass a phone's viewport and touch. */
+    context?: BrowserContextOptions
+  } = {},
 ): Promise<Person> {
-  const context = await browser.newContext({ permissions: ['microphone', 'camera'] })
+  const context = await browser.newContext({
+    permissions: ['microphone', 'camera'],
+    ...options.context,
+  })
   const page = await context.newPage()
   await options.before?.(page)
 
@@ -36,8 +50,13 @@ export async function walkIn(
   await page.getByLabel('Name').fill(name)
   await page.getByRole('button', { name: 'Walk in' }).click()
 
-  // The map is a landmark region, so waiting for it is waiting for the office.
-  await page.getByRole('region', { name: /office map/i }).waitFor()
+  // The office is drawn as a map, or on a phone as a list of rooms. Either
+  // landmark appearing is the office having arrived.
+  await page
+    .getByRole('region', { name: /office map/i })
+    .or(page.getByRole('navigation', { name: / rooms$/i }))
+    .first()
+    .waitFor()
 
   return { context, page, name }
 }

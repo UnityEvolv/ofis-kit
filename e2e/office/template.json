@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "name": "Modern office",
+  "description": "The office ofiskit ships with. Replace these two files to replace the office.",
+  "canvas": "landscape",
+  "avatarSize": "medium",
+  "images": {
+    "light": "office-light.webp",
+    "dark": "office-dark.webp"
+  },
+  "rooms": [
+    {
+      "id": "reception",
+      "name": "Reception",
+      "type": "reception",
+      "rect": {
+        "x": 0.04,
+        "y": 0.6,
+        "width": 0.28,
+        "height": 0.32
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "reception-area",
+          "x": 0.11750000000000002,
+          "y": 0.713125,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "break",
+      "name": "Break room",
+      "type": "break",
+      "rect": {
+        "x": 0.68,
+        "y": 0.6,
+        "width": 0.28,
+        "height": 0.32
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "break-area",
+          "x": 0.7262500000000001,
+          "y": 0.713125,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "studio",
+      "name": "Studio",
+      "type": "workspace",
+      "rect": {
+        "x": 0.04,
+        "y": 0.1,
+        "width": 0.28,
+        "height": 0.38
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "studio-area",
+          "x": 0.08625000000000002,
+          "y": 0.16847222222222222,
+          "columns": 3,
+          "rows": 2
+        }
+      ]
+    },
+    {
+      "id": "north",
+      "name": "North meeting",
+      "type": "meeting",
+      "rect": {
+        "x": 0.36,
+        "y": 0.1,
+        "width": 0.26,
+        "height": 0.3
+      },
+      "bar": "bottom",
+      "areas": [
+        {
+          "id": "north-area",
+          "x": 0.4275,
+          "y": 0.14756944444444445,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "east",
+      "name": "East meeting",
+      "type": "meeting",
+      "rect": {
+        "x": 0.66,
+        "y": 0.1,
+        "width": 0.3,
+        "height": 0.3
+      },
+      "bar": "bottom",
+      "areas": [
+        {
+          "id": "east-area",
+          "x": 0.71625,
+          "y": 0.14756944444444445,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "huddle",
+      "name": "Huddle",
+      "type": "workspace",
+      "rect": {
+        "x": 0.36,
+        "y": 0.52,
+        "width": 0.26,
+        "height": 0.4
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "huddle-area",
+          "x": 0.4275,
+          "y": 0.5984722222222223,
+          "columns": 2,
+          "rows": 2
+        }
+      ]
+    }
+  ]
+}

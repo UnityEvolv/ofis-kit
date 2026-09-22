@@ -559,3 +559,103 @@ test('a second share asks first, and then takes the slot', async ({ browser }) =
   await leave(ada)
   await leave(grace)
 })
+
+/**
+ * A call on a phone.
+ *
+ * What a narrow screen promises, checked where it can actually fail: in a real
+ * browser at a phone's size. The list is where a phone starts; a call takes the
+ * whole screen as a grid; and the controls bar stays on screen, in rows, with every
+ * control in it visible and pressable — nothing folded into a menu and nothing
+ * painted over it. A four-person call on a short screen is the case that once hid
+ * the call buttons behind the bottom row of tiles, so it is the case tested.
+ */
+const PHONE = {
+  viewport: { width: 320, height: 568 },
+  isMobile: true,
+  hasTouch: true,
+  deviceScaleFactor: 2,
+}
+
+/** Every control in the bar: on screen, and the thing actually under its own centre. */
+async function barProblems(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const bar = document.querySelector('[role="toolbar"][aria-label="Office controls"]')
+    if (!bar) return ['no controls bar']
+    const problems: string[] = []
+    const boxes: Array<{ top: number; bottom: number }> = []
+    for (const control of bar.querySelectorAll<HTMLElement>('button, select')) {
+      const box = control.getBoundingClientRect()
+      if (box.width === 0) continue
+      const name = control.getAttribute('aria-label') ?? control.textContent?.trim() ?? '?'
+      if (box.right > innerWidth + 1 || box.bottom > innerHeight + 1) {
+        problems.push(`${name} is off screen`)
+        continue
+      }
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+      if (!hit || !control.contains(hit)) problems.push(`${name} is covered`)
+      boxes.push({ top: box.top, bottom: box.bottom })
+    }
+    // Rows by overlap rather than by exact top: controls of different heights in
+    // one row are centred, so their tops differ by a few pixels.
+    boxes.sort((a, b) => a.top - b.top)
+    let rows = 0
+    let rowBottom = -Infinity
+    for (const box of boxes) {
+      if (box.top >= rowBottom - 1) {
+        rows += 1
+        rowBottom = box.bottom
+      } else rowBottom = Math.max(rowBottom, box.bottom)
+    }
+    if (rows > 3) problems.push(`the bar has ${rows} rows`)
+    const scroller = document.documentElement
+    if (scroller.scrollWidth > scroller.clientWidth) problems.push('the page scrolls sideways')
+    return problems
+  })
+}
+
+test('a call on a phone takes the screen, and every control stays in reach', async ({
+  browser,
+}) => {
+  const ada = await walkIn(browser, 'Ada', { context: PHONE })
+
+  // A phone starts on the list of rooms, and nothing is hidden behind a menu.
+  await expect(ada.page.getByRole('navigation', { name: / rooms$/i })).toBeVisible()
+  await expect(ada.page.getByRole('combobox', { name: 'Theme' })).toBeVisible()
+  await expect(ada.page.getByRole('button', { name: 'Leave' })).toBeVisible()
+  await expect(ada.page.getByRole('group', { name: 'Office view' })).toBeVisible()
+  expect(await barProblems(ada.page)).toEqual([])
+
+  await ada.page
+    .getByTestId(/^room-bar-/)
+    .filter({ hasText: 'Studio' })
+    .getByRole('button', { name: 'Join' })
+    .click()
+  await ada.page.getByRole('button', { name: 'Turn on microphone' }).click()
+
+  // The call is the whole screen, and there is no toggle offering otherwise — nor a
+  // map/list switch for an office nobody can see behind it.
+  await expect(ada.page.getByTestId('call-view')).toBeVisible({ timeout: 10_000 })
+  await expect(
+    ada.page.getByRole('button', { name: /show the (office map|call full size)/i }),
+  ).toHaveCount(0)
+  await expect(ada.page.getByRole('group', { name: 'Office view' })).toHaveCount(0)
+  expect(await barProblems(ada.page)).toEqual([])
+
+  // Three more people with cameras on: the short-screen case that once covered
+  // the call buttons with the bottom row of tiles.
+  const others = []
+  for (const name of ['Grace', 'Hedy', 'Linus']) {
+    const person = await walkIn(browser, name)
+    await join(person.page, 'Studio')
+    await person.page.getByRole('button', { name: 'Turn on camera' }).click()
+    others.push(person)
+  }
+
+  await expect(ada.page.getByTestId(/^tile-/)).toHaveCount(4, { timeout: 15_000 })
+  await ada.page.screenshot({ path: test.info().outputPath('phone-call-of-four.png') })
+  expect(await barProblems(ada.page)).toEqual([])
+
+  await leave(ada)
+  for (const person of others) await leave(person)
+})

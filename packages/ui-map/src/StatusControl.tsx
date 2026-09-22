@@ -1,4 +1,4 @@
-import { Button, Icon, Input, Popover, Select } from '@unityevolv/unitykit'
+import { Button, Icon, Input, Popover, Select, Toggle } from '@unityevolv/unitykit'
 import type {
   CustomStatus,
   ManualStatus,
@@ -36,6 +36,14 @@ export interface StatusControlProps {
   presets?: readonly CustomStatus[]
   onSetStatus(manual: ManualStatus | null): void
   onSetCustom(custom: CustomStatus | null): void
+  /**
+   * Whether this device plays the office's sounds — the knock at the door, the
+   * chime when somebody walks in.
+   *
+   * Here, beside do not disturb, because they answer the same question: how much
+   * the office is allowed to interrupt. Absent means the host offers no sounds.
+   */
+  sounds?: { on: boolean; onChange(on: boolean): void }
 }
 
 const CHOICES: Array<{ value: ManualStatus; label: string }> = [
@@ -89,7 +97,7 @@ export function StatusControl(props: StatusControlProps) {
       trigger={
         <button
           type="button"
-          className="inline-flex max-w-52 items-center gap-1.5 rounded-md px-2 py-1 text-sm hover:bg-base-200 focus-visible:outline-2 focus-visible:outline-primary"
+          className="inline-flex min-w-0 max-w-52 items-center gap-1.5 rounded-md px-2 py-1 text-sm hover:bg-base-200 focus-visible:outline-2 focus-visible:outline-primary"
           aria-label={`Your status: ${statusLabel(status)}${you?.custom ? `, ${you.custom.text}` : ''}. Change it.`}
         >
           <StatusDot status={status} size={12} labelled={false} />
@@ -102,7 +110,9 @@ export function StatusControl(props: StatusControlProps) {
         </button>
       }
     >
-      <div className="w-72 space-y-3">
+      {/* Never wider than the screen: on a phone 300px wide the panel plus the
+          popover's own padding ran past the right edge and cut off the input. */}
+      <div className="w-72 max-w-[calc(100vw-4rem)] space-y-3">
         <div>
           <p className="mb-1 text-xs font-medium text-base-content/70">Your status</p>
           <div className="flex flex-col gap-0.5">
@@ -229,6 +239,16 @@ export function StatusControl(props: StatusControlProps) {
             </p>
           )}
         </div>
+
+        {props.sounds && (
+          <div className="border-t border-base-300 pt-3">
+            <Toggle
+              checked={props.sounds.on}
+              onChange={(event) => props.sounds?.onChange(event.target.checked)}
+              label="Sounds for knocks and arrivals"
+            />
+          </div>
+        )}
       </div>
     </Popover>
   )

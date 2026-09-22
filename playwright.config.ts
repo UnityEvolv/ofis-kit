@@ -84,7 +84,9 @@ export default defineConfig({
       PORT: String(PORT),
       HOST: '127.0.0.1',
       APP_DIR: 'app/dist',
-      CONFIG_DIR: 'config',
+      // The tests' own office, not the one that ships: they walk into rooms
+      // by name, and the shipped office is there to be replaced.
+      CONFIG_DIR: 'e2e/office',
       LOG_LEVEL: 'warn',
       TURN_SECRET: 'e2e-secret',
       // A person disappearing is worth watching for; thirty seconds of it in
