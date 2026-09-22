@@ -5,7 +5,7 @@
   "avatarSize": "small",
   "images": {
     "light": "office-cutaway-landscape.svg",
-    "dark": "office-cutaway-landscape.svg"
+    "dark": "office-cutaway-landscape-dark.svg"
   },
   "rooms": [
     {

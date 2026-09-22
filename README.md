@@ -43,11 +43,12 @@ None of these absences is work left undone. They are what makes the boundary
 provable: with nothing here to query, every permission question *has* to be an
 adapter call, and the free office and the product cannot quietly drift apart.
 
-## The office is two files
+## The office is a few files
 
 ```
-config/template.json                  the rooms, their geometry, where each bar sits
-config/office-cutaway-landscape.svg   the picture they are drawn on
+config/template.json                       the rooms, their geometry, where each bar sits
+config/office-cutaway-landscape.svg        the picture they are drawn on
+config/office-cutaway-landscape-dark.svg   optional, the same office at night
 ```
 
 The template names the picture for each theme (`images.light`, and optionally
