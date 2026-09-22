@@ -28,6 +28,9 @@ export function BuilderPage({ onBack }: { onBack?: () => void }) {
     light: null,
     dark: null,
   })
+  // What the files are called beside template.json, which keeps the type each
+  // was uploaded as: an SVG background is office-light.svg, not a .webp name.
+  const [files, setFiles] = useState({ light: 'office-light.webp', dark: 'office-dark.webp' })
   const [template, setTemplate] = useState<Template | null>(null)
 
   // Fetched rather than bundled, so improving the prompt reaches every author
@@ -46,8 +49,8 @@ export function BuilderPage({ onBack }: { onBack?: () => void }) {
         // The file names the host will use once the images are in place beside
         // template.json. The builder shows the loaded files, not these.
         images: {
-          light: 'office-light.webp',
-          ...(images.dark ? { dark: 'office-dark.webp' } : {}),
+          light: files.light,
+          ...(images.dark ? { dark: files.dark } : {}),
         },
       }),
     )
@@ -90,12 +93,16 @@ export function BuilderPage({ onBack }: { onBack?: () => void }) {
             shape={shape}
             onShapeChange={setShape}
             hasLightImage={images.light !== null}
-            onImages={(next) =>
+            onImages={(next) => {
               setImages((current) => ({
                 light: next.light || current.light,
                 dark: next.dark ?? current.dark,
               }))
-            }
+              setFiles((current) => ({
+                light: next.lightFile ?? current.light,
+                dark: next.darkFile ?? current.dark,
+              }))
+            }}
             onContinue={start}
           />
         )}
@@ -105,8 +112,14 @@ export function BuilderPage({ onBack }: { onBack?: () => void }) {
             <Alert variant="info" className="mx-4 mt-4">
               When you are done, download <code>template.json</code> and put it in the{' '}
               <code>config</code> folder next to your background images, named{' '}
-              <code>office-light.webp</code> and <code>office-dark.webp</code>. Restart the server
-              and that is your office.
+              <code>{files.light}</code>
+              {images.dark && (
+                <>
+                  {' '}
+                  and <code>{files.dark}</code>
+                </>
+              )}
+              . Restart the server and that is your office.
             </Alert>
 
             <OfficeBuilder
