@@ -1,6 +1,10 @@
 /**
- * The office that ships with ofiskit: the background image and template.json,
- * generated together from one description.
+ * The office the end-to-end tests run in: the background images and
+ * template.json, generated together from one description.
+ *
+ * The tests have an office of their own rather than using the one in config/,
+ * because they walk into rooms by name. The office that ships is meant to be
+ * replaced, and replacing it should never break the tests.
  *
  * Generated rather than hand-drawn for one reason: the image and the geometry
  * have to agree. A floor plan drawn by hand and a template written by hand
@@ -12,9 +16,10 @@
  * no text anywhere, seats drawn, nothing tall on a desk, plain floors in the
  * middle of each area, detail at the edges.
  *
- *   node config/generate-office.mjs
+ *   node e2e/office/generate.mjs
  *
- * Replacing this office means replacing two files. Nothing else needs to know.
+ * The tests name its rooms (Studio, Reception and the rest), so a change to
+ * the description here is a change to the tests.
  */
 import { writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'

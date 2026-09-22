@@ -110,12 +110,14 @@ const sources = (list: ScreenSource[]) => ({ list: vi.fn(async () => list) })
 function controls(options: {
   state?: ReturnType<typeof office>
   screenSources?: { list: () => Promise<ScreenSource[]> } | null
+  narrow?: boolean
 } = {}) {
   const { client, rtc } = fakeClient()
   const hook = renderHook(() =>
     useCallControls(client, options.state ?? office(), {
       available: true,
       screenSources: options.screenSources ?? null,
+      narrow: options.narrow ?? false,
     }),
   )
 
@@ -256,5 +258,47 @@ describe('inside a desktop shell', () => {
 
     await waitFor(() => expect(hook.result.current.asking).toMatchObject({ kind: 'sources' }))
     expect(rtc.startScreenShare).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * A call on a phone is always shown full size.
+ *
+ * There is no room on a phone for a call and an office at once, so the call takes
+ * the screen for as long as it lasts — and because that is a rule rather than a
+ * preference, it must not be written into the preference either.
+ */
+describe('the call view on a phone', () => {
+  it('fills the screen during a call, whatever was remembered', () => {
+    localStorage.setItem('ofiskit:call-view', 'false')
+    const { hook } = controls({ narrow: true })
+
+    expect(hook.result.current.callView).toBe(true)
+    expect(hook.result.current.callViewFixed).toBe(true)
+  })
+
+  it('shows the office again once the call is over', () => {
+    const outside = office()
+    outside.people.set('ada', person('ada', 'Ada', [device({ inCall: false })]))
+    const { hook } = controls({ state: outside, narrow: true })
+
+    // A call view with no call in it is an empty grid.
+    expect(hook.result.current.callView).toBe(false)
+  })
+
+  it('follows the remembered choice on a wide screen', () => {
+    localStorage.setItem('ofiskit:call-view', 'false')
+    const { hook } = controls({ narrow: false })
+
+    expect(hook.result.current.callView).toBe(false)
+    expect(hook.result.current.callViewFixed).toBe(false)
+  })
+
+  it('does not overwrite the remembered choice by being forced', () => {
+    localStorage.setItem('ofiskit:call-view', 'false')
+    controls({ narrow: true })
+
+    // The next wide screen this person opens should still open on the office.
+    expect(localStorage.getItem('ofiskit:call-view')).toBe('false')
   })
 })

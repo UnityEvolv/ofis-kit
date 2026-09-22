@@ -2,9 +2,10 @@ import { Icon } from '@unityevolv/unitykit'
 import type { PublicPresence, RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import { useEffect, useRef, useState } from 'react'
 
-import { useReducedMotion } from './hooks.js'
+import { useMeasured, useReducedMotion } from './hooks.js'
 import { StatusDot } from './status.js'
 import { ReactionFloat } from './Reactions.js'
+import { tileLayout } from './tileLayout.js'
 import type { CallMedia, LiveReaction } from './useCall.js'
 
 /**
@@ -78,28 +79,33 @@ export function CallTiles(props: CallTilesProps) {
   const column = placement === 'right'
   const grid = placement === 'grid'
 
-  return (
-    <section
-      aria-label={`Call with ${call.participants.length} ${
-        call.participants.length === 1 ? 'person' : 'people'
-      }`}
-      data-testid="call-tiles"
-      data-placement={placement}
-      className={[
-        'flex gap-2 bg-base-200 p-2',
-        grid
-          ? 'h-full w-full flex-wrap content-center justify-center'
-          : column
-            ? 'h-full w-56 flex-col overflow-y-auto'
-            : 'w-full flex-row overflow-x-auto',
-      ].join(' ')}
-    >
+  /*
+   * The grid fills the space it has, the way every video product does.
+   *
+   * It measures itself and picks the number of columns that makes tiles of the
+   * video's own shape as large as they can be: a two-by-two filling a desktop
+   * window, a column on a phone held upright. The tile being the video's shape is
+   * what lets it fill the space without cropping anybody — dividing the space into
+   * equal cells and cropping each picture to its cell fills every pixel and cuts off
+   * whoever is at the edge of the frame. The layout is computed to fit, so it cannot
+   * spill over the controls; the area is clipped all the same, as a guarantee.
+   */
+  const [area, size] = useMeasured<HTMLDivElement>()
+  const layout = grid ? tileLayout(1 + visible.length, size.width, size.height) : null
+  const tileSize =
+    layout && layout.tileWidth > 0
+      ? { width: layout.tileWidth, height: layout.tileHeight }
+      : undefined
+
+  const tiles = (
+    <>
       <Tile
         deviceId={you.deviceId}
         person={people.get(you.userId)}
         stream={media.local.camera}
         you
         placement={placement}
+        {...(tileSize ? { size: tileSize } : {})}
         quality={null}
         mutedForMe={false}
         reactions={reactions?.get(you.deviceId) ?? []}
@@ -115,6 +121,7 @@ export function CallTiles(props: CallTilesProps) {
             person={participant ? people.get(participant.userId) : undefined}
             stream={media.peers.get(deviceId)?.camera}
             placement={placement}
+            {...(tileSize ? { size: tileSize } : {})}
             quality={media.quality.get(deviceId) ?? null}
             mutedForMe={media.mutedForMe.has(deviceId)}
             reactions={reactions?.get(deviceId) ?? []}
@@ -122,13 +129,47 @@ export function CallTiles(props: CallTilesProps) {
           />
         )
       })}
+    </>
+  )
+
+  return (
+    <section
+      aria-label={`Call with ${call.participants.length} ${
+        call.participants.length === 1 ? 'person' : 'people'
+      }`}
+      data-testid="call-tiles"
+      data-placement={placement}
+      className={[
+        'flex gap-2 bg-base-200 p-2',
+        grid
+          ? 'h-full w-full flex-col'
+          : column
+            ? 'h-full w-56 flex-col overflow-y-auto'
+            : 'w-full flex-row overflow-x-auto',
+      ].join(' ')}
+    >
+      {grid ? (
+        <div
+          ref={area}
+          data-testid="call-grid"
+          data-columns={layout?.columns}
+          className="flex min-h-0 flex-1 flex-wrap content-center justify-center gap-2 overflow-hidden"
+        >
+          {tiles}
+        </div>
+      ) : (
+        tiles
+      )}
 
       {pages > 1 && (
         <div
           className={[
             'flex shrink-0 items-center gap-1',
-            column ? 'flex-row justify-center' : 'flex-col',
+            // A row of its own under the grid, sized to its buttons rather than
+            // taking a tile's place.
+            column || grid ? 'flex-row justify-center' : 'flex-col',
           ].join(' ')}
+          data-testid="call-pager"
         >
           <button
             type="button"
@@ -170,6 +211,8 @@ interface TileProps {
   mutedForMe: boolean
   /** What is in the air over this person. Empty draws nothing. */
   reactions?: readonly LiveReaction[]
+  /** Set in the grid once it has measured its space; the tile is exactly this big. */
+  size?: { width: number; height: number }
   onMuteForMe(deviceId: string, muted: boolean): void
 }
 
@@ -182,6 +225,7 @@ function Tile({
   quality,
   mutedForMe,
   reactions,
+  size,
   onMuteForMe,
 }: TileProps) {
   const video = useRef<HTMLVideoElement>(null)
@@ -209,12 +253,16 @@ function Tile({
       className={[
         'relative shrink-0 overflow-hidden rounded-lg bg-base-300 ring-1 ring-base-300',
         placement === 'grid'
-          ? 'aspect-video w-72 max-w-full'
+          ? // Sized by the grid once it has measured itself; a sensible size until then.
+            size
+            ? ''
+            : 'aspect-video w-72 max-w-full'
           : placement === 'right'
             ? 'aspect-video w-full'
             : 'aspect-video h-24',
         speaking ? 'ring-2 ring-primary' : '',
       ].join(' ')}
+      style={size ? { width: size.width, height: size.height } : undefined}
       data-testid={`tile-${deviceId}`}
     >
       {/*
@@ -239,7 +287,11 @@ function Tile({
           muted
           // Your own camera is mirrored, because that is how people expect to see
           // themselves. Everybody else is not.
-          className={['h-full w-full object-cover', you ? 'scale-x-[-1]' : ''].join(' ')}
+          //
+          // Contained, never cropped: the tile is already the shape of a camera, so
+          // an ordinary picture fills it exactly, and one of another shape — a
+          // phone held upright — gets a border rather than losing somebody's face.
+          className={['h-full w-full object-contain', you ? 'scale-x-[-1]' : ''].join(' ')}
         />
       ) : (
         // Camera off is not a broken tile: it is somebody who has not turned it

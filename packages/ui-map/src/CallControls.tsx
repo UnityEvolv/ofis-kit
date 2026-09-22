@@ -44,6 +44,11 @@ export interface CallControlsProps {
    */
   sharedByOther?: string | null
   callView: boolean
+  /**
+   * The call is always full size here — on a phone — so the toggle between it
+   * and the office is not offered.
+   */
+  callViewFixed?: boolean
   call: RoomCall | null
   /** Your own hand, so the control can say whether pressing it puts it up or down. */
   handRaised: boolean
@@ -105,11 +110,34 @@ export function CallControls(props: CallControlsProps) {
     <div
       role="toolbar"
       aria-label="Office controls"
-      className="flex w-full items-center gap-1 border-t border-base-300 bg-base-100 px-2 py-1.5"
+      // Never squeezed by the office above it, and clear of an iPhone's home
+      // indicator: the page opts into the whole screen with `viewport-fit=cover`,
+      // so the bottom few points belong to the system unless something says so.
+      className="flex w-full shrink-0 flex-wrap items-center gap-1 border-t border-base-300 bg-base-100 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
     >
       {props.leading}
 
-      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-1">
+      {/*
+        On a phone the call controls get a row of their own, above everything else.
+
+        Squeezed between the leading and trailing slots on a 390-pixel screen, the
+        middle gets about forty pixels and wraps every control onto its own line —
+        a column of buttons down the left of the screen with the room name printed
+        over it. Given the whole width they fit in one line, and the office chrome
+        wraps underneath. Only when there are call controls to show: in reception
+        this row would be an empty band.
+      */}
+      <div
+        className={[
+          'flex min-w-0 flex-wrap items-center justify-center gap-1 sm:flex-1',
+          available
+            ? 'order-first basis-full sm:order-none sm:basis-auto'
+            : // Empty in a room with no calls: on a wide bar it is the space that
+              // pushes the office controls to the right, and on a phone it would
+              // take half of the second row and squeeze the room's name for nothing.
+              'flex-1 max-sm:hidden',
+        ].join(' ')}
+      >
         {available && (
           <>
             {/*
@@ -205,25 +233,32 @@ export function CallControls(props: CallControlsProps) {
               onClick={props.onOpenDevices}
             />
 
-            <span className="mx-1 h-5 w-px bg-base-300" aria-hidden="true" />
+            {/* Absent where the call is always full size: a toggle that cannot
+                change anything is a control that lies about what it does. */}
+            {!props.callViewFixed && (
+              <>
+                <span className="mx-1 h-5 w-px bg-base-300 max-sm:hidden" aria-hidden="true" />
 
-            <Control
-              label={callView ? 'Show the office map' : 'Show the call full size'}
-              icon="call-view"
-              active={callView}
-              onClick={props.onToggleCallView}
-            />
+                <Control
+                  label={callView ? 'Show the office map' : 'Show the call full size'}
+                  icon="call-view"
+                  active={callView}
+                  onClick={props.onToggleCallView}
+                />
+              </>
+            )}
 
             {inCall && (
               <>
-                <span className="mx-1 h-5 w-px bg-base-300" aria-hidden="true" />
+                <span className="mx-1 h-5 w-px bg-base-300 max-sm:hidden" aria-hidden="true" />
                 <button
                   type="button"
                   onClick={props.onLeaveCall}
-                  className="inline-flex items-center gap-1 rounded-lg bg-error px-2.5 py-1.5 text-sm font-medium text-error-content hover:bg-error/90 focus-visible:outline-2 focus-visible:outline-primary"
+                  className="inline-flex items-center gap-1 rounded-lg bg-error px-2.5 py-1.5 text-sm font-medium text-error-content hover:bg-error/90 focus-visible:outline-2 focus-visible:outline-primary max-[340px]:px-2"
                 >
                   <Icon name="leave-call" size="sm" />
-                  Leave call
+                  {/* Still the button's name on a phone; just not drawn there. */}
+                  <span className="max-sm:sr-only">Leave call</span>
                 </button>
               </>
             )}

@@ -36,6 +36,24 @@ body,
   height: 100%;
 }
 
+/*
+ * The visible viewport, not the largest one.
+ *
+ * On a phone `100%` is the height with the browser's address bar hidden, so while
+ * it is showing the bottom of the layout — the controls bar — sits below the
+ * visible area and scrolls away with the page. `dvh` follows the bar in and out,
+ * so the controls stay on screen. Browsers without it keep the line above.
+ */
+#root {
+  height: 100dvh;
+}
+
+/* The office scrolls inside its own regions. The page itself never should, and a
+   rubber-band bounce on a phone drags the controls bar off the bottom. */
+body {
+  overscroll-behavior-y: none;
+}
+
 /* Visually hidden, but still announced. Used by the live regions. */
 .sr-only {
   position: absolute;

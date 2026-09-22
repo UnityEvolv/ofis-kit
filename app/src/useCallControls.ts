@@ -50,6 +50,8 @@ export interface CallControls {
   /** Your own hand, read from the office state like every other call signal. */
   handRaised: boolean
   callView: boolean
+  /** True where the call is always full size, so there is nothing to toggle. */
+  callViewFixed: boolean
   setCallView(next: boolean): void
 
   toggleMic(): void
@@ -81,6 +83,14 @@ export function useCallControls(
      * than anything we would draw and it is the only one that can offer a tab.
      */
     screenSources?: ScreenSourceProvider | null
+    /**
+     * A phone-sized screen, where a call is always shown full size.
+     *
+     * There is no room for both a call and an office on a phone: the tiles as a
+     * strip above a list leave neither of them usable, so a call takes the screen
+     * for as long as it lasts and the office comes back when it ends.
+     */
+    narrow?: boolean
   },
 ): CallControls {
   const announce = useAnnounce()
@@ -258,8 +268,10 @@ export function useCallControls(
     call,
     handRaised,
     // Call view is only ever shown when there is a call to show. Otherwise the
-    // remembered preference would open somebody into an empty grid.
-    callView: callView && inCall,
+    // remembered preference would open somebody into an empty grid. On a phone it
+    // is not a preference at all.
+    callView: (callView || Boolean(options.narrow)) && inCall,
+    callViewFixed: Boolean(options.narrow),
     setCallView,
     toggleMic,
     toggleCamera,

@@ -1,9 +1,10 @@
-import { Icon, Popover } from '@unityevolv/unitykit'
-import type { OfficeState } from '@unityevolv/ofiskit-realtime-client'
+import { Icon } from '@unityevolv/unitykit'
+import type { OfficeState, PublicPresence, RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import { callIn, isLocked, occupancy, peopleIn, yourRoom } from '@unityevolv/ofiskit-realtime-client'
 import { barRect, type Room, type Template } from '@unityevolv/ofiskit-template'
 import { useCallback, useEffect, useState } from 'react'
 
+import { OverflowAvatar } from './Overflow.js'
 import { PersonAvatar } from './PersonAvatar.js'
 import { RoomBar } from './RoomBar.js'
 import { fitCanvas, readingOrder, roomInDirection, toPixels, type CanvasBox } from './layout.js'
@@ -72,6 +73,19 @@ export function OfficeMap(props: OfficeMapProps) {
 
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent, room: Room) => {
+      /*
+       * Only keys pressed on the room itself.
+       *
+       * The room is a focusable group with controls inside it — Join, Lock, Knock,
+       * the overflow counter — and a key pressed on any of them bubbles up to here.
+       * Handling it here as well turned Enter on Lock into nothing, Enter on the
+       * counter into walking into the room, and the arrow keys inside the counter's
+       * list into jumping to the next room. React carries events up through
+       * portals too, so the counter's popover is inside this group as far as this
+       * handler is concerned, even though it is drawn somewhere else in the page.
+       */
+      if (event.target !== event.currentTarget) return
+
       const directions: Record<string, 'left' | 'right' | 'up' | 'down'> = {
         ArrowLeft: 'left',
         ArrowRight: 'right',
@@ -245,15 +259,16 @@ export function OfficeMap(props: OfficeMapProps) {
 
                   {/*
                     More people than cells: the last cell counts the rest rather
-                    than the room overflowing or everybody shrinking. A button,
-                    because it opens something.
+                    than the room overflowing or everybody shrinking. Drawn as an
+                    avatar in a person's cell, because what it stands for is people,
+                    and it opens onto them drawn the same way.
                   */}
                   {placement.overflowAt &&
                     (() => {
                       const cell = toPixels(placement.overflowAt, canvas)
                       return (
                         <li
-                          className="absolute flex items-center justify-center"
+                          className="absolute flex items-start justify-center"
                           style={{
                             left: cell.left - pixels.left,
                             top: cell.top - pixels.top,
@@ -261,23 +276,13 @@ export function OfficeMap(props: OfficeMapProps) {
                             height: cell.height,
                           }}
                         >
-                          <Popover
-                            trigger={
-                              <button
-                                type="button"
-                                className="rounded-full bg-base-100 px-2 py-1 text-xs font-semibold shadow ring-1 ring-base-300 focus-visible:outline-2 focus-visible:outline-primary"
-                                aria-label={`${placement.overflow.length} more in ${room.name}. Activate to list them.`}
-                              >
-                                +{placement.overflow.length}
-                              </button>
-                            }
-                          >
-                            <ul className="max-h-60 space-y-1 overflow-auto text-sm">
-                              {placement.overflow.map((token) => (
-                                <li key={token.key}>{token.person.displayName}</li>
-                              ))}
-                            </ul>
-                          </Popover>
+                          <OverflowAvatar
+                            roomName={room.name}
+                            tokens={placement.overflow}
+                            size={cell.width}
+                            reducedMotion={reducedMotion}
+                            {...(reactions ? { reactions } : {})}
+                          />
                         </li>
                       )
                     })()}
@@ -314,51 +319,119 @@ export function RoomListView(props: OfficeMapProps) {
     )
   }
 
+  /*
+   * The two rooms every office has come first, side by side, and then everything
+   * else in the order the map reads.
+   *
+   * Reception is where everybody arrives and the break room is where they go to
+   * step away, so they are the two rooms somebody looks for without knowing the
+   * office — and they are the same two in every office, which makes the top of the
+   * list the one part of it that never moves. Placed first rather than wherever the
+   * author drew them, so a phone shows them without scrolling.
+   */
+  const ordered = readingOrder(template.rooms)
+  const shared = (['reception', 'break'] as const).flatMap((type) =>
+    ordered.filter((room) => room.type === type),
+  )
+  const rest = ordered.filter((room) => room.type !== 'reception' && room.type !== 'break')
+
+  const card = (room: Room, half: boolean) => (
+    <RoomCard
+      key={room.id}
+      room={room}
+      half={half}
+      people={peopleIn(state, room.id)}
+      locked={isLocked(state, room.id)}
+      inside={room.id === yourRoomId}
+      call={callIn(state, room.id)}
+      capacity={capacityOf?.(room) ?? null}
+      reducedMotion={reducedMotion}
+      {...(reactions ? { reactions } : {})}
+      onJoin={() => props.onJoin(room.id)}
+      onKnock={() => props.onKnock(room.id)}
+      onLock={() => props.onLock(room.id)}
+      onUnlock={() => props.onUnlock(room.id)}
+    />
+  )
+
   return (
     <nav aria-label={`${template.name} rooms`} className="h-full overflow-auto p-2">
-      <ul className="flex flex-col gap-2">
-        {readingOrder(template.rooms).map((room) => {
-          const people = peopleIn(state, room.id)
-          const locked = isLocked(state, room.id)
-          const inside = room.id === yourRoomId
-
-          return (
-            <li key={room.id} className="rounded-lg bg-base-100 p-2 ring-1 ring-base-300">
-              <RoomBar
-                room={room}
-                occupancy={people.length}
-                capacity={capacityOf?.(room) ?? null}
-                locked={locked}
-                inside={inside}
-                call={callIn(state, room.id)}
-                // Never compact: there is no room rectangle constraining it here,
-                // and this is the view somebody chose because they wanted words.
-                width={Number.MAX_SAFE_INTEGER}
-                onJoin={() => props.onJoin(room.id)}
-                onKnock={() => props.onKnock(room.id)}
-                onLock={() => props.onLock(room.id)}
-                onUnlock={() => props.onUnlock(room.id)}
-              />
-
-              {people.length > 0 && (
-                <ul className="mt-2 flex flex-wrap gap-3 px-1" aria-label={`People in ${room.name}`}>
-                  {people.map((person) => (
-                    <li key={person.userId}>
-                      <PersonAvatar
-                        person={person}
-                        size={56}
-                        reducedMotion={reducedMotion}
-                        reactions={reactions?.get(person.userId) ?? []}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          )
-        })}
+      {/* One list, so a screen reader hears one set of rooms in one order; the grid
+          is only how it is drawn. */}
+      <ul className="grid grid-cols-2 gap-2">
+        {shared.map((room) => card(room, true))}
+        {rest.map((room) => card(room, false))}
       </ul>
     </nav>
+  )
+}
+
+/**
+ * One room in the list: its bar, and the people in it.
+ *
+ * A half-width card measures itself, because on a narrow phone half the screen is
+ * too little for a room bar's full form: without the compact one, the name is what
+ * gets crushed. A full-width card never needs to — it is the width somebody chose
+ * this view for, and there is no room rectangle constraining it.
+ */
+function RoomCard(props: {
+  room: Room
+  half: boolean
+  people: PublicPresence[]
+  locked: boolean
+  inside: boolean
+  call: RoomCall | null
+  capacity: number | null
+  reducedMotion: boolean
+  reactions?: ReadonlyMap<string, LiveReaction[]>
+  onJoin(): void
+  onKnock(): void
+  onLock(): void
+  onUnlock(): void
+}) {
+  const { room, half, people } = props
+  const [measured, size] = useMeasured<HTMLLIElement>()
+  // Until the first measurement arrives, assume there is room: a bar that starts in
+  // its full form and tightens is better than one that starts cramped.
+  const width = half && size.width > 0 ? size.width : Number.MAX_SAFE_INTEGER
+
+  return (
+    <li
+      ref={measured}
+      className={[
+        'min-w-0 rounded-lg bg-base-100 p-2 ring-1 ring-base-300',
+        half ? '' : 'col-span-2',
+      ].join(' ')}
+    >
+      <RoomBar
+        room={room}
+        occupancy={people.length}
+        capacity={props.capacity}
+        locked={props.locked}
+        inside={props.inside}
+        call={props.call}
+        width={width}
+        onJoin={props.onJoin}
+        onKnock={props.onKnock}
+        onLock={props.onLock}
+        onUnlock={props.onUnlock}
+      />
+
+      {people.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-3 px-1" aria-label={`People in ${room.name}`}>
+          {people.map((person) => (
+            <li key={person.userId}>
+              <PersonAvatar
+                person={person}
+                size={56}
+                reducedMotion={props.reducedMotion}
+                reactions={props.reactions?.get(person.userId) ?? []}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   )
 }
 
@@ -381,13 +454,15 @@ export function ViewToggle({
           onClick={() => onChange(candidate)}
           aria-pressed={view === candidate}
           className={[
-            'inline-flex items-center gap-1 px-2 py-1 text-xs first:rounded-l-md last:rounded-r-md',
+            'inline-flex min-h-8 items-center gap-1 px-2 py-1 text-xs first:rounded-l-md last:rounded-r-md',
             'focus-visible:outline-2 focus-visible:outline-primary',
             view === candidate ? 'bg-primary text-primary-content' : 'hover:bg-base-200',
           ].join(' ')}
         >
           <Icon name={candidate === 'map' ? 'office' : 'menu'} size="xs" />
-          {candidate === 'map' ? 'Map' : 'List'}
+          {/* Icons alone on a phone, where the bar has no width to spare. Still the
+              button's name for a screen reader, so nothing is lost but the pixels. */}
+          <span className="max-sm:sr-only">{candidate === 'map' ? 'Map' : 'List'}</span>
         </button>
       ))}
     </div>

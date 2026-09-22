@@ -46,7 +46,9 @@ export function controlClasses({
   disabled?: boolean
 }): string {
   return [
-    'inline-flex h-9 w-9 items-center justify-center rounded-lg',
+    // A touch smaller on the narrowest phones, where seven of them at full size do
+    // not fit one row; 32px is still well over the 24px a tap target needs.
+    'inline-flex h-9 w-9 items-center justify-center rounded-lg max-[340px]:h-8 max-[340px]:w-8',
     'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary',
     disabled
       ? 'cursor-not-allowed opacity-40'
