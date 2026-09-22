@@ -1,137 +1,199 @@
 {
   "version": 1,
-  "name": "Modern office",
-  "description": "The office ofiskit ships with. Replace these two files to replace the office.",
+  "name": "unity ofis",
   "canvas": "landscape",
-  "avatarSize": "medium",
+  "avatarSize": "small",
   "images": {
-    "light": "office-light.webp",
-    "dark": "office-dark.webp"
+    "light": "office-cutaway-landscape.svg",
+    "dark": "office-cutaway-landscape.svg"
   },
   "rooms": [
     {
-      "id": "reception",
+      "id": "01a0c4b1-ed9d-7000-9250-f544a245cb13",
       "name": "Reception",
       "type": "reception",
       "rect": {
-        "x": 0.04,
-        "y": 0.6,
-        "width": 0.28,
-        "height": 0.32
+        "x": 0.05,
+        "y": 0.68,
+        "width": 0.27,
+        "height": 0.2899999999999999
       },
       "bar": "top",
       "areas": [
         {
-          "id": "reception-area",
-          "x": 0.11750000000000002,
-          "y": 0.713125,
-          "columns": 2,
+          "id": "01a0c4b1-ed9d-7001-9cde-71a9e1b5003c",
+          "x": 0.1,
+          "y": 0.77,
+          "columns": 4,
           "rows": 1
         }
       ]
     },
     {
-      "id": "break",
+      "id": "01a0c4b1-ed9e-7000-9313-8678c7e29f9a",
+      "name": "Workspace",
+      "type": "workspace",
+      "rect": {
+        "x": 0.05,
+        "y": 0.06,
+        "width": 0.23000000000000004,
+        "height": 0.28
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "01a0c4b1-ed9e-7001-b41e-512aa94e02af",
+          "x": 0.06,
+          "y": 0.16,
+          "columns": 4,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "01a0c4b1-ed9e-7002-9185-75c4b942ed1e",
       "name": "Break room",
       "type": "break",
       "rect": {
-        "x": 0.68,
-        "y": 0.6,
-        "width": 0.28,
-        "height": 0.32
-      },
-      "bar": "top",
-      "areas": [
-        {
-          "id": "break-area",
-          "x": 0.7262500000000001,
-          "y": 0.713125,
-          "columns": 3,
-          "rows": 1
-        }
-      ]
-    },
-    {
-      "id": "studio",
-      "name": "Studio",
-      "type": "workspace",
-      "rect": {
-        "x": 0.04,
-        "y": 0.1,
-        "width": 0.28,
-        "height": 0.38
-      },
-      "bar": "top",
-      "areas": [
-        {
-          "id": "studio-area",
-          "x": 0.08625000000000002,
-          "y": 0.16847222222222222,
-          "columns": 3,
-          "rows": 2
-        }
-      ]
-    },
-    {
-      "id": "north",
-      "name": "North meeting",
-      "type": "meeting",
-      "rect": {
-        "x": 0.36,
-        "y": 0.1,
-        "width": 0.26,
-        "height": 0.3
-      },
-      "bar": "bottom",
-      "areas": [
-        {
-          "id": "north-area",
-          "x": 0.4275,
-          "y": 0.14756944444444445,
-          "columns": 2,
-          "rows": 1
-        }
-      ]
-    },
-    {
-      "id": "east",
-      "name": "East meeting",
-      "type": "meeting",
-      "rect": {
         "x": 0.66,
-        "y": 0.1,
-        "width": 0.3,
-        "height": 0.3
+        "y": 0.6799999999999999,
+        "width": 0.29000000000000004,
+        "height": 0.29000000000000004
       },
-      "bar": "bottom",
+      "bar": "top",
       "areas": [
         {
-          "id": "east-area",
-          "x": 0.71625,
-          "y": 0.14756944444444445,
+          "id": "01a0c4b1-ed9e-7003-9c99-d6a9f2373015",
+          "x": 0.71,
+          "y": 0.78,
+          "columns": 4,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "room-mubgl17k",
+      "name": "Room 2",
+      "type": "workspace",
+      "rect": {
+        "x": 0.28,
+        "y": 0.06,
+        "width": 0.4,
+        "height": 0.28
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "area-room-mubgl17k",
+          "x": 0.29,
+          "y": 0.15,
+          "columns": 8,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "room-mubgl8mf",
+      "name": "Room 3",
+      "type": "workspace",
+      "rect": {
+        "x": 0.68,
+        "y": 0.06,
+        "width": 0.27,
+        "height": 0.28
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "area-room-mubgl8mf",
+          "x": 0.77,
+          "y": 0.14,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "room-mubglhz1",
+      "name": "Room 4",
+      "type": "workspace",
+      "rect": {
+        "x": 0.05,
+        "y": 0.37,
+        "width": 0.37,
+        "height": 0.29000000000000004
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "area-room-mubglhz1",
+          "x": 0.2115625,
+          "y": 0.45944444444444443,
+          "columns": 1,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "room-mubgm221",
+      "name": "Room 5",
+      "type": "workspace",
+      "rect": {
+        "x": 0.42,
+        "y": 0.37,
+        "width": 0.3,
+        "height": 0.29000000000000004
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "area-room-mubgm221",
+          "x": 0.5465625,
+          "y": 0.45944444444444443,
+          "columns": 1,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "room-mubgm8ez",
+      "name": "Room 6",
+      "type": "workspace",
+      "rect": {
+        "x": 0.72,
+        "y": 0.37,
+        "width": 0.2300000000000001,
+        "height": 0.29000000000000004
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "area-room-mubgm8ez",
+          "x": 0.73,
+          "y": 0.45,
           "columns": 3,
           "rows": 1
         }
       ]
     },
     {
-      "id": "huddle",
-      "name": "Huddle",
+      "id": "room-mubgmgsd",
+      "name": "Room 7",
       "type": "workspace",
       "rect": {
-        "x": 0.36,
-        "y": 0.52,
-        "width": 0.26,
-        "height": 0.4
+        "x": 0.32,
+        "y": 0.68,
+        "width": 0.34,
+        "height": 0.2899999999999999
       },
       "bar": "top",
       "areas": [
         {
-          "id": "huddle-area",
-          "x": 0.4275,
-          "y": 0.5984722222222223,
-          "columns": 2,
-          "rows": 2
+          "id": "area-room-mubgmgsd",
+          "x": 0.33187500000000003,
+          "y": 0.78,
+          "columns": 6,
+          "rows": 1
         }
       ]
     }

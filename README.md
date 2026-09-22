@@ -46,10 +46,12 @@ adapter call, and the free office and the product cannot quietly drift apart.
 ## The office is two files
 
 ```
-config/template.json        the rooms, their geometry, where each bar sits
-config/office-light.webp    the picture they are drawn on
-config/office-dark.webp     optional, the same scene recoloured
+config/template.json                  the rooms, their geometry, where each bar sits
+config/office-cutaway-landscape.svg   the picture they are drawn on
 ```
+
+The template names the picture for each theme (`images.light`, and optionally
+`images.dark`), so it can be any PNG, JPEG, WebP, AVIF or SVG in `config/`.
 
 Replace those and you have replaced the office. The builder — a standalone page
 in the same app, with no server side — draws a layout on a background image and
