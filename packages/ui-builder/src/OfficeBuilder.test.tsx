@@ -1,4 +1,10 @@
-import { createTemplate, validateTemplate, type Template } from '@unityevolv/ofiskit-template'
+import {
+  avatarUnit,
+  createTemplate,
+  usableRect,
+  validateTemplate,
+  type Template,
+} from '@unityevolv/ofiskit-template'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -256,5 +262,86 @@ describe('the office builder', () => {
 
     await person.click(screen.getByRole('button', { name: /download template\.json/i }))
     expect((onSave.mock.calls[0]?.[0] as Template).rooms).toHaveLength(3)
+  })
+})
+
+/**
+ * Where a user area may sit.
+ *
+ * Its size is whole avatar units, and that is not in question. Its *position* was
+ * snapped to the same lattice, which is a different rule wearing the same clothes:
+ * one avatar unit is about a sixth of the height of a landscape office, so a room
+ * had two or three places an area could be, and dragging one felt broken rather
+ * than constrained.
+ */
+describe('placing a user area', () => {
+  /** Select the workspace's first area the way somebody without a pointer has to. */
+  async function selectArea(person: ReturnType<typeof userEvent.setup>) {
+    await selectRoom(person, 'workspace')
+    await person.click(screen.getByRole('button', { name: /cells$/i }))
+    screen.getByRole('application').focus()
+  }
+
+  const workspace = (template: Template) => template.rooms.find((room) => room.type === 'workspace')
+
+  it('moves by less than a whole avatar', async () => {
+    const person = userEvent.setup()
+    const { onSave, template } = open()
+    const unit = avatarUnit(template.canvas, template.avatarSize)
+
+    await selectArea(person)
+    await person.keyboard('{ArrowRight}')
+
+    await person.click(screen.getByRole('button', { name: /download template\.json/i }))
+    const saved = onSave.mock.calls.at(-1)?.[0] as Template
+
+    const before = workspace(template)?.areas[0]?.x ?? 0
+    const after = workspace(saved)?.areas[0]?.x ?? 0
+    expect(after).toBeGreaterThan(before)
+    // The whole point: a step the old lattice could not express.
+    expect(after - before).toBeLessThan(unit.width)
+  })
+
+  it('stays inside the room it belongs to, however long the key is held', async () => {
+    const person = userEvent.setup()
+    const { onSave, template } = open()
+    const unit = avatarUnit(template.canvas, template.avatarSize)
+
+    await selectArea(person)
+    // Far more presses than the room is wide. The old bound was the canvas, which
+    // walked an area out of its own room and left it there.
+    await person.keyboard('{ArrowRight>20/}')
+
+    await person.click(screen.getByRole('button', { name: /download template\.json/i }))
+    const saved = onSave.mock.calls.at(-1)?.[0] as Template
+
+    const room = workspace(saved)
+    const area = room?.areas[0]
+    expect(room && area).toBeTruthy()
+    if (!room || !area) return
+
+    const usable = usableRect(room, saved.canvas)
+    expect(area.x).toBeGreaterThanOrEqual(usable.x)
+    expect(area.x + area.columns * unit.width).toBeLessThanOrEqual(usable.x + usable.width + 1e-9)
+    // And what comes out is still a layout somebody can save.
+    expect(validateTemplate(saved).ok).toBe(true)
+  })
+
+  it('keeps its size in whole cells while it moves', async () => {
+    const person = userEvent.setup()
+    const { onSave, template } = open()
+
+    await selectArea(person)
+    await person.keyboard('{ArrowDown}{ArrowRight}')
+
+    await person.click(screen.getByRole('button', { name: /download template\.json/i }))
+    const saved = onSave.mock.calls.at(-1)?.[0] as Template
+
+    // Moving freely is about position. Half an avatar is still not a place
+    // anybody can stand.
+    const before = workspace(template)?.areas[0]
+    const after = workspace(saved)?.areas[0]
+    expect(after?.columns).toBe(before?.columns)
+    expect(after?.rows).toBe(before?.rows)
   })
 })

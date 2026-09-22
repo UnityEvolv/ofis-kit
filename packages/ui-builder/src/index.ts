@@ -10,8 +10,9 @@
  * imports. There is no builder on mobile.
  */
 export { OfficeBuilder, type OfficeBuilderProps } from './OfficeBuilder.js'
-export { BuilderCanvas, type BuilderCanvasProps, type Selection, type Tool } from './BuilderCanvas.js'
-export { PromptStep, type PromptStepProps } from './PromptStep.js'
+export { BuilderCanvas, type BuilderCanvasProps } from './canvas/BuilderCanvas.js'
+export type { ChangeOptions, OnChange, Selection, Tool } from './canvas/types.js'
+export { PromptStep, type PromptStepProps } from './prompt/PromptStep.js'
 export { useHistory, type History } from './history.js'
 export {
   applyPreset,
@@ -22,4 +23,4 @@ export {
   type PromptPreset,
   type PromptSlot,
   type SlotValues,
-} from './prompt.js'
+} from './prompt/prompt.js'
