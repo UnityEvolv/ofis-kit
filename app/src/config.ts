@@ -57,10 +57,11 @@ export function socketUrl(): string {
  *
  * The template names files; the host decides where those files live. Here they
  * sit in the config folder beside `template.json` and the server serves them
- * under `/office/`.
+ * under `office/`, beside the app — at the root of a server, and under the site's
+ * path when the demo is served from one (`/ofis-kit/` on a GitHub Pages site).
  */
 export function officeImageUrl(name: string): string {
-  return `/office/${name}`
+  return `${import.meta.env.BASE_URL}office/${name}`
 }
 
 /**

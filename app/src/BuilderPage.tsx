@@ -25,7 +25,8 @@ export function BuilderPage({ onBack }: { onBack?: () => void }) {
   // Fetched rather than bundled, so improving the prompt reaches every author
   // without releasing the builder.
   useEffect(() => {
-    loadPromptDocument('/background-prompt.json')
+    // Beside the app, wherever the app is served from: the root, or a site path.
+    loadPromptDocument(`${import.meta.env.BASE_URL}background-prompt.json`)
       .then(setPrompt)
       .catch((cause: unknown) => setFailed(cause instanceof Error ? cause.message : 'unknown'))
   }, [])
