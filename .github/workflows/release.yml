@@ -1,0 +1,64 @@
+name: Release
+
+# Publishing the packages to npm, from main and nowhere else.
+#
+# Two merges, deliberately. The first carries changesets and makes this workflow
+# open a "Version packages" pull request: the version bumps and the changelogs,
+# as a diff somebody reads. Merging that one is what publishes, so a release is
+# an explicit act by a person, not a side effect of merging a feature.
+#
+# This is the one workflow with a secret, and the only trigger is a push to main,
+# which nobody outside the repository can cause. The CI check that no workflow a
+# stranger can trigger reads a secret still passes, and must keep passing: do not
+# add workflow_dispatch or pull_request here.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  # For npm provenance: a signed statement of which commit and which workflow
+  # built a version, which anybody can check on npm. Not a secret.
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Version or publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Changesets reads the history to work out what has changed since the
+          # last release.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      # The packages are published from dist, so what is published is what was
+      # built here, from this commit.
+      - name: Build the packages
+        run: npm run build:packages
+
+      - uses: changesets/action@v1
+        with:
+          version: npm run version
+          publish: npm run release
+          commit: 'chore: version packages'
+          title: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
