@@ -39,13 +39,39 @@ export interface ExternalStatusChanged {
   status: 'in_meeting' | null
 }
 
-/** The office's layout was edited and every client should re-read it. */
+/**
+ * The office's layout was edited and every client should re-read it.
+ *
+ * The engine reads the template again when this arrives, so the host clears
+ * whatever it caches first. Anybody standing in a room the edit removed is
+ * moved to the break room and told why.
+ */
 export interface TemplateChanged {
   type: 'template.changed'
   officeId: string
 }
 
-export type HostEvent = AccessRevoked | ExternalStatusChanged | TemplateChanged
+/**
+ * The answer to "may this person be here" may have changed.
+ *
+ * Not a verdict: the host says only that something changed, and the engine
+ * asks its identity adapter again, the same questions it asks at the door. So
+ * the rules stay in one place. Somebody who may no longer be in the office is
+ * disconnected; somebody who may no longer be in their room is moved to
+ * reception. Either way they are told `reason`, never dropped silently.
+ *
+ * Without `userId`, everybody in the office is asked about: an office closed
+ * or a rule changed for all of them. Without `officeId`, every office is.
+ */
+export interface AccessChanged {
+  type: 'access.changed'
+  officeId?: string
+  userId?: string
+  /** Shown to whoever it moves or disconnects. */
+  reason: string
+}
+
+export type HostEvent = AccessRevoked | ExternalStatusChanged | TemplateChanged | AccessChanged
 
 export type HostEventHandler = (event: HostEvent) => void
 

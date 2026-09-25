@@ -21,12 +21,7 @@ import {
 import { hostsCalls, newId, type Room, type Template } from '@unityevolv/ofiskit-template'
 
 import { Broadcaster, DIFF_WINDOW_MS } from './broadcast.js'
-import {
-  CallRegistry,
-  type CallHooks,
-  type CallLeg,
-  type RtcServerPlugin,
-} from './calls.js'
+import { CallRegistry, type CallHooks, type CallLeg, type RtcServerPlugin } from './calls.js'
 import { silentLogger, type Logger } from './logger.js'
 import {
   REACTIONS,
@@ -1099,7 +1094,8 @@ export class OfficeEngine {
      * the moment they stop, which is what makes a short interjection while
      * somebody else finishes not count as your turn.
      */
-    if (speaking) this.#lowerHandAfterSpeaking(connection.officeId, presence.roomId, connection.deviceId)
+    if (speaking)
+      this.#lowerHandAfterSpeaking(connection.officeId, presence.roomId, connection.deviceId)
     else this.#clearHandTimer(connection.deviceId)
 
     this.#announceCall(connection.officeId, presence.roomId)
@@ -1370,7 +1366,8 @@ export class OfficeEngine {
 
   #announceCall(officeId: string, roomId: string): void {
     const call = this.#calls.get(officeId, roomId)
-    if (call) this.#broadcaster.queue(officeId, { kind: 'call.updated', call: this.#calls.toPublic(call) })
+    if (call)
+      this.#broadcaster.queue(officeId, { kind: 'call.updated', call: this.#calls.toPublic(call) })
   }
 
   /** Re-send one person, because their device state is part of how they are drawn. */
@@ -1753,10 +1750,99 @@ export class OfficeEngine {
     }
 
     if (event.type === 'template.changed') {
+      if (event.officeId !== this.#options.officeId) return
       this.#transport.toOffice(this.#options.officeId, 'template:changed', {
         officeId: this.#options.officeId,
       })
+      await this.#evacuateRemovedRooms()
+      return
     }
+
+    if (event.type === 'access.changed') {
+      if (event.officeId !== undefined && event.officeId !== this.#options.officeId) return
+      await this.#recheckAccess(event.userId, event.reason)
+    }
+  }
+
+  /**
+   * Whoever is standing in a room the new layout no longer has goes to the break
+   * room, which every office has and nobody needs permission for.
+   *
+   * Through the ordinary move, so the call in the removed room ends leg by leg
+   * and a share in it stops with it. Each person is told, because a map that
+   * rearranged itself around them with no word is indistinguishable from a bug.
+   */
+  async #evacuateRemovedRooms(): Promise<void> {
+    const officeId = this.#options.officeId
+    const template = await this.#options.templates.get(officeId)
+    if (!template) return
+    const rooms = new Set(template.rooms.map((room) => room.id))
+    const refuge = template.rooms.find((room) => room.type === 'break') ?? receptionOf(template)
+
+    for (const presence of await this.#store.list(officeId)) {
+      if (rooms.has(presence.roomId)) continue
+      await this.#move(officeId, presence, refuge.id)
+      this.#transport.toUser(presence.userId, 'office:notice', {
+        code: Refusal.ROOM_REMOVED,
+        message: `The room you were in was removed from the office, so you are in ${refuge.name} now.`,
+      })
+    }
+  }
+
+  /**
+   * Ask the identity adapter again, as at the door, about one person or all.
+   *
+   * No longer allowed in the office: disconnected, as revocation does. Still in
+   * the office but no longer allowed in their room: moved to reception. The
+   * questions are the adapter's own, so a host never states a verdict here that
+   * its rules would not give.
+   */
+  async #recheckAccess(userId: string | undefined, reason: string): Promise<void> {
+    const officeId = this.#options.officeId
+    const present = userId
+      ? [await this.#store.get(officeId, userId)].filter((one): one is Presence => one !== null)
+      : await this.#store.list(officeId)
+    const template = await this.#options.templates.get(officeId)
+
+    for (const presence of present) {
+      const identity = this.#identityOf(presence.userId)
+      if (!identity) continue
+
+      const office = template
+        ? await this.#options.identity.may({ permission: 'enter_office', identity, officeId })
+        : ({ allowed: false, code: Refusal.OFFICE_UNKNOWN, message: reason } as const)
+      if (!office.allowed || !template) {
+        for (const connectionId of this.#byUser.get(presence.userId) ?? []) {
+          this.#transport.close(connectionId, {
+            code: office.allowed ? Refusal.OFFICE_UNKNOWN : office.code,
+            message: reason,
+          })
+        }
+        await this.#endPresence(officeId, presence.userId)
+        continue
+      }
+
+      const reception = receptionOf(template)
+      if (presence.roomId === reception.id) continue
+      const room = await this.#options.identity.may({
+        permission: 'join_room',
+        identity,
+        officeId,
+        roomId: presence.roomId,
+      })
+      if (room.allowed) continue
+      await this.#move(officeId, presence, reception.id)
+      this.#transport.toUser(presence.userId, 'office:notice', { code: room.code, message: reason })
+    }
+  }
+
+  /** Who a person is, from any of their open connections here. */
+  #identityOf(userId: string): Identity | null {
+    for (const connectionId of this.#byUser.get(userId) ?? []) {
+      const identity = this.#connections.get(connectionId)?.identity
+      if (identity) return identity
+    }
+    return null
   }
 
   /** Stop everything, so nothing outlives the server. */

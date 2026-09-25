@@ -526,6 +526,13 @@ export interface ServerEvents {
   'knock:admitted': (event: { roomId: string; byUserId: string }) => void
   /** The template on disk changed; re-read it. */
   'template:changed': (event: { officeId: string }) => void
+  /**
+   * Something moved you that you did not ask for, and this is why.
+   *
+   * A room removed by an edit, or access to a room taken away. The move itself
+   * arrives as a diff like any other; this is the sentence to show beside it.
+   */
+  'office:notice': (event: ErrorEnvelope) => void
   /** Your credential is about to stop working. Send a fresh one on this socket. */
   'auth:refresh_required': (event: { withinMs: number }) => void
   /** You are being disconnected, and this is why. Never a silent drop. */
@@ -558,6 +565,8 @@ export const Refusal = {
   NOT_PRESENT: 'office.not_present',
 
   ROOM_UNKNOWN: 'room.unknown',
+  /** An edit to the layout took away the room you were in. */
+  ROOM_REMOVED: 'room.removed',
   /** The identity adapter said no: restricted, not a member, a guest. */
   ROOM_FORBIDDEN: 'room.forbidden',
   /** Full at the moment you tried. Nothing was ever held for you. */

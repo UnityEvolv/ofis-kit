@@ -22,6 +22,7 @@ export type { TemplateSource } from './template-source.js'
 export { TemplateInvalid, joinImagePath, staticTemplateSource } from './template-source.js'
 
 export type {
+  AccessChanged,
   AccessRevoked,
   EventBus,
   ExternalStatusChanged,
