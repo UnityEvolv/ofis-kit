@@ -1,17 +1,33 @@
 {
   "name": "@unityevolv/ofiskit-realtime-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The office state on the client: snapshot, diffs, resync, and the RTC client adapter interface with the built-in peer-to-peer implementation. No DOM, so React Native can use it too.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "sideEffects": false,
-  "publishConfig": { "access": "public" },
-  "repository": { "type": "git", "url": "git+https://github.com/UnityEvolv/ofis-kit.git", "directory": "packages/realtime-client" },
-  "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit" },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UnityEvolv/ofis-kit.git",
+    "directory": "packages/realtime-client"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
   "dependencies": {
     "@unityevolv/ofiskit-presence-store": "0.1.0",
     "@unityevolv/ofiskit-realtime-core": "0.1.0",
