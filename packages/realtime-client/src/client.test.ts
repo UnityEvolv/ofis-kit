@@ -604,3 +604,20 @@ describe('the call following the office', () => {
     expect(rtc.removeParticipant).not.toHaveBeenCalled()
   })
 })
+
+describe('a notice from the office', () => {
+  it('is passed on as an event, so the person is told why they moved', async () => {
+    const { socket, events } = await entered()
+
+    socket.fire('office:notice', {
+      code: 'room.removed',
+      message: 'The room you were in was removed.',
+    })
+
+    expect(events.at(-1)).toEqual({
+      type: 'notice',
+      code: 'room.removed',
+      message: 'The room you were in was removed.',
+    })
+  })
+})

@@ -7,6 +7,7 @@ import {
   type Decision,
   type IdentityAdapter,
   type RateLimiter,
+  type TemplateSource,
 } from '@unityevolv/ofiskit-adapters'
 import { MemoryPresenceStore } from '@unityevolv/ofiskit-presence-store'
 import { createTemplate, type Template } from '@unityevolv/ofiskit-template'
@@ -120,6 +121,8 @@ interface HarnessOptions {
   /** Swapped by a test that is about what a provider declares, or about its hooks. */
   provider?: RtcServerPlugin
   callHooks?: CallHooks
+  /** Swapped by a test that edits the layout under a running office. */
+  templates?: (template: Template) => TemplateSource
 }
 
 function harness({
@@ -132,6 +135,7 @@ function harness({
   limiter = unlimited(),
   provider = builtInProvider(),
   callHooks,
+  templates,
 }: HarnessOptions = {}): Harness {
   const template = office()
   const store = new MemoryPresenceStore()
@@ -142,7 +146,7 @@ function harness({
     officeId: OFFICE,
     store,
     identity,
-    templates: staticTemplateSource(template),
+    templates: templates ? templates(template) : staticTemplateSource(template),
     transport: sent,
     events,
     limiter,
@@ -392,6 +396,130 @@ describe('what the host can push in', () => {
     expect(h.sent.office.some((one) => one.event === 'template:changed')).toBe(true)
   })
 
+  it('ignores a layout change in another office', async () => {
+    const h = harness()
+    await h.enter({ name: 'Ada' })
+    h.sent.clear()
+
+    h.events.publish({ type: 'template.changed', officeId: 'elsewhere' })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect(h.sent.office).toHaveLength(0)
+  })
+
+  it('moves whoever is in a room the edit removed to the break room, and tells them', async () => {
+    let current: Template | null = null
+    const h = harness({
+      templates: (template) => ({
+        get: async () => current ?? template,
+        imageUrl: (_office, name) => name,
+      }),
+    })
+    const workspace = h.template.rooms.find((room) => room.type === 'workspace')!
+    const breakRoom = h.template.rooms.find((room) => room.type === 'break')!
+    const ada = await h.enter({ name: 'Ada' })
+    const grace = await h.enter({ name: 'Grace' })
+    expect((await h.engine.joinRoom(ada, workspace.id)).ok).toBe(true)
+    const adaId = (await h.engine.snapshot(ada)).you.userId
+    const graceId = (await h.engine.snapshot(grace)).you.userId
+    h.sent.clear()
+
+    current = { ...h.template, rooms: h.template.rooms.filter((room) => room.id !== workspace.id) }
+    h.events.publish({ type: 'template.changed', officeId: OFFICE })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect((await h.store.get(OFFICE, adaId))?.roomId).toBe(breakRoom.id)
+    // Somebody not in the removed room stays where they were, and hears nothing.
+    expect((await h.store.get(OFFICE, graceId))?.roomId).not.toBe(breakRoom.id)
+    const notices = h.sent.toUsers.filter((one) => one.event === 'office:notice')
+    expect(notices).toHaveLength(1)
+    expect(notices[0]).toMatchObject({ userId: adaId, payload: { code: Refusal.ROOM_REMOVED } })
+  })
+
+  it('moves somebody no longer allowed in their room to reception, and says why', async () => {
+    let restricted = false
+    const base = typedEmailIdentity()
+    const h = harness({
+      identity: {
+        ...base,
+        async may(question): Promise<Decision> {
+          if (restricted && question.permission === 'join_room') {
+            return { allowed: false, code: 'room.restricted', message: 'Members only.' }
+          }
+          return base.may(question)
+        },
+      },
+    })
+    const workspace = h.template.rooms.find((room) => room.type === 'workspace')!
+    const reception = h.template.rooms.find((room) => room.type === 'reception')!
+    const ada = await h.enter({ name: 'Ada' })
+    expect((await h.engine.joinRoom(ada, workspace.id)).ok).toBe(true)
+    const userId = (await h.engine.snapshot(ada)).you.userId
+    h.sent.clear()
+
+    restricted = true
+    h.events.publish({
+      type: 'access.changed',
+      officeId: OFFICE,
+      userId,
+      reason: 'You are no longer a member of this office.',
+    })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect((await h.store.get(OFFICE, userId))?.roomId).toBe(reception.id)
+    expect(h.sent.closed).toHaveLength(0)
+    expect(h.sent.toUsers).toContainEqual({
+      userId,
+      event: 'office:notice',
+      payload: { code: 'room.restricted', message: 'You are no longer a member of this office.' },
+    })
+  })
+
+  it('disconnects everybody when nobody may be in the office any more', async () => {
+    let closed = false
+    const base = typedEmailIdentity()
+    const h = harness({
+      identity: {
+        ...base,
+        async may(question): Promise<Decision> {
+          if (closed && question.permission === 'enter_office') {
+            return { allowed: false, code: 'office.deactivated', message: 'Closed.' }
+          }
+          return base.may(question)
+        },
+      },
+    })
+    const ada = await h.enter({ name: 'Ada' })
+    const grace = await h.enter({ name: 'Grace' })
+    h.sent.clear()
+
+    closed = true
+    h.events.publish({
+      type: 'access.changed',
+      officeId: OFFICE,
+      reason: 'This office was closed.',
+    })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect(h.sent.closed.map((one) => one.connectionId).sort()).toEqual([ada, grace].sort())
+    expect(h.sent.closed.every((one) => one.code === 'office.deactivated')).toBe(true)
+    expect(await h.store.list(OFFICE)).toHaveLength(0)
+  })
+
+  it('leaves everybody where they are when the answer has not changed', async () => {
+    const h = harness()
+    const ada = await h.enter({ name: 'Ada' })
+    const workspace = h.template.rooms.find((room) => room.type === 'workspace')!
+    expect((await h.engine.joinRoom(ada, workspace.id)).ok).toBe(true)
+    h.sent.clear()
+
+    h.events.publish({ type: 'access.changed', reason: 'Something changed.' })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect(h.sent.closed).toHaveLength(0)
+    expect(h.sent.toUsers).toHaveLength(0)
+  })
+
   it('costs nothing when the host publishes nothing', async () => {
     // The free office has no publisher at all. Subscribing still works, and
     // nothing ever arrives.
@@ -479,7 +607,11 @@ describe('moving between rooms', () => {
         ...typedEmailIdentity(),
         async may({ permission }): Promise<Decision> {
           if (permission === 'join_room') {
-            return { allowed: false, code: 'room.restricted', message: 'The studio is invite only.' }
+            return {
+              allowed: false,
+              code: 'room.restricted',
+              message: 'The studio is invite only.',
+            }
           }
           return { allowed: true }
         },
@@ -1092,7 +1224,9 @@ describe('lock, knock and admit', () => {
     // Not refused. Do not disturb suppresses interruption, not access — so the
     // knock still arrives, it just arrives silently, and the knocker is told why
     // it may go unanswered.
-    const received = sentTo(await userIdOf(ada), 'knock:received')[0]?.payload as { silent: boolean }
+    const received = sentTo(await userIdOf(ada), 'knock:received')[0]?.payload as {
+      silent: boolean
+    }
     expect(received.silent).toBe(true)
     // Grace is not on do not disturb, so it is not silent for the room.
     expect(knocked.silent).toBe(false)
@@ -2316,7 +2450,11 @@ describe('one screen at a time', () => {
     const { ada } = await inCall()
     // Two of your own screens is the same question: a call shows one screen, and
     // whose it is has nothing to do with it.
-    const phone = await h.enter({ name: 'Ada', deviceId: 'ada-phone', connectionId: 'socket-phone' })
+    const phone = await h.enter({
+      name: 'Ada',
+      deviceId: 'ada-phone',
+      connectionId: 'socket-phone',
+    })
     await h.engine.joinRoom(phone, named('Workspace'))
     await h.engine.joinCall(phone, { audio: false, video: false, secondDevice: 'add' })
 

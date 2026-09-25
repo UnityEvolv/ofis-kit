@@ -49,6 +49,11 @@ export type ClientEvent =
   | { type: 'admitted'; roomId: string; byUserId: string }
   | { type: 'template.changed' }
   /**
+   * You were moved without asking, and this is why: a room removed from the
+   * layout, or access to it taken away. Shown to the person, never swallowed.
+   */
+  | { type: 'notice'; code: string; message: string }
+  /**
    * Somebody in your room reacted.
    *
    * An event rather than state, because a reaction is not state: it floats over
@@ -335,6 +340,9 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
   )
 
   socket.on('template:changed', () => emit({ type: 'template.changed' }))
+  socket.on('office:notice', (notice: { code: string; message: string }) =>
+    emit({ type: 'notice', code: notice.code, message: notice.message }),
+  )
 
   socket.on(
     'call:reaction',
