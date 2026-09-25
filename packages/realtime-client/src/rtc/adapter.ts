@@ -107,6 +107,15 @@ export interface RtcClientAdapter {
    */
   setVideoSubscriptions(deviceIds: string[]): void
 
+  /**
+   * Somebody else's leg left the call: close the connection to that device.
+   *
+   * Optional, because a provider whose SDK hears departures itself has nothing to
+   * do. The mesh does not: without it a connection to a leg that has gone stays
+   * open, and the same device coming back offers into a connection that ended.
+   */
+  removeParticipant?(deviceId: string): void
+
   /** Swap microphone or camera mid-call, from the device picker. */
   useDevices(devices: { audioDeviceId?: string; videoDeviceId?: string }): Promise<void>
 

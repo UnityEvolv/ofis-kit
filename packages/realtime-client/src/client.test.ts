@@ -1,4 +1,8 @@
-import type { DeviceKind, OfficeSnapshot, PublicPresence } from '@unityevolv/ofiskit-realtime-core/protocol'
+import type {
+  DeviceKind,
+  OfficeSnapshot,
+  PublicPresence,
+} from '@unityevolv/ofiskit-realtime-core/protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createOfisClient, type ClientEvent, type SocketLike } from './client.js'
@@ -34,7 +38,10 @@ function fakeSocket(): Fake {
       return socket
     },
     off(event, handler) {
-      handlers.set(event, (handlers.get(event) ?? []).filter((one) => one !== handler))
+      handlers.set(
+        event,
+        (handlers.get(event) ?? []).filter((one) => one !== handler),
+      )
       return socket
     },
 
@@ -219,7 +226,10 @@ describe('diffs', () => {
     const { client, socket } = await entered()
     socket.answer('office:resync', {
       ok: true,
-      snapshot: snapshot({ seq: 9, people: [person({ userId: 'ada' }), person({ userId: 'grace' })] }),
+      snapshot: snapshot({
+        seq: 9,
+        people: [person({ userId: 'ada' }), person({ userId: 'grace' })],
+      }),
     })
 
     socket.fire('office:diff', { seq: 5, changes: [] })
@@ -309,7 +319,12 @@ describe('moving', () => {
     socket.fire('office:diff', {
       seq: 2,
       changes: [
-        { kind: 'person.moved', userId: 'ada', roomId: 'library', arrivedAt: '2026-01-01T10:00:00.000Z' },
+        {
+          kind: 'person.moved',
+          userId: 'ada',
+          roomId: 'library',
+          arrivedAt: '2026-01-01T10:00:00.000Z',
+        },
       ],
     })
 
@@ -452,5 +467,140 @@ describe('a share taken over', () => {
       reason: 'taken_over',
       byUserId: 'grace',
     })
+  })
+})
+
+describe('the call following the office', () => {
+  function fakeRtc() {
+    return {
+      join: vi.fn(async () => {}),
+      leave: vi.fn(async () => {}),
+      removeParticipant: vi.fn(),
+      setMicrophone: vi.fn(async () => {}),
+      setCamera: vi.fn(async () => {}),
+      startScreenShare: vi.fn(async () => true),
+      stopScreenShare: vi.fn(async () => {}),
+      setVideoSubscriptions: vi.fn(),
+      useDevices: vi.fn(async () => {}),
+      on: vi.fn(() => () => {}),
+    }
+  }
+
+  function call(...deviceIds: string[]) {
+    return {
+      roomId: 'studio',
+      provider: 'p2p',
+      startedAt: '2026-01-01T09:00:00.000Z',
+      participants: deviceIds.map((deviceId) => ({ userId: deviceId.split('-')[0]!, deviceId })),
+      limit: 4,
+      sharing: null,
+    }
+  }
+
+  /** Ada in the studio's call with Grace, the leg already seen in a diff. */
+  async function inCall() {
+    const socket = fakeSocket()
+    const rtc = fakeRtc()
+    const client = createOfisClient({
+      url: 'http://localhost',
+      deviceId: 'ada-laptop',
+      connect: () => socket,
+      rtc: () => rtc,
+    })
+    socket.answer('office:enter', {
+      ok: true,
+      snapshot: snapshot({
+        people: [person({ userId: 'ada', roomId: 'studio' })],
+        calls: [call('grace-laptop')],
+      }),
+    })
+    await client.enter({ email: 'ada@example.com', name: 'Ada' })
+
+    socket.answer('call:join', {
+      ok: true,
+      call: {
+        call: call('grace-laptop', 'ada-laptop'),
+        credentials: null,
+        iceServers: [],
+        participants: [{ userId: 'grace', deviceId: 'grace-laptop', displayName: 'Grace' }],
+      },
+    })
+    await client.joinCall({ audio: true, video: false })
+    socket.fire('office:diff', {
+      seq: 2,
+      changes: [{ kind: 'call.updated', call: call('grace-laptop', 'ada-laptop') }],
+    })
+
+    return { client, socket, rtc }
+  }
+
+  it('stops the media here when the server ends this leg, however it ended', async () => {
+    const { socket, rtc } = await inCall()
+
+    // Moving room ends the leg on the server; this is how the client hears it.
+    socket.fire('office:diff', {
+      seq: 3,
+      changes: [{ kind: 'call.updated', call: call('grace-laptop') }],
+    })
+
+    expect(rtc.leave).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not leave before its own leg has been seen', async () => {
+    const socket = fakeSocket()
+    const rtc = fakeRtc()
+    const client = createOfisClient({
+      url: 'http://localhost',
+      deviceId: 'ada-laptop',
+      connect: () => socket,
+      rtc: () => rtc,
+    })
+    socket.answer('office:enter', {
+      ok: true,
+      snapshot: snapshot({ calls: [call('grace-laptop')] }),
+    })
+    await client.enter({ email: 'ada@example.com', name: 'Ada' })
+    socket.answer('call:join', {
+      ok: true,
+      call: {
+        call: call('grace-laptop', 'ada-laptop'),
+        credentials: null,
+        iceServers: [],
+        participants: [],
+      },
+    })
+    await client.joinCall({ audio: true, video: false })
+
+    // A diff from before the join landed: the call without us, which is not us leaving.
+    socket.fire('office:diff', {
+      seq: 2,
+      changes: [{ kind: 'call.updated', call: call('grace-laptop') }],
+    })
+
+    expect(rtc.leave).not.toHaveBeenCalled()
+  })
+
+  it('closes the connection to somebody whose leg has gone, and only theirs', async () => {
+    const { socket, rtc } = await inCall()
+
+    socket.fire('office:diff', {
+      seq: 3,
+      changes: [{ kind: 'call.updated', call: call('ada-laptop') }],
+    })
+
+    expect(rtc.removeParticipant).toHaveBeenCalledWith('grace-laptop')
+    expect(rtc.removeParticipant).toHaveBeenCalledTimes(1)
+    expect(rtc.leave).not.toHaveBeenCalled()
+  })
+
+  it('stops following once the person leaves the call themselves', async () => {
+    const { client, socket, rtc } = await inCall()
+    socket.answer('call:leave', { ok: true })
+    await client.leaveCall()
+
+    socket.fire('office:diff', { seq: 3, changes: [{ kind: 'call.ended', roomId: 'studio' }] })
+
+    expect(rtc.leave).toHaveBeenCalledTimes(1)
+    expect(rtc.removeParticipant).not.toHaveBeenCalled()
   })
 })
