@@ -1,6 +1,6 @@
 {
   "name": "@unityevolv/ofiskit-ui-map",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The office you can see: the map, room bars, avatars, video tiles, the call controls and the status control. React DOM, built on unitykit.",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@unityevolv/ofiskit-presence-store": "0.1.0",
-    "@unityevolv/ofiskit-realtime-client": "0.1.1",
+    "@unityevolv/ofiskit-realtime-client": "0.1.2",
     "@unityevolv/ofiskit-template": "0.1.0"
   },
   "peerDependencies": {

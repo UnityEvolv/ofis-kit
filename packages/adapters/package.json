@@ -1,20 +1,37 @@
 {
   "name": "@unityevolv/ofiskit-adapters",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The interfaces the office asks its host: who is this, may they do this, where does the layout come from. With the built-in answers the free office uses.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
-    "./portable": { "types": "./dist/portable.d.ts", "import": "./dist/portable.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./portable": {
+      "types": "./dist/portable.d.ts",
+      "import": "./dist/portable.js"
+    }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "sideEffects": false,
-  "publishConfig": { "access": "public" },
-  "repository": { "type": "git", "url": "git+https://github.com/UnityEvolv/ofis-kit.git", "directory": "packages/adapters" },
-  "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit" },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UnityEvolv/ofis-kit.git",
+    "directory": "packages/adapters"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
   "dependencies": {
     "@unityevolv/ofiskit-presence-store": "0.1.0",
     "@unityevolv/ofiskit-template": "0.1.0"
