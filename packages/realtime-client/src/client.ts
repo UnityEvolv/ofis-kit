@@ -200,8 +200,48 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
   const listeners = new Set<(state: OfficeState) => void>()
   const events = new Set<(event: ClientEvent) => void>()
 
+  /*
+   * The call this device's adapter holds, followed from the office state.
+   *
+   * The server ends a leg in more ways than the person pressing leave: moving
+   * room, leaving the office, a grace period running out, access revoked. Each
+   * arrives as the call's participants changing, so that is what is watched.
+   * Our own leg gone means the media stops here too; otherwise it would go on
+   * flowing to a room the office says we left. Somebody else's leg gone means
+   * the connection to them closes, so their coming back starts clean.
+   *
+   * Our own leg counts as gone only once it has been seen: the answer to
+   * call:join and the diff that adds the leg can arrive in either order.
+   */
+  let callRoom: string | null = null
+  let callSeen = false
+  let callLegs = new Set<string>()
+
+  const endLocalCall = () => {
+    callRoom = null
+    callSeen = false
+    callLegs = new Set()
+  }
+
+  const followCall = () => {
+    if (callRoom === null) return
+    const self = state.you.deviceId || options.deviceId
+    const legs = new Set((state.calls.get(callRoom)?.participants ?? []).map((leg) => leg.deviceId))
+    if (legs.has(self)) callSeen = true
+    else if (callSeen) {
+      endLocalCall()
+      void rtc.leave()
+      return
+    }
+    for (const deviceId of callLegs) {
+      if (deviceId !== self && !legs.has(deviceId)) rtc.removeParticipant?.(deviceId)
+    }
+    callLegs = legs
+  }
+
   const publish = (next: OfficeState) => {
     state = next
+    followCall()
     // Copied before iterating, because a listener may unsubscribe as it runs.
     for (const listener of [...listeners]) listener(state)
   }
@@ -368,10 +408,13 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
    * redrew would go on capturing for nobody. The event is emitted as well, so the
    * person can be told why their share ended without them touching anything.
    */
-  socket.on('call:share_ended', (event: { roomId: string; reason: 'taken_over'; byUserId: string }) => {
-    void rtc.stopScreenShare()
-    emit({ type: 'share.ended', ...event })
-  })
+  socket.on(
+    'call:share_ended',
+    (event: { roomId: string; reason: 'taken_over'; byUserId: string }) => {
+      void rtc.stopScreenShare()
+      emit({ type: 'share.ended', ...event })
+    },
+  )
 
   socket.on('disconnected', (reason: { code: string; message: string }) => {
     // Told why, rather than just going quiet. The client stops retrying, because
@@ -520,6 +563,9 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
 
       // The server's answer first, then the media. The other order would mean
       // publishing to a call that might refuse us.
+      callRoom = result.call.call.roomId
+      callSeen = false
+      callLegs = new Set(result.call.participants.map((leg) => leg.deviceId))
       await rtc.join({
         callId: result.call.call.roomId,
         deviceId: state.you.deviceId || options.deviceId,
@@ -536,6 +582,7 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
     async leaveCall() {
       // The media first: tearing down locally before telling the server means
       // nobody is left looking at a tile for a camera that has already stopped.
+      endLocalCall()
       await rtc.leave()
       return ask('call:leave')
     },

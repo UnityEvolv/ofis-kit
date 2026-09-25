@@ -244,7 +244,11 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
 
   // ------------------------------------------------------------------ peers
 
-  function createPeer(participant: { deviceId: string; userId: string; displayName: string }): Peer {
+  function createPeer(participant: {
+    deviceId: string
+    userId: string
+    displayName: string
+  }): Peer {
     const connection = new RTCPeerConnection({
       iceServers: iceServers.map((server) => ({
         urls: server.urls,
@@ -309,7 +313,8 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       if (track.kind === 'audio') {
         if (stream.id === peer.shareStreamId) return
         emit({ type: 'track', deviceId: peer.deviceId, stream, source: 'audio' })
-        track.onended = () => emit({ type: 'track.ended', deviceId: peer.deviceId, source: 'audio' })
+        track.onended = () =>
+          emit({ type: 'track.ended', deviceId: peer.deviceId, source: 'audio' })
         return
       }
 
@@ -410,7 +415,9 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
 
   async function restart(peer: Peer): Promise<void> {
     try {
-      await peer.connection.setLocalDescription(await peer.connection.createOffer({ iceRestart: true }))
+      await peer.connection.setLocalDescription(
+        await peer.connection.createOffer({ iceRestart: true }),
+      )
       signaller.send({
         to: peer.deviceId,
         type: 'offer',
@@ -595,6 +602,24 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
     }
     if (!peer) return
 
+    /*
+     * Somebody we have met is offering from a new connection.
+     *
+     * A device that left the call and came back has a new RTCPeerConnection, and
+     * its offer belongs to a new session: the SDP origin line says so. Answering
+     * it on the old connection fails, and silently, so the one that came back
+     * sits in a call nobody can hear. The old connection is closed and the offer
+     * treated as an arrival, which is what it is.
+     */
+    if (
+      message.type === 'offer' &&
+      isNewSession(peer, message.payload as RTCSessionDescriptionInit)
+    ) {
+      const { userId, displayName } = peer
+      closePeer(peer)
+      peer = createPeer({ deviceId: message.from, userId, displayName })
+    }
+
     try {
       /*
        * Which of this peer's streams is its screen.
@@ -647,6 +672,55 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
     }
   }
 
+  /** The session an SDP belongs to: its origin line's session id. */
+  function sessionOf(sdp: string | undefined): string | null {
+    return sdp ? (/^o=\S+ (\S+) /m.exec(sdp)?.[1] ?? null) : null
+  }
+
+  function isNewSession(peer: Peer, offer: RTCSessionDescriptionInit): boolean {
+    if (peer.connection.connectionState === 'closed') return true
+    const known = sessionOf(peer.connection.remoteDescription?.sdp)
+    const offered = sessionOf(offer?.sdp)
+    return known !== null && offered !== null && known !== offered
+  }
+
+  /** Close one connection and say so. The capture is untouched: others still need it. */
+  function closePeer(peer: Peer): void {
+    if (peer.connectTimer) clearTimeout(peer.connectTimer)
+    peer.connection.close()
+    if (peers.get(peer.deviceId) === peer) peers.delete(peer.deviceId)
+    emit({ type: 'participant.left', deviceId: peer.deviceId })
+  }
+
+  async function leave(): Promise<void> {
+    for (const peer of [...peers.values()]) closePeer(peer)
+
+    for (const stream of [microphone, camera, screen]) {
+      for (const track of stream?.getTracks() ?? []) track.stop()
+    }
+    microphone = null
+    camera = null
+    screen = null
+
+    // Said as well as done. Leaving stops the capture, and a stream the UI still
+    // believes in is a share still drawn over an office nobody is in a call in.
+    emit({ type: 'local', stream: null, source: 'camera' })
+    emit({ type: 'local', stream: null, source: 'screen' })
+
+    if (statsTimer) clearInterval(statsTimer)
+    if (levelTimer) clearInterval(levelTimer)
+    statsTimer = null
+    levelTimer = null
+    analyser = null
+    await audioContext?.close().catch(() => {})
+    audioContext = null
+
+    stopSignals?.()
+    stopSignals = null
+    speaking = false
+    loudAt = 0
+  }
+
   // --------------------------------------------------------------- the API
 
   async function setCamera(on: boolean): Promise<void> {
@@ -670,6 +744,11 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
 
   return {
     async join(options: JoinOptions) {
+      // Joining again without having left — a room change the adapter was not
+      // told about — starts from nothing rather than on top of the last call:
+      // a second signal listener would answer every offer twice.
+      if (stopSignals) await leave()
+
       selfDeviceId = options.deviceId
       iceServers = options.iceServers
       audioDeviceId = options.audioDeviceId
@@ -694,38 +773,11 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       state()
     },
 
-    async leave() {
-      for (const peer of peers.values()) {
-        if (peer.connectTimer) clearTimeout(peer.connectTimer)
-        peer.connection.close()
-        emit({ type: 'participant.left', deviceId: peer.deviceId })
-      }
-      peers.clear()
+    leave,
 
-      for (const stream of [microphone, camera, screen]) {
-        for (const track of stream?.getTracks() ?? []) track.stop()
-      }
-      microphone = null
-      camera = null
-      screen = null
-
-      // Said as well as done. Leaving stops the capture, and a stream the UI still
-      // believes in is a share still drawn over an office nobody is in a call in.
-      emit({ type: 'local', stream: null, source: 'camera' })
-      emit({ type: 'local', stream: null, source: 'screen' })
-
-      if (statsTimer) clearInterval(statsTimer)
-      if (levelTimer) clearInterval(levelTimer)
-      statsTimer = null
-      levelTimer = null
-      analyser = null
-      await audioContext?.close().catch(() => {})
-      audioContext = null
-
-      stopSignals?.()
-      stopSignals = null
-      speaking = false
-      loudAt = 0
+    removeParticipant(deviceId: string) {
+      const peer = peers.get(deviceId)
+      if (peer) closePeer(peer)
     },
 
     async setMicrophone(on: boolean) {
