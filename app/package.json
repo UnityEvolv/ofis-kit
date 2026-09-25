@@ -13,13 +13,13 @@
     "build:pages": "vite build --mode pages"
   },
   "dependencies": {
-    "@unityevolv/ofiskit-adapters": "0.1.0",
+    "@unityevolv/ofiskit-adapters": "0.1.1",
     "@unityevolv/ofiskit-presence-store": "0.1.0",
-    "@unityevolv/ofiskit-realtime-client": "0.1.1",
-    "@unityevolv/ofiskit-realtime-core": "0.1.0",
+    "@unityevolv/ofiskit-realtime-client": "0.1.2",
+    "@unityevolv/ofiskit-realtime-core": "0.1.1",
     "@unityevolv/ofiskit-template": "0.1.0",
     "@unityevolv/ofiskit-ui-builder": "0.1.0",
-    "@unityevolv/ofiskit-ui-map": "0.1.1",
+    "@unityevolv/ofiskit-ui-map": "0.1.2",
     "@unityevolv/unitykit": "^0.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
