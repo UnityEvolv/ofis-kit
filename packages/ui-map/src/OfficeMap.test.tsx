@@ -94,6 +94,7 @@ function draw(
     calls?: RoomCall[]
     you?: string
     capacityOf?: OfficeMapProps['capacityOf']
+    decoration?: string
     list?: boolean
   } = {},
 ) {
@@ -119,6 +120,7 @@ function draw(
     state: fromSnapshot(snapshot),
     imageUrl: (name) => `/office/${name}`,
     ...(options.capacityOf ? { capacityOf: options.capacityOf } : {}),
+    ...(options.decoration ? { decoration: options.decoration } : {}),
     ...handlers,
   }
 
@@ -133,6 +135,23 @@ function draw(
 }
 
 describe('the office map', () => {
+  it('lays a decoration over the office, beneath the rooms, deaf to the pointer', () => {
+    const { view } = draw({ decoration: '/frames/diwali.webp' })
+    const decoration = screen.getByTestId('office-decoration')
+    expect(decoration.getAttribute('src')).toBe('/frames/diwali.webp')
+    expect(decoration.getAttribute('aria-hidden')).toBe('true')
+    expect(decoration.className).toContain('pointer-events-none')
+    const images = [...view.container.querySelectorAll('img')]
+    expect(images.indexOf(decoration as HTMLImageElement)).toBe(1)
+    const room = screen.getAllByRole('group')[0]!
+    expect(decoration.compareDocumentPosition(room) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('draws no decoration unless given one', () => {
+    draw()
+    expect(screen.queryByTestId('office-decoration')).toBeNull()
+  })
+
   it('is a landmark region named after the office', () => {
     draw()
     expect(screen.getByRole('region', { name: /test office office map/i })).toBeInTheDocument()
