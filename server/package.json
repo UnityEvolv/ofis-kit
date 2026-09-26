@@ -13,9 +13,9 @@
     "dev": "node --watch dist/index.js"
   },
   "dependencies": {
-    "@unityevolv/ofiskit-adapters": "0.1.1",
-    "@unityevolv/ofiskit-presence-store": "0.1.0",
-    "@unityevolv/ofiskit-realtime-core": "0.1.1",
+    "@unityevolv/ofiskit-adapters": "0.1.2",
+    "@unityevolv/ofiskit-presence-store": "0.1.1",
+    "@unityevolv/ofiskit-realtime-core": "0.1.2",
     "@unityevolv/ofiskit-template": "0.1.0"
   }
 }
