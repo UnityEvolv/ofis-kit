@@ -3,14 +3,17 @@ import type { IceServer, SignalMessage } from '@unityevolv/ofiskit-realtime-core
 import {
   AUDIO_BITRATE,
   CONNECT_TIMEOUT_MS,
+  DATA_CHANNEL_MAX_BYTES,
   LEVEL_INTERVAL_MS,
   SCREEN_CEILING,
   SPEAKING_LEVEL,
   VIDEO_STEPS,
   rmsLevel,
   speakingNow,
+  type DataChannelOptions,
   type JoinOptions,
   type RtcClientAdapter,
+  type RtcDataChannel,
   type RtcEvent,
   type RtcHandler,
   type Signaller,
@@ -74,11 +77,58 @@ interface Peer {
   /** What we last told the app, so a re-classification emits the difference only. */
   shown: { camera: string | null; screen: string | null }
   connectTimer: ReturnType<typeof setTimeout> | null
+  /** This connection's end of every open data channel, by label. */
+  channels: Map<string, RTCDataChannel>
+}
+
+/** A data channel the host has open, which every connection carries a copy of. */
+interface OpenChannel {
+  label: string
+  id: number
+  init: RTCDataChannelInit
+  handlers: Set<(data: string, fromDeviceId: string) => void>
+}
+
+/**
+ * The SCTP stream id a label always gets.
+ *
+ * Both ends derive it from the label alone, which is what lets a channel be
+ * negotiated out of band: nobody announces it and nobody waits for the other
+ * side's announcement. Kept under 1024, the fewest streams any browser offers.
+ */
+export function dataChannelId(label: string): number {
+  // FNV-1a, 32 bits: small, stable across platforms, and good enough to spread a
+  // handful of labels.
+  let hash = 0x811c9dc5
+  for (let index = 0; index < label.length; index++) {
+    hash ^= label.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return hash % 1024
+}
+
+/** How many bytes a string is on the wire, without needing a TextEncoder. */
+export function utf8Length(text: string): number {
+  let bytes = 0
+  for (let index = 0; index < text.length; index++) {
+    const code = text.charCodeAt(index)
+    if (code < 0x80) bytes += 1
+    else if (code < 0x800) bytes += 2
+    else if (code >= 0xd800 && code <= 0xdbff && index + 1 < text.length) {
+      const next = text.charCodeAt(index + 1)
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4
+        index++
+      } else bytes += 3
+    } else bytes += 3
+  }
+  return bytes
 }
 
 export function meshAdapter(signaller: Signaller): RtcClientAdapter {
   const handlers = new Set<RtcHandler>()
   const peers = new Map<string, Peer>()
+  const channels = new Map<string, OpenChannel>()
 
   let selfDeviceId = ''
   let iceServers: IceServer[] = []
@@ -272,7 +322,12 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       shareStreamId: null,
       shown: { camera: null, screen: null },
       connectTimer: null,
+      channels: new Map(),
     }
+
+    // Every channel already open, on the new connection before its first offer,
+    // so the offer carries the data transport and nothing has to renegotiate.
+    for (const channel of channels.values()) attachChannel(peer, channel)
 
     connection.onicecandidate = ({ candidate }) => {
       if (candidate) {
@@ -684,9 +739,115 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
     return known !== null && offered !== null && known !== offered
   }
 
+  // ----------------------------------------------------------- data channels
+
+  /**
+   * One connection's end of one channel.
+   *
+   * Negotiated with a fixed id, the same on both ends, so neither side opens it
+   * in band and waits to hear about the other's. Whatever arrives is tagged with
+   * the device this connection goes to, which is the only sender it can have.
+   */
+  function attachChannel(peer: Peer, channel: OpenChannel): void {
+    let wire: RTCDataChannel
+    try {
+      wire = peer.connection.createDataChannel(channel.label, channel.init)
+    } catch {
+      // A connection that has already closed has nobody to carry anything to.
+      return
+    }
+    wire.onmessage = ({ data }: MessageEvent) => {
+      // Strings only, and never more than a sender is allowed to send: anything
+      // else is a peer running something other than this adapter.
+      if (typeof data !== 'string' || utf8Length(data) > DATA_CHANNEL_MAX_BYTES) return
+      for (const handler of [...channel.handlers]) handler(data, peer.deviceId)
+    }
+    peer.channels.set(channel.label, wire)
+  }
+
+  function detachChannel(peer: Peer, label: string): void {
+    const wire = peer.channels.get(label)
+    if (!wire) return
+    wire.onmessage = null
+    wire.close()
+    peer.channels.delete(label)
+  }
+
+  function closeChannel(channel: OpenChannel): void {
+    if (channels.get(channel.label) !== channel) return
+    channels.delete(channel.label)
+    channel.handlers.clear()
+    for (const peer of peers.values()) detachChannel(peer, channel.label)
+  }
+
+  function openDataChannel(label: string, options: DataChannelOptions = {}): RtcDataChannel {
+    if (label === '') throw new TypeError('A data channel needs a label.')
+    if (channels.has(label)) throw new Error(`The data channel "${label}" is already open.`)
+
+    const id = dataChannelId(label)
+    for (const other of channels.values()) {
+      // Two labels on one stream would deliver each other's messages. Rare, and
+      // loud when it happens, which is better than quietly crossed wires.
+      if (other.id === id) {
+        throw new Error(`The data channels "${label}" and "${other.label}" share a stream id.`)
+      }
+    }
+
+    const channel: OpenChannel = {
+      label,
+      id,
+      init: {
+        negotiated: true,
+        id,
+        ordered: options.ordered ?? true,
+        ...(options.maxRetransmits === undefined ? {} : { maxRetransmits: options.maxRetransmits }),
+      },
+      handlers: new Set(),
+    }
+    channels.set(label, channel)
+    for (const peer of peers.values()) attachChannel(peer, channel)
+
+    return {
+      send(data: string, toDeviceId?: string) {
+        if (channels.get(label) !== channel) return
+        const bytes = utf8Length(data)
+        if (bytes > DATA_CHANNEL_MAX_BYTES) {
+          throw new RangeError(
+            `A data channel message is at most ${DATA_CHANNEL_MAX_BYTES} bytes; this one is ${bytes}.`,
+          )
+        }
+
+        const targets = toDeviceId === undefined ? [...peers.values()] : [peers.get(toDeviceId)]
+        for (const peer of targets) {
+          const wire = peer?.channels.get(label)
+          if (wire?.readyState !== 'open') continue
+          try {
+            wire.send(data)
+          } catch {
+            // A full buffer or a connection closing under us loses this one
+            // message to this one peer; the rest of the call still gets theirs.
+          }
+        }
+      },
+
+      onMessage(handler) {
+        if (channels.get(label) !== channel) return () => {}
+        channel.handlers.add(handler)
+        return () => {
+          channel.handlers.delete(handler)
+        }
+      },
+
+      close() {
+        closeChannel(channel)
+      },
+    }
+  }
+
   /** Close one connection and say so. The capture is untouched: others still need it. */
   function closePeer(peer: Peer): void {
     if (peer.connectTimer) clearTimeout(peer.connectTimer)
+    for (const label of [...peer.channels.keys()]) detachChannel(peer, label)
     peer.connection.close()
     if (peers.get(peer.deviceId) === peer) peers.delete(peer.deviceId)
     emit({ type: 'participant.left', deviceId: peer.deviceId })
@@ -694,6 +855,8 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
 
   async function leave(): Promise<void> {
     for (const peer of [...peers.values()]) closePeer(peer)
+    // A channel belongs to a call, and this one is over.
+    for (const channel of [...channels.values()]) closeChannel(channel)
 
     for (const stream of [microphone, camera, screen]) {
       for (const track of stream?.getTracks() ?? []) track.stop()
@@ -779,6 +942,8 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       const peer = peers.get(deviceId)
       if (peer) closePeer(peer)
     },
+
+    openDataChannel,
 
     async setMicrophone(on: boolean) {
       const stream = on ? await ensureMicrophone() : microphone

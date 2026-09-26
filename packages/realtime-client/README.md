@@ -22,6 +22,23 @@ The RTC half is an adapter too. The built-in one is a peer-to-peer mesh with
 audio, video and screen share; another provider's SDK goes behind the same
 interface, and the UI never learns which is in use.
 
+An adapter may also carry small messages between the legs of a call. It is
+optional, so check for it:
+
+```ts
+const channel = client.rtc.openDataChannel?.('input', { ordered: false, maxRetransmits: 0 })
+if (channel) {
+  const stop = channel.onMessage((data, fromDeviceId) => handle(data, fromDeviceId))
+  channel.send(JSON.stringify(event)) // everyone in the call
+  channel.send(JSON.stringify(event), deviceId) // one leg
+}
+```
+
+Both ends open the same label. Strings only, at most `DATA_CHANNEL_MAX_BYTES`
+(16 KiB) each; a leg not connected yet is skipped, and the channel closes when
+the call ends. The built-in mesh carries it on a negotiated data channel per
+connection, with an id both ends derive from the label.
+
 `connect` takes any socket-like object, so the client can run over something
 other than Socket.IO — which is how the browser-only demo puts the whole office
 in a tab.

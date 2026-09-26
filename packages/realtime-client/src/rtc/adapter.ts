@@ -119,8 +119,61 @@ export interface RtcClientAdapter {
   /** Swap microphone or camera mid-call, from the device picker. */
   useDevices(devices: { audioDeviceId?: string; videoDeviceId?: string }): Promise<void>
 
+  /**
+   * A channel for small messages between the legs of this call, by label.
+   *
+   * Optional, and a host detects it rather than assumes it: a provider that
+   * cannot carry data leaves it out, and whatever the host builds on it is
+   * switched off for that provider. The adapter carries strings and nothing
+   * else — what they mean is entirely the host's business.
+   *
+   * Both ends open the same label, and a message sent before the other end has
+   * opened it is lost, not queued. A channel lasts until it is closed or the call
+   * ends, and legs that join after it was opened are included as they connect.
+   */
+  openDataChannel?(label: string, options?: DataChannelOptions): RtcDataChannel
+
   on(handler: RtcHandler): () => void
 }
+
+/**
+ * How a data channel delivers.
+ *
+ * The default is ordered and reliable. Something that is only worth having while
+ * it is fresh — a pointer position, say — is better unordered with no
+ * retransmits, so a lost message is skipped rather than holding up the ones after
+ * it.
+ */
+export interface DataChannelOptions {
+  ordered?: boolean
+  maxRetransmits?: number
+}
+
+/** One labelled data channel, across every leg of the call. */
+export interface RtcDataChannel {
+  /**
+   * Send to one leg, or to every leg in the call when `toDeviceId` is left out.
+   *
+   * A leg that is not connected yet, or not in the call at all, is skipped
+   * without complaint: there is nobody to deliver to. A message over
+   * `DATA_CHANNEL_MAX_BYTES` is refused with a `RangeError`, because it is a bug
+   * in the caller rather than a condition of the network.
+   */
+  send(data: string, toDeviceId?: string): void
+  /** Every message that arrives, with the device it came from. Returns the unsubscribe. */
+  onMessage(handler: (data: string, fromDeviceId: string) => void): () => void
+  /** Stop sending and receiving on this label. Safe to call twice. */
+  close(): void
+}
+
+/**
+ * The largest message a data channel carries, in UTF-8 bytes.
+ *
+ * Sixteen kilobytes is what every browser delivers whole without negotiating a
+ * larger size, and it is far more than an input event needs. Anything bigger is
+ * a file, and a file does not belong on a channel shared with the call.
+ */
+export const DATA_CHANNEL_MAX_BYTES = 16 * 1024
 
 /**
  * Ceilings per stream, so four cameras plus a share stay inside what a home
