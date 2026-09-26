@@ -76,7 +76,8 @@ export function liveCustomStatus(presence: Presence, now = Date.now()): CustomSt
  * might not be answered. Nothing is refused.
  */
 export function suppressesInterruption(presence: Presence, now = Date.now()): boolean {
-  return resolveStatus(presence, now) === 'dnd'
+  const status = resolveStatus(presence, now)
+  return status === 'dnd' || (status === 'in_meeting' && presence.externalQuiet === true)
 }
 
 /**

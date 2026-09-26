@@ -108,6 +108,13 @@ describe('resolving a status', () => {
     // Do not disturb silences a knock; it never stops one arriving.
     expect(suppressesInterruption(presence({ manual: 'dnd' }), clock)).toBe(true)
     expect(suppressesInterruption(presence(), clock)).toBe(false)
+    // A meeting is only a status, unless the host says it is a quiet one.
+    expect(suppressesInterruption(presence({ externalStatus: 'in_meeting' }), clock)).toBe(false)
+    expect(suppressesInterruption(presence({ externalStatus: 'in_meeting', externalQuiet: true }), clock)).toBe(true)
+    // A call outranks the meeting, and a call is not quiet.
+    expect(
+      suppressesInterruption(presence({ inCall: true, externalStatus: 'in_meeting', externalQuiet: true }), clock),
+    ).toBe(false)
   })
 })
 
