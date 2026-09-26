@@ -1,6 +1,6 @@
 {
   "name": "@unityevolv/ofiskit-adapters",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The interfaces the office asks its host: who is this, may they do this, where does the layout come from. With the built-in answers the free office uses.",
   "license": "Apache-2.0",
   "type": "module",
@@ -33,7 +33,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@unityevolv/ofiskit-presence-store": "0.1.0",
+    "@unityevolv/ofiskit-presence-store": "0.1.1",
     "@unityevolv/ofiskit-template": "0.1.0"
   }
 }

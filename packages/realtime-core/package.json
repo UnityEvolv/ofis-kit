@@ -1,6 +1,6 @@
 {
   "name": "@unityevolv/ofiskit-realtime-core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The office engine: presence, moves, status, lock and knock, snapshots and diffs, and WebRTC signalling, over one socket.",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -37,8 +37,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@unityevolv/ofiskit-adapters": "0.1.1",
-    "@unityevolv/ofiskit-presence-store": "0.1.0",
+    "@unityevolv/ofiskit-adapters": "0.1.2",
+    "@unityevolv/ofiskit-presence-store": "0.1.1",
     "@unityevolv/ofiskit-template": "0.1.0",
     "socket.io": "^4.8.1"
   }
