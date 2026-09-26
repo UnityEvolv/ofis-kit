@@ -39,6 +39,8 @@ export interface Identity {
    * calendar and never sets it.
    */
   externalStatus?: 'in_meeting' | null
+  /** Whether that status also silences interruptions, as do not disturb does. */
+  externalQuiet?: boolean
 }
 
 /**

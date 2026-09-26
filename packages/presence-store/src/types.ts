@@ -115,6 +115,12 @@ export interface Presence {
    */
   externalStatus?: 'in_meeting' | null
   /**
+   * Whether the host's status also silences interruptions, the way do not
+   * disturb does. A host rule, such as an organisation deciding that being in a
+   * meeting means knocks arrive quietly; without it a meeting is only a status.
+   */
+  externalQuiet?: boolean
+  /**
    * Set when the last device drops. Until this instant the person stays in their
    * room, shown to others as reconnecting; after it they are gone.
    */

@@ -385,6 +385,38 @@ describe('what the host can push in', () => {
     expect((await h.engine.snapshot(socket)).people).toHaveLength(0)
   })
 
+  it('shows a host-set status to the office, and clears it', async () => {
+    const h = harness()
+    const socket = await h.enter({ name: 'Ada' })
+    const userId = (await h.engine.snapshot(socket)).you.userId
+
+    h.events.publish({ type: 'status.external', userId, status: 'in_meeting' })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect((await h.engine.snapshot(socket)).people[0]?.status).toBe('in_meeting')
+
+    // The person's own choice still wins.
+    expect((await h.engine.setManualStatus(socket, 'available')).ok).toBe(true)
+    expect((await h.engine.snapshot(socket)).people[0]?.status).toBe('available')
+    expect((await h.engine.setManualStatus(socket, null)).ok).toBe(true)
+    expect((await h.engine.snapshot(socket)).people[0]?.status).toBe('in_meeting')
+
+    h.events.publish({ type: 'status.external', userId, status: null })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect((await h.engine.snapshot(socket)).people[0]?.status).toBe('available')
+  })
+
+  it('makes a quiet host status silence knocks the way do not disturb does', async () => {
+    const h = harness()
+    const ada = await h.enter({ name: 'Ada' })
+    const adaId = (await h.engine.snapshot(ada)).you.userId
+    h.events.publish({ type: 'status.external', userId: adaId, status: 'in_meeting', quiet: true })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    const presence = await h.store.get(OFFICE, adaId)
+    expect(presence?.externalStatus).toBe('in_meeting')
+    expect(presence?.externalQuiet).toBe(true)
+  })
+
   it('tells the office when the layout changed', async () => {
     const h = harness()
     await h.enter({ name: 'Ada' })

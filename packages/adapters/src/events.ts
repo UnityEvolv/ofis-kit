@@ -37,6 +37,11 @@ export interface ExternalStatusChanged {
   type: 'status.external'
   userId: string
   status: 'in_meeting' | null
+  /**
+   * Whether the status also silences interruptions, the way do not disturb
+   * does. Absent means it does not.
+   */
+  quiet?: boolean
 }
 
 /**

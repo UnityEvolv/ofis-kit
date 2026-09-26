@@ -36,6 +36,12 @@ export interface RoomBarProps {
   call?: RoomCall | null
   /** The identity adapter's answer, when the host has one. Never invented here. */
   forbiddenReason?: string | null
+  /**
+   * A line the host adds under the bar, such as a meeting booked in the room
+   * soon. Shown only when nothing more urgent is: a reason you cannot go in
+   * outranks a note about later.
+   */
+  notice?: string | null
   /** How wide the room is on screen, which decides how much the bar can show. */
   width: number
   onJoin(): void
@@ -153,7 +159,9 @@ export function RoomBar(props: RoomBarProps) {
   // stops you doing less: you can still go in and listen.
   const message =
     actions.find((action) => action.disabled)?.reason ??
-    (callFull ? `The call in ${room.name} is full. You can still go in.` : null)
+    (callFull ? `The call in ${room.name} is full. You can still go in.` : null) ??
+    props.notice ??
+    null
 
   const typeIcon =
     room.type === 'reception' ? 'reception' : room.type === 'break' ? 'break-room' : 'office'

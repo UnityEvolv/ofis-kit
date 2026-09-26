@@ -201,3 +201,16 @@ describe('words and padlocks', () => {
     }
   })
 })
+
+describe('a note from the host', () => {
+  it('shows under the bar when nothing more urgent does', () => {
+    roomBar({ notice: 'Booked 10:00–11:00: Planning' })
+    expect(screen.getByText('Booked 10:00–11:00: Planning')).toBeTruthy()
+  })
+
+  it('gives way to the reason you cannot go in', () => {
+    roomBar({ notice: 'Booked 10:00–11:00: Planning', forbiddenReason: 'This room is for members.' })
+    expect(screen.getByText('This room is for members.')).toBeTruthy()
+    expect(screen.queryByText('Booked 10:00–11:00: Planning')).toBeNull()
+  })
+})

@@ -334,6 +334,7 @@ export class OfficeEngine {
           ...existing,
           displayName: identity.displayName,
           ...(identity.photoUrl ? { photoUrl: identity.photoUrl } : {}),
+          ...externalOf(identity),
           reconnectingUntil: null,
           // A second device for somebody already here, or the same device back
           // after a reload — either way it replaces rather than accumulates.
@@ -348,6 +349,7 @@ export class OfficeEngine {
           roomId: receptionOf(template).id,
           displayName: identity.displayName,
           ...(identity.photoUrl ? { photoUrl: identity.photoUrl } : {}),
+          ...externalOf(identity),
           devices: [device],
           inCall: false,
           enteredAt: at,
@@ -1761,7 +1763,31 @@ export class OfficeEngine {
     if (event.type === 'access.changed') {
       if (event.officeId !== undefined && event.officeId !== this.#options.officeId) return
       await this.#recheckAccess(event.userId, event.reason)
+      return
     }
+
+    if (event.type === 'status.external') {
+      await this.#setExternalStatus(event.userId, event.status, event.quiet === true)
+    }
+  }
+
+  /**
+   * A status the host worked out, such as a meeting starting on somebody's
+   * calendar. Broadcast like any other status change; the person's own choice
+   * and being in a call still outrank it, because resolving is the store's rule
+   * and not this method's.
+   */
+  async #setExternalStatus(userId: string, status: 'in_meeting' | null, quiet: boolean): Promise<void> {
+    const officeId = this.#options.officeId
+    const presence = await this.#store.get(officeId, userId)
+    if (!presence) return
+    if ((presence.externalStatus ?? null) === status && (presence.externalQuiet ?? false) === quiet) return
+    const told: Presence = { ...presence, externalStatus: status, externalQuiet: status === null ? false : quiet }
+    await this.#store.put(told)
+    this.#broadcaster.queue(officeId, {
+      kind: 'person.updated',
+      presence: this.#public(told, this.#now()),
+    })
   }
 
   /**
@@ -1936,4 +1962,13 @@ function receptionOf(template: Template): Room {
   const first = template.rooms[0]
   if (!first) throw new Error('This template has no rooms at all.')
   return first
+}
+
+/** The host-set status an identity arrives with, as presence fields. */
+function externalOf(identity: Identity): Pick<Presence, 'externalStatus' | 'externalQuiet'> {
+  if (identity.externalStatus === undefined) return {}
+  return {
+    externalStatus: identity.externalStatus,
+    externalQuiet: identity.externalStatus !== null && identity.externalQuiet === true,
+  }
 }
