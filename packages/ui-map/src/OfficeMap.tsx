@@ -35,6 +35,11 @@ export interface OfficeMapProps {
   /** Capacity is an office setting; the free office has none. */
   capacityOf?(room: Room): number | null
   /**
+   * A line for a room's bar from the host, such as a meeting booked there
+   * soon. The free office has none.
+   */
+  noticeOf?(room: Room): string | null
+  /**
    * Reactions in the air, by person. From `useReactions`.
    *
    * By person rather than by device here, because an avatar is a person — the same
@@ -219,6 +224,7 @@ export function OfficeMap(props: OfficeMapProps) {
                     locked={locked}
                     inside={inside}
                     call={call}
+                    notice={props.noticeOf?.(room) ?? null}
                     width={pixels.width}
                     onJoin={() => props.onJoin(room.id)}
                     onKnock={() => props.onKnock(room.id)}
@@ -345,6 +351,7 @@ export function RoomListView(props: OfficeMapProps) {
       inside={room.id === yourRoomId}
       call={callIn(state, room.id)}
       capacity={capacityOf?.(room) ?? null}
+      notice={props.noticeOf?.(room) ?? null}
       reducedMotion={reducedMotion}
       {...(reactions ? { reactions } : {})}
       onJoin={() => props.onJoin(room.id)}
@@ -382,6 +389,7 @@ function RoomCard(props: {
   inside: boolean
   call: RoomCall | null
   capacity: number | null
+  notice: string | null
   reducedMotion: boolean
   reactions?: ReadonlyMap<string, LiveReaction[]>
   onJoin(): void
@@ -410,6 +418,7 @@ function RoomCard(props: {
         locked={props.locked}
         inside={props.inside}
         call={props.call}
+        notice={props.notice}
         width={width}
         onJoin={props.onJoin}
         onKnock={props.onKnock}
