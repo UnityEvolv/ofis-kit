@@ -46,6 +46,13 @@ export interface OfficeMapProps {
    * reaction is keyed by device for the tiles, which are screens.
    */
   reactions?: ReadonlyMap<string, LiveReaction[]>
+  /**
+   * A picture laid over the office's edges, such as a festival frame: fetched
+   * as given, drawn to the canvas like the background, above it and beneath
+   * every room, avatar and bar, and deaf to the pointer so nothing behind it
+   * stops working. A transparent image; the host decides which, and when.
+   */
+  decoration?: string | null
   onJoin(roomId: string): void
   onKnock(roomId: string): void
   onLock(roomId: string): void
@@ -157,6 +164,23 @@ export function OfficeMap(props: OfficeMapProps) {
               height: canvas.height,
             }}
           />
+
+          {props.decoration && (
+            <img
+              src={props.decoration}
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+              data-testid="office-decoration"
+              className="pointer-events-none absolute select-none"
+              style={{
+                left: canvas.left,
+                top: canvas.top,
+                width: canvas.width,
+                height: canvas.height,
+              }}
+            />
+          )}
 
           {ordered.map((room) => {
             const pixels = toPixels(room.rect, canvas)
