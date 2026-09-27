@@ -1,5 +1,16 @@
 # @unityevolv/ofiskit-ui-map
 
+## 0.2.0
+
+### Minor Changes
+
+- [#47](https://github.com/UnityEvolv/ofis-kit/pull/47) [`e1f1bf6`](https://github.com/UnityEvolv/ofis-kit/commit/e1f1bf619493ddbcc22095a8db70ec6ff88ae606) Thanks [@nvamsiram](https://github.com/nvamsiram)! - The map takes a `decoration`: a transparent picture drawn over the office’s edges, beneath rooms and avatars, that ignores the pointer. For festival frames and the like; the host chooses which and when.
+
+### Patch Changes
+
+- Updated dependencies [[`6f80abc`](https://github.com/UnityEvolv/ofis-kit/commit/6f80abca2692765015a373bea95c2f94d6c18718)]:
+  - @unityevolv/ofiskit-realtime-client@0.2.0
+
 ## 0.1.3
 
 ### Patch Changes
