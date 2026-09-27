@@ -42,10 +42,13 @@ export {
 export {
   AUDIO_BITRATE,
   CONNECT_TIMEOUT_MS,
+  DATA_CHANNEL_MAX_BYTES,
   SCREEN_CEILING,
   VIDEO_STEPS,
+  type DataChannelOptions,
   type JoinOptions,
   type RtcClientAdapter,
+  type RtcDataChannel,
   type RtcEvent,
   type RtcHandler,
   type Signaller,
