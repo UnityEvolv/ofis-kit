@@ -1,5 +1,11 @@
 # @unityevolv/ofiskit-realtime-client
 
+## 0.2.0
+
+### Minor Changes
+
+- [#48](https://github.com/UnityEvolv/ofis-kit/pull/48) [`6f80abc`](https://github.com/UnityEvolv/ofis-kit/commit/6f80abca2692765015a373bea95c2f94d6c18718) Thanks [@nvamsiram](https://github.com/nvamsiram)! - The RTC adapter gets an optional data channel: `openDataChannel(label, options?)` returns a channel that sends short strings to one leg of the call or to all of them, and reports each message with the device it came from. The built-in mesh carries it on a negotiated channel per connection, with an id both ends derive from the label, so nothing renegotiates and legs that join later are included. Messages are capped at `DATA_CHANNEL_MAX_BYTES` (16 KiB). Other providers can add it later; a host checks for it before using it.
+
 ## 0.1.3
 
 ### Patch Changes
