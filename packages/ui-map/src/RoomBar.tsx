@@ -1,7 +1,7 @@
 import { Button, Icon } from '@unityevolv/unitykit'
 import type { RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import type { Room } from '@unityevolv/ofiskit-template'
-import { hostsCalls } from '@unityevolv/ofiskit-template'
+import { hostsCalls, isLockable } from '@unityevolv/ofiskit-template'
 
 /**
  * The bar on a room: its name, what is happening in it, and what you can do.
@@ -92,7 +92,9 @@ export function RoomBar(props: RoomBarProps) {
   const tiny = width < TINY_BELOW
 
   const full = capacity !== null && occupancy >= capacity
-  const lockable = hostsCalls(room.type)
+  // Asked of the template rather than inferred from calls: a conference room has
+  // a call and still no lock, and a button the server refuses is worse than none.
+  const lockable = isLockable(room.type)
 
   /*
    * The call, and whether there is a seat left in it.
@@ -163,8 +165,17 @@ export function RoomBar(props: RoomBarProps) {
     props.notice ??
     null
 
+  // A conference room gets the kit's group icon: it is the room the whole office
+  // gathers in, and that is what somebody scanning the map needs to tell apart
+  // from an ordinary room with a call in it.
   const typeIcon =
-    room.type === 'reception' ? 'reception' : room.type === 'break' ? 'break-room' : 'office'
+    room.type === 'reception'
+      ? 'reception'
+      : room.type === 'break'
+        ? 'break-room'
+        : room.type === 'conference'
+          ? 'users'
+          : 'office'
 
   return (
     <div
@@ -178,7 +189,8 @@ export function RoomBar(props: RoomBarProps) {
         {/*
           Reception and the break room are marked as what they are: one is where
           you arrive, the other is where you go when you are stepping away, and
-          neither is obvious from a name somebody chose.
+          neither is obvious from a name somebody chose. A conference room is
+          marked for the same reason: it is where the whole office gathers.
         */}
         {/*
           Not on a narrow bar, and neither is the head count below: in a room a few
@@ -196,7 +208,9 @@ export function RoomBar(props: RoomBarProps) {
                 ? 'Break room — where you go when you are stepping away'
                 : room.type === 'reception'
                   ? 'Reception — where you arrive'
-                  : undefined
+                  : room.type === 'conference'
+                    ? 'Conference room — where the whole office gathers'
+                    : undefined
             }
           />
         </span>

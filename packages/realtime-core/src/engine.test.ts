@@ -10,7 +10,7 @@ import {
   type TemplateSource,
 } from '@unityevolv/ofiskit-adapters'
 import { MemoryPresenceStore } from '@unityevolv/ofiskit-presence-store'
-import { createTemplate, type Template } from '@unityevolv/ofiskit-template'
+import { addRoom, createTemplate, type Template } from '@unityevolv/ofiskit-template'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { builtInProvider, type CallHooks, type RtcServerPlugin } from './calls.js'
@@ -1193,6 +1193,37 @@ describe('lock, knock and admit', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe(Refusal.ROOM_NOT_LOCKABLE)
+  })
+
+  it('refuses to lock a conference room, even from inside, and has no door to knock on', async () => {
+    // An all-hands room is for the whole office. It still hosts a call; it just
+    // never has its door shut, so a knock on it is told to walk in.
+    let conference = ''
+    h = harness({
+      templates: (template) => {
+        const withRoom = addRoom(
+          template,
+          'conference',
+          { x: 0.36, y: 0.56, width: 0.28, height: 0.36 },
+          'All hands',
+        )
+        conference = withRoom.rooms.find((room) => room.type === 'conference')?.id ?? ''
+        return staticTemplateSource(withRoom)
+      },
+    })
+
+    const ada = await h.enter({ name: 'Ada' })
+    expect((await h.engine.joinRoom(ada, conference)).ok).toBe(true)
+    expect((await h.engine.joinCall(ada, { audio: true, video: false })).ok).toBe(true)
+
+    const locked = await h.engine.lock(ada, conference)
+    expect(locked.ok).toBe(false)
+    if (!locked.ok) expect(locked.code).toBe(Refusal.ROOM_NOT_LOCKABLE)
+
+    const outsider = await h.enter({ name: 'Grace' })
+    const knocked = await h.engine.knock(outsider, conference)
+    expect(knocked.ok).toBe(false)
+    if (!knocked.ok) expect(knocked.code).toBe(Refusal.KNOCK_NOT_LOCKED)
   })
 
   it('refuses to lock when the identity adapter says no', async () => {

@@ -38,8 +38,14 @@ export type AvatarSize = 'small' | 'medium' | 'large'
  * of each per template. `workspace` and `meeting` behave identically for now and
  * the type is a label and an icon that tells people what a room is for. Both
  * exist so that giving them different behaviour later is not a migration.
+ *
+ * `conference` is for an all-hands or a town hall, where a few present and most
+ * listen. It hosts a call like a workspace, but it cannot be locked: a room meant
+ * for the whole office is no use with its door shut. Who may speak in it is not
+ * the engine's business — a host decides that through its identity adapter and
+ * the provider's tokens, and raising a hand is the ordinary call feature.
  */
-export type RoomType = 'reception' | 'break' | 'workspace' | 'meeting'
+export type RoomType = 'reception' | 'break' | 'workspace' | 'meeting' | 'conference'
 
 /**
  * Which edge of the room its control bar sits on.
@@ -121,6 +127,16 @@ export const REQUIRED_ROOM_TYPES: readonly RoomType[] = ['reception', 'break']
 export const ROOMS_WITHOUT_CALLS: readonly RoomType[] = ['reception', 'break']
 
 /**
+ * Rooms that can never be locked.
+ *
+ * Reception and the break room because they host no call and a locked reception
+ * would lock everybody out of the office. A conference room because it is for the
+ * whole office by definition; a host that wants to keep people out of one admits
+ * by its own rules, at the door, rather than by somebody inside shutting it.
+ */
+export const UNLOCKABLE_ROOM_TYPES: readonly RoomType[] = ['reception', 'break', 'conference']
+
+/**
  * The ceiling on rooms per template.
  *
  * Not a technical limit. Past thirty rooms a map stops being something a person
@@ -130,12 +146,23 @@ export const MAX_ROOMS = 30
 
 export const CANVAS_SHAPES: readonly CanvasShape[] = ['landscape', 'square', 'portrait']
 export const AVATAR_SIZES: readonly AvatarSize[] = ['small', 'medium', 'large']
-export const ROOM_TYPES: readonly RoomType[] = ['reception', 'break', 'workspace', 'meeting']
+export const ROOM_TYPES: readonly RoomType[] = [
+  'reception',
+  'break',
+  'workspace',
+  'meeting',
+  'conference',
+]
 export const BAR_POSITIONS: readonly BarPosition[] = ['top', 'bottom']
 
 /** True when this room type never hosts a call. */
 export function hostsCalls(type: RoomType): boolean {
   return !ROOMS_WITHOUT_CALLS.includes(type)
+}
+
+/** True when somebody inside a room of this type may lock it. */
+export function isLockable(type: RoomType): boolean {
+  return !UNLOCKABLE_ROOM_TYPES.includes(type)
 }
 
 /** True when this room type may not be deleted from a template. */

@@ -26,7 +26,9 @@ export {
   REQUIRED_ROOM_TYPES,
   ROOMS_WITHOUT_CALLS,
   ROOM_TYPES,
+  UNLOCKABLE_ROOM_TYPES,
   hostsCalls,
+  isLockable,
   isRequired,
 } from './types.js'
 

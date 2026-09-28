@@ -38,11 +38,15 @@ export function RoomInspector(props: {
         // each, so their type is not a choice.
         disabled={isRequired(room.type)}
         onChange={(event) =>
-          edit((one) => ({ ...one, type: event.target.value as 'workspace' | 'meeting' }))
+          edit((one) => ({
+            ...one,
+            type: event.target.value as 'workspace' | 'meeting' | 'conference',
+          }))
         }
       >
         <option value="workspace">Workspace</option>
         <option value="meeting">Meeting</option>
+        <option value="conference">Conference</option>
         {isRequired(room.type) && <option value={room.type}>{room.type}</option>}
       </Select>
 

@@ -206,7 +206,9 @@ export function OfficeMap(props: OfficeMapProps) {
                  */
                 aria-label={[
                   room.name,
-                  room.type === 'break' ? 'break room' : room.type,
+                  room.type === 'break' || room.type === 'conference'
+                    ? `${room.type} room`
+                    : room.type,
                   `${count} ${count === 1 ? 'person' : 'people'}`,
                   capacity === null ? '' : `of ${capacity}`,
                   // Announced while arrowing between rooms, which is how somebody
