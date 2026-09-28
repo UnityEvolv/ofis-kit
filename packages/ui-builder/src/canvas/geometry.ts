@@ -1,5 +1,6 @@
 import {
   avatarUnit,
+  hostsCalls,
   usableRect,
   type Rect,
   type Room,
@@ -247,7 +248,9 @@ export function addRoom(
   unit: Unit,
   id = `room-${Date.now().toString(36)}`,
 ): Template {
-  const used = template.rooms.filter((room) => room.type === 'workspace' || room.type === 'meeting')
+  // Numbered among the rooms that host calls, whichever kind, so a conference room
+  // counts the same as a workspace towards the next "Room n".
+  const used = template.rooms.filter((room) => hostsCalls(room.type))
 
   return {
     ...template,

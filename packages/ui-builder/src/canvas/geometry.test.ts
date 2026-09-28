@@ -187,6 +187,25 @@ describe('adding things', () => {
     expect(room.areas[0]?.columns).toBe(1)
   })
 
+  it('numbers a new room among every room with a call, conference rooms included', () => {
+    const template = office()
+    const unit = unitOf(template)
+    const withConference = {
+      ...template,
+      rooms: template.rooms.map((one) =>
+        one.type === 'workspace' ? { ...one, type: 'conference' as const } : one,
+      ),
+    }
+
+    const added = addRoom(
+      withConference,
+      { x: 0.1, y: 0.1, width: 0.3, height: 0.3 },
+      unit,
+      'room-1',
+    )
+    expect(added.rooms.at(-1)?.name).toBe('Room 2')
+  })
+
   it('counts a drawn area in whole cells, and never in none', () => {
     const template = office()
     const room = workspace(template)

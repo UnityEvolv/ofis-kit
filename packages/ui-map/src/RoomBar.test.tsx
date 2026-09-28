@@ -70,6 +70,15 @@ describe('the room bar', () => {
     await user.click(unlock)
     expect(onUnlock).toHaveBeenCalled()
   })
+
+  it('offers no lock in a conference room, and says what the room is', () => {
+    // The server refuses to lock one, so the bar does not offer it: a button that
+    // is always refused is worse than no button.
+    roomBar({ room: { ...room(), type: 'conference' }, inside: true })
+
+    expect(screen.queryByRole('button', { name: 'Lock' })).not.toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /conference room/i })).toBeInTheDocument()
+  })
 })
 
 describe('a narrow room', () => {

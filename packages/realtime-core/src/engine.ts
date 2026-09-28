@@ -18,7 +18,13 @@ import {
   type Presence,
   type PresenceStore,
 } from '@unityevolv/ofiskit-presence-store'
-import { hostsCalls, newId, type Room, type Template } from '@unityevolv/ofiskit-template'
+import {
+  hostsCalls,
+  isLockable,
+  newId,
+  type Room,
+  type Template,
+} from '@unityevolv/ofiskit-template'
 
 import { Broadcaster, DIFF_WINDOW_MS } from './broadcast.js'
 import { CallRegistry, type CallHooks, type CallLeg, type RtcServerPlugin } from './calls.js'
@@ -662,8 +668,11 @@ export class OfficeEngine {
     if (!room) return fail(Refusal.ROOM_UNKNOWN, 'There is no such room.')
 
     // Reception and the break room are open by design, and a lockable reception
-    // would be a way to lock everybody out of the office.
-    if (!hostsCalls(room.type)) {
+    // would be a way to lock everybody out of the office. A conference room is for
+    // the whole office, so nobody inside gets to shut it; a host that limits who
+    // comes in does so through its adapter, at the moment somebody walks in. With
+    // no lock there is nothing to knock on, so knocking needs no rule of its own.
+    if (!isLockable(room.type)) {
       return fail(
         Refusal.ROOM_NOT_LOCKABLE,
         `${room.name} is open to everyone and cannot be locked.`,

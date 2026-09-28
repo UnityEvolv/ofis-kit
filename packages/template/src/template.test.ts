@@ -4,7 +4,18 @@ import { addRoom, createTemplate, withAvatarSize } from './create.js'
 import { TemplateError } from './errors.js'
 import { avatarUnit, canvasPixels, minRoomSize } from './geometry.js'
 import { isId, newId } from './id.js'
-import { AVATAR_SIZES, CANVAS_SHAPES, MAX_ROOMS, type AvatarSize, type CanvasShape } from './types.js'
+import {
+  AVATAR_SIZES,
+  CANVAS_SHAPES,
+  MAX_ROOMS,
+  REQUIRED_ROOM_TYPES,
+  ROOM_TYPES,
+  hostsCalls,
+  isLockable,
+  isRequired,
+  type AvatarSize,
+  type CanvasShape,
+} from './types.js'
 import { parseTemplate, validateTemplate } from './validate.js'
 
 /** A seeded template with an image, which is what a server would be handed. */
@@ -89,6 +100,46 @@ describe('room names', () => {
       rooms: template.rooms.map((room, index) => (index === 0 ? { ...room, name: '   ' } : room)),
     }
     expect(codes(blank)).toContain(TemplateError.ROOM_NAME_EMPTY)
+  })
+})
+
+describe('room types', () => {
+  /** A seeded template with a conference room in the gap between reception and the break room. */
+  const withConference = () =>
+    addRoom(seeded(), 'conference', { x: 0.36, y: 0.56, width: 0.28, height: 0.36 }, 'All hands')
+
+  it('accepts a conference room, added like any other', () => {
+    const template = withConference()
+    expect(template.rooms.find((room) => room.name === 'All hands')?.type).toBe('conference')
+    expect(validateTemplate(template).ok).toBe(true)
+    expect(ROOM_TYPES).toContain('conference')
+  })
+
+  it('does not make a conference room part of the seeded minimum', () => {
+    // Every template still starts as reception, break room and one workspace.
+    expect(REQUIRED_ROOM_TYPES).not.toContain('conference')
+    expect(isRequired('conference')).toBe(false)
+    expect(seeded().rooms.map((room) => room.type)).not.toContain('conference')
+  })
+
+  it('gives a conference room a call and no lock', () => {
+    expect(hostsCalls('conference')).toBe(true)
+    expect(isLockable('conference')).toBe(false)
+
+    // The rooms that were lockable before still are, and the open ones still are not.
+    expect(isLockable('workspace')).toBe(true)
+    expect(isLockable('meeting')).toBe(true)
+    expect(isLockable('reception')).toBe(false)
+    expect(isLockable('break')).toBe(false)
+  })
+
+  it('refuses a type it does not know', () => {
+    const template = seeded()
+    const renamed = {
+      ...template,
+      rooms: template.rooms.map((room) => ({ ...room, type: 'auditorium' })),
+    }
+    expect(codes(renamed)).toContain(TemplateError.ROOM_TYPE_UNKNOWN)
   })
 })
 

@@ -199,7 +199,7 @@ export function withAvatarSize(
  */
 export function addRoom(
   template: Template,
-  type: 'workspace' | 'meeting',
+  type: 'workspace' | 'meeting' | 'conference',
   rect: Rect,
   name: string,
 ): Template {
