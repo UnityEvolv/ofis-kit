@@ -3,6 +3,8 @@ import type { RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import type { Room } from '@unityevolv/ofiskit-template'
 import { hostsCalls, isLockable } from '@unityevolv/ofiskit-template'
 
+import type { HostAction } from './HostActions.js'
+
 /**
  * The bar on a room: its name, what is happening in it, and what you can do.
  *
@@ -42,6 +44,14 @@ export interface RoomBarProps {
    * outranks a note about later.
    */
   notice?: string | null
+  /**
+   * The host's actions on this room, drawn as buttons after the bar's own
+   * controls: a Reserve the engine does not have to understand. A disabled one
+   * stays visible with its reason in the message row, like Join does. Not on a
+   * narrow bar, where the room's own action is the one thing that must fit; the
+   * room's menu carries them everywhere.
+   */
+  actions?: readonly HostAction[] | null
   /** How wide the room is on screen, which decides how much the bar can show. */
   width: number
   onJoin(): void
@@ -156,11 +166,25 @@ export function RoomBar(props: RoomBarProps) {
     )
   }
 
+  /*
+   * The host's actions, after the bar's own and in the same clothes.
+   *
+   * Secondary like Knock and Lock: whatever a host adds is about the room, and
+   * Join stays the one answer to "what do I press". Dropped on a narrow bar,
+   * where a worded button beside Join would push Join off the edge; the room's
+   * menu offers the same actions at every width.
+   */
+  const hostActions = compact ? [] : (props.actions ?? [])
+  const hostReason = (action: HostAction) =>
+    action.disabled !== undefined && action.disabled !== null ? action.disabled : null
+
   // One message at a time. Two stacked reasons is a paragraph on a room bar, and
-  // the first one is the one stopping you. A full call comes second, because it
-  // stops you doing less: you can still go in and listen.
+  // the first one is the one stopping you. A full call comes after any disabled
+  // control's reason, because it stops you doing less: you can still go in and
+  // listen.
   const message =
     actions.find((action) => action.disabled)?.reason ??
+    hostActions.map(hostReason).find((reason) => reason) ??
     (callFull ? `The call in ${room.name} is full. You can still go in.` : null) ??
     props.notice ??
     null
@@ -304,6 +328,28 @@ export function RoomBar(props: RoomBarProps) {
             <Button key={action.key} {...shared} icon={action.icon} aria-label={action.label} />
           ) : (
             <Button key={action.key} {...shared}>
+              {action.label}
+            </Button>
+          )
+        })}
+
+        {hostActions.map((action) => {
+          const reason = hostReason(action)
+          const disabled = reason !== null
+          return (
+            <Button
+              key={action.id}
+              size="xs"
+              variant="secondary"
+              className="shrink-0"
+              onClick={action.onSelect}
+              disabled={disabled}
+              // Described by the message row only while the row is saying this
+              // reason and not another control's.
+              {...(disabled && reason && message === reason
+                ? { 'aria-describedby': `${room.id}-why` }
+                : {})}
+            >
               {action.label}
             </Button>
           )

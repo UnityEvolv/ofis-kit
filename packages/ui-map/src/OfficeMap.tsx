@@ -1,9 +1,16 @@
 import { Icon } from '@unityevolv/unitykit'
 import type { OfficeState, PublicPresence, RoomCall } from '@unityevolv/ofiskit-realtime-client'
-import { callIn, isLocked, occupancy, peopleIn, yourRoom } from '@unityevolv/ofiskit-realtime-client'
+import {
+  callIn,
+  isLocked,
+  occupancy,
+  peopleIn,
+  yourRoom,
+} from '@unityevolv/ofiskit-realtime-client'
 import { barRect, type Room, type Template } from '@unityevolv/ofiskit-template'
 import { useCallback, useEffect, useState } from 'react'
 
+import { ActionTarget, MoreActionsButton, type HostAction } from './HostActions.js'
 import { OverflowAvatar } from './Overflow.js'
 import { PersonAvatar } from './PersonAvatar.js'
 import { RoomBar } from './RoomBar.js'
@@ -53,6 +60,20 @@ export interface OfficeMapProps {
    * stops working. A transparent image; the host decides which, and when.
    */
   decoration?: string | null
+  /**
+   * The host's actions on a person, offered in a menu on their avatar:
+   * right-click, a long press, ContextMenu or Shift+F10 on the map, and a
+   * visible "More actions" button in the list. What they do is the host's —
+   * message them, pin them — and the engine never knows. None, or an empty
+   * list, and the avatar is left alone. The free office passes none.
+   */
+  personActions?(person: PublicPresence, roomId: string): HostAction[]
+  /**
+   * The host's actions on a room — a Reserve, say — offered the same way on the
+   * room itself, and drawn as buttons on its bar after the engine's own
+   * controls. The free office passes none.
+   */
+  roomActions?(room: Room): HostAction[]
   onJoin(roomId: string): void
   onKnock(roomId: string): void
   onLock(roomId: string): void
@@ -192,10 +213,14 @@ export function OfficeMap(props: OfficeMapProps) {
             const call = callIn(state, room.id)
             const placement = placeInRoom(room, people, template.canvas, template.avatarSize)
             const bar = toPixels(barRect(room.rect, room.bar, template.canvas), canvas)
+            const roomActions = props.roomActions?.(room) ?? null
 
             return (
-              <div
+              <ActionTarget
+                as="div"
                 key={room.id}
+                name={room.name}
+                actions={roomActions}
                 data-room={room.id}
                 role="group"
                 tabIndex={0}
@@ -251,6 +276,7 @@ export function OfficeMap(props: OfficeMapProps) {
                     inside={inside}
                     call={call}
                     notice={props.noticeOf?.(room) ?? null}
+                    actions={roomActions}
                     width={pixels.width}
                     onJoin={() => props.onJoin(room.id)}
                     onKnock={() => props.onKnock(room.id)}
@@ -262,6 +288,7 @@ export function OfficeMap(props: OfficeMapProps) {
                 <ul className="contents" aria-label={`People in ${room.name}`}>
                   {placement.placed.map(({ token, rect }) => {
                     const cell = toPixels(rect, canvas)
+                    const actions = props.personActions?.(token.person, room.id) ?? null
                     return (
                       <li
                         key={token.key}
@@ -284,6 +311,7 @@ export function OfficeMap(props: OfficeMapProps) {
                           linked={token.linked}
                           reducedMotion={reducedMotion}
                           reactions={reactions?.get(token.person.userId) ?? []}
+                          actions={actions}
                         />
                       </li>
                     )
@@ -319,7 +347,7 @@ export function OfficeMap(props: OfficeMapProps) {
                       )
                     })()}
                 </ul>
-              </div>
+              </ActionTarget>
             )
           })}
         </>
@@ -378,6 +406,8 @@ export function RoomListView(props: OfficeMapProps) {
       call={callIn(state, room.id)}
       capacity={capacityOf?.(room) ?? null}
       notice={props.noticeOf?.(room) ?? null}
+      actions={props.roomActions?.(room) ?? null}
+      personActions={(person) => props.personActions?.(person, room.id) ?? null}
       reducedMotion={reducedMotion}
       {...(reactions ? { reactions } : {})}
       onJoin={() => props.onJoin(room.id)}
@@ -416,6 +446,8 @@ function RoomCard(props: {
   call: RoomCall | null
   capacity: number | null
   notice: string | null
+  actions: HostAction[] | null
+  personActions(person: PublicPresence): HostAction[] | null
   reducedMotion: boolean
   reactions?: ReadonlyMap<string, LiveReaction[]>
   onJoin(): void
@@ -424,49 +456,71 @@ function RoomCard(props: {
   onUnlock(): void
 }) {
   const { room, half, people } = props
-  const [measured, size] = useMeasured<HTMLLIElement>()
+  // The bar's own box rather than the card's: the card also holds the room's
+  // More-actions button, which the bar must not count as width it has.
+  const [measured, size] = useMeasured<HTMLDivElement>()
   // Until the first measurement arrives, assume there is room: a bar that starts in
   // its full form and tightens is better than one that starts cramped.
   const width = half && size.width > 0 ? size.width : Number.MAX_SAFE_INTEGER
 
   return (
-    <li
-      ref={measured}
+    <ActionTarget
+      as="li"
+      name={room.name}
+      actions={props.actions}
       className={[
-        'min-w-0 rounded-lg bg-base-100 p-2 ring-1 ring-base-300',
+        'relative min-w-0 rounded-lg bg-base-100 p-2 ring-1 ring-base-300',
         half ? '' : 'col-span-2',
       ].join(' ')}
     >
-      <RoomBar
-        room={room}
-        occupancy={people.length}
-        capacity={props.capacity}
-        locked={props.locked}
-        inside={props.inside}
-        call={props.call}
-        notice={props.notice}
-        width={width}
-        onJoin={props.onJoin}
-        onKnock={props.onKnock}
-        onLock={props.onLock}
-        onUnlock={props.onUnlock}
-      />
+      <div className="flex items-start gap-1">
+        <div ref={measured} className="min-w-0 flex-1">
+          <RoomBar
+            room={room}
+            occupancy={people.length}
+            capacity={props.capacity}
+            locked={props.locked}
+            inside={props.inside}
+            call={props.call}
+            notice={props.notice}
+            actions={props.actions}
+            width={width}
+            onJoin={props.onJoin}
+            onKnock={props.onKnock}
+            onLock={props.onLock}
+            onUnlock={props.onUnlock}
+          />
+        </div>
+        {/*
+          The same menu the map opens on a right-click, behind a button anybody
+          can see. The list is the map's accessible twin, so nothing the map
+          offers by gesture is missing from it.
+        */}
+        <MoreActionsButton label={`More actions for ${room.name}`} />
+      </div>
 
       {people.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-3 px-1" aria-label={`People in ${room.name}`}>
           {people.map((person) => (
-            <li key={person.userId}>
+            <ActionTarget
+              as="li"
+              key={person.userId}
+              name={person.displayName}
+              actions={props.personActions(person)}
+              className="relative flex flex-col items-center gap-0.5"
+            >
               <PersonAvatar
                 person={person}
                 size={56}
                 reducedMotion={props.reducedMotion}
                 reactions={props.reactions?.get(person.userId) ?? []}
               />
-            </li>
+              <MoreActionsButton label={`More actions for ${person.displayName}`} />
+            </ActionTarget>
           ))}
         </ul>
       )}
-    </li>
+    </ActionTarget>
   )
 }
 
@@ -481,7 +535,11 @@ export function ViewToggle({
   onChange(view: OfficeView): void
 }) {
   return (
-    <div className="inline-flex rounded-md ring-1 ring-base-300" role="group" aria-label="Office view">
+    <div
+      className="inline-flex rounded-md ring-1 ring-base-300"
+      role="group"
+      aria-label="Office view"
+    >
       {(['map', 'list'] as const).map((candidate) => (
         <button
           key={candidate}
@@ -531,13 +589,7 @@ export function useMaximised(): [boolean, (next: boolean) => void] {
 }
 
 /** The control that toggles it, so the label and the icon stay in one place. */
-export function MaximiseButton({
-  maximised,
-  onToggle,
-}: {
-  maximised: boolean
-  onToggle(): void
-}) {
+export function MaximiseButton({ maximised, onToggle }: { maximised: boolean; onToggle(): void }) {
   return (
     <button
       type="button"

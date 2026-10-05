@@ -6,7 +6,7 @@ import type {
 } from '@unityevolv/ofiskit-realtime-client'
 import { emptyOffice, fromSnapshot } from '@unityevolv/ofiskit-realtime-client'
 import { createTemplate, type CanvasShape, type Template } from '@unityevolv/ofiskit-template'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -95,6 +95,8 @@ function draw(
     you?: string
     capacityOf?: OfficeMapProps['capacityOf']
     decoration?: string
+    personActions?: OfficeMapProps['personActions']
+    roomActions?: OfficeMapProps['roomActions']
     list?: boolean
   } = {},
 ) {
@@ -121,11 +123,15 @@ function draw(
     imageUrl: (name) => `/office/${name}`,
     ...(options.capacityOf ? { capacityOf: options.capacityOf } : {}),
     ...(options.decoration ? { decoration: options.decoration } : {}),
+    ...(options.personActions ? { personActions: options.personActions } : {}),
+    ...(options.roomActions ? { roomActions: options.roomActions } : {}),
     ...handlers,
   }
 
   const view = render(
-    <ThemeProvider>{options.list ? <RoomListView {...props} /> : <OfficeMap {...props} />}</ThemeProvider>,
+    <ThemeProvider>
+      {options.list ? <RoomListView {...props} /> : <OfficeMap {...props} />}
+    </ThemeProvider>,
   )
 
   const roomNamed = (name: string) => template.rooms.find((one) => one.name === name)
@@ -306,7 +312,9 @@ describe('the office map', () => {
     // at different pictures over identical geometry.
     document.documentElement.dataset.theme = 'light'
     const { view } = draw()
-    expect(view.container.querySelector('img')?.getAttribute('src')).toBe('/office/office-light.webp')
+    expect(view.container.querySelector('img')?.getAttribute('src')).toBe(
+      '/office/office-light.webp',
+    )
 
     view.unmount()
     // The theme provider's own storage, which is a plain string rather than JSON.
@@ -479,7 +487,9 @@ describe('a call seen from outside the room', () => {
 
     const bar = screen.getByTestId(`room-bar-${workspace.id}`)
     expect(within(bar).getByRole('img', { name: 'Call with 2 people, full' })).toBeInTheDocument()
-    expect(within(bar).getByText(/call in Workspace is full\. You can still go in\./i)).toBeInTheDocument()
+    expect(
+      within(bar).getByText(/call in Workspace is full\. You can still go in\./i),
+    ).toBeInTheDocument()
     // Joining the room is a different act, and it is still available.
     expect(within(bar).getByRole('button', { name: /join/i })).toBeEnabled()
   })
@@ -531,7 +541,9 @@ describe('before the office has arrived', () => {
       onUnlock: vi.fn(),
     }
     return render(
-      <ThemeProvider>{list ? <RoomListView {...props} /> : <OfficeMap {...props} />}</ThemeProvider>,
+      <ThemeProvider>
+        {list ? <RoomListView {...props} /> : <OfficeMap {...props} />}
+      </ThemeProvider>,
     )
   }
 
@@ -721,5 +733,119 @@ describe('keys pressed on a room’s own controls', () => {
     await user.keyboard('{Enter}')
 
     expect(onJoin).toHaveBeenCalledWith(workspace.id)
+  })
+})
+
+/**
+ * What the host can add to a person and to a room.
+ *
+ * The engine offers them and never knows what they do. The same list reaches the
+ * map and the list view, because the list is the map's accessible twin: a menu
+ * that only a right-click could open would be a menu some people never find.
+ */
+describe('the host’s actions', () => {
+  const message = vi.fn()
+  const reserve = vi.fn()
+  const personActions: OfficeMapProps['personActions'] = (person) => [
+    { id: 'message', label: `Message ${person.displayName}`, onSelect: message },
+    { id: 'pin', label: 'Pin', disabled: 'Already pinned.', onSelect() {} },
+  ]
+  const roomActions: OfficeMapProps['roomActions'] = (room) => [
+    { id: 'reserve', label: `Reserve ${room.name}`, onSelect: reserve },
+  ]
+
+  function withActions(list: boolean) {
+    const template = office()
+    const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+    const drawn = draw({
+      template,
+      list,
+      people: [person({ userId: 'grace', displayName: 'Grace', roomId: workspace.id })],
+      personActions,
+      roomActions,
+    })
+    return { ...drawn, workspace }
+  }
+
+  it('opens a person’s menu from a right-click on their avatar on the map', async () => {
+    const user = userEvent.setup()
+    withActions(false)
+
+    await user.pointer({
+      keys: '[MouseRight]',
+      target: screen.getByRole('button', { name: /^Grace,/ }),
+    })
+
+    const menu = screen.getByRole('menu', { name: 'Actions for Grace' })
+    expect(within(menu).getByRole('menuitem', { name: 'Message Grace' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /^Pin/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+
+    await user.click(within(menu).getByRole('menuitem', { name: 'Message Grace' }))
+    expect(message).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens a room’s menu from Shift+F10 on the room, and draws its actions on the bar', async () => {
+    const user = userEvent.setup()
+    const { workspace } = withActions(false)
+
+    const bar = screen.getByTestId(`room-bar-${workspace.id}`)
+    expect(within(bar).getByRole('button', { name: 'Reserve Workspace' })).toBeInTheDocument()
+
+    const room = screen.getByRole('group', { name: /^Workspace,/ })
+    room.focus()
+    await user.keyboard('{Shift>}{F10}{/Shift}')
+
+    const menu = screen.getByRole('menu', { name: 'Actions for Workspace' })
+    await user.click(within(menu).getByRole('menuitem', { name: 'Reserve Workspace' }))
+    expect(reserve).toHaveBeenCalledTimes(1)
+    expect(room).toHaveFocus()
+  })
+
+  it('offers the same menus in the list, behind a button anybody can see', async () => {
+    const user = userEvent.setup()
+    const { workspace } = withActions(true)
+
+    const card = screen.getByTestId(`room-bar-${workspace.id}`).closest('li')!
+    const moreRoom = within(card).getByRole('button', { name: 'More actions for Workspace' })
+    expect(moreRoom).toHaveAttribute('aria-haspopup', 'menu')
+    await user.click(moreRoom)
+    expect(
+      within(screen.getByRole('menu', { name: 'Actions for Workspace' })).getByRole('menuitem', {
+        name: 'Reserve Workspace',
+      }),
+    ).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(moreRoom).toHaveFocus()
+
+    const morePerson = within(card).getByRole('button', { name: 'More actions for Grace' })
+    await user.click(morePerson)
+    const menu = screen.getByRole('menu', { name: 'Actions for Grace' })
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Message Grace', 'PinAlready pinned.'])
+  })
+
+  it('opens a person’s menu in the list from the keyboard on their row', async () => {
+    const user = userEvent.setup()
+    withActions(true)
+
+    screen.getByRole('button', { name: 'More actions for Grace' }).focus()
+    await user.keyboard('{Shift>}{F10}{/Shift}')
+
+    expect(screen.getByRole('menu', { name: 'Actions for Grace' })).toBeInTheDocument()
+  })
+
+  it('offers nothing, and no button, when the host gives none', () => {
+    const template = office()
+    const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+    draw({ template, list: true, people: [person({ userId: 'grace', roomId: workspace.id })] })
+
+    expect(screen.queryByRole('button', { name: /more actions/i })).toBeNull()
+    expect(fireEvent.contextMenu(screen.getByRole('img', { name: /^grace/i }))).toBe(true)
   })
 })

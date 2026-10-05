@@ -1,7 +1,17 @@
 import { Icon, Tooltip } from '@unityevolv/unitykit'
 import type { PublicPresence } from '@unityevolv/ofiskit-realtime-client'
-import { handRaised, isMuted, isPhoneOnly, isSharing, isSpeaking } from '@unityevolv/ofiskit-realtime-client'
+import {
+  handRaised,
+  isMuted,
+  isPhoneOnly,
+  isSharing,
+  isSpeaking,
+} from '@unityevolv/ofiskit-realtime-client'
 
+import { useRef } from 'react'
+import type { ReactNode } from 'react'
+
+import { ActionTarget, useActionMenu, type HostAction } from './HostActions.js'
 import { ReactionFloat } from './Reactions.js'
 import { StatusDot, describeStatus } from './status.js'
 import type { LiveReaction } from './useCall.js'
@@ -34,6 +44,13 @@ export interface PersonAvatarProps {
   /** What is in the air over this person right now. From `useReactions`. */
   reactions?: readonly LiveReaction[]
   onClick?(): void
+  /**
+   * The host's actions on this person, offered in a menu on right-click, on a
+   * long press and from the keyboard (ContextMenu, Shift+F10). A click keeps
+   * doing what `onClick` says; with no `onClick`, a click opens the menu too, so
+   * an avatar that has a menu is never a button that does nothing.
+   */
+  actions?: readonly HostAction[] | null
 }
 
 /**
@@ -77,6 +94,7 @@ export function PersonAvatar({
   reducedMotion = false,
   reactions,
   onClick,
+  actions,
 }: PersonAvatarProps) {
   const device = deviceId ? person.devices.find((one) => one.deviceId === deviceId) : undefined
   const reconnecting = person.status === 'reconnecting'
@@ -260,17 +278,77 @@ export function PersonAvatar({
     </span>
   )
 
-  const content = onClick ? (
-    <button type="button" onClick={onClick} className="cursor-pointer" aria-label={label}>
+  // The custom status is shown on hover on the web, so the map is not covered in
+  // text while still carrying it for anybody who wants it.
+  const tooltip = person.custom?.text ? description : null
+
+  if (actions && actions.length > 0) {
+    return (
+      <ActionTarget
+        as="span"
+        name={person.displayName}
+        actions={actions}
+        className="relative inline-flex"
+      >
+        <AvatarControl label={label} tooltip={tooltip} onClick={onClick} ownMenu>
+          {body}
+        </AvatarControl>
+      </ActionTarget>
+    )
+  }
+
+  return (
+    <AvatarControl label={label} tooltip={tooltip} onClick={onClick} ownMenu={false}>
       {body}
+    </AvatarControl>
+  )
+}
+
+/**
+ * What the avatar is to the keyboard and to a screen reader.
+ *
+ * A button when it does something — the host's click, or opening the host's
+ * menu — and a picture otherwise. The menu is read from the target around it,
+ * and only when the avatar has one of its own: an avatar drawn inside the list's
+ * row, which has a button for the row's menu already, stays a picture.
+ */
+function AvatarControl({
+  label,
+  tooltip,
+  onClick,
+  ownMenu,
+  children,
+}: {
+  label: string
+  tooltip: string | null
+  onClick: (() => void) | undefined
+  ownMenu: boolean
+  children: ReactNode
+}) {
+  const menu = useActionMenu()
+  const self = useRef<HTMLButtonElement>(null)
+
+  const control = onClick ? (
+    <button type="button" onClick={onClick} className="cursor-pointer" aria-label={label}>
+      {children}
+    </button>
+  ) : ownMenu && menu.enabled ? (
+    <button
+      ref={self}
+      type="button"
+      onClick={() => menu.open(self.current)}
+      aria-haspopup="menu"
+      aria-expanded={menu.expanded}
+      className="cursor-pointer"
+      aria-label={label}
+    >
+      {children}
     </button>
   ) : (
     <span role="img" aria-label={label}>
-      {body}
+      {children}
     </span>
   )
 
-  // The custom status is shown on hover on the web, so the map is not covered in
-  // text while still carrying it for anybody who wants it.
-  return person.custom?.text ? <Tooltip content={description}>{content}</Tooltip> : content
+  return tooltip ? <Tooltip content={tooltip}>{control}</Tooltip> : control
 }
