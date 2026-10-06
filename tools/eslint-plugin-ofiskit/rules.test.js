@@ -7,6 +7,7 @@
  * and the mistake it exists to catch.
  */
 import { RuleTester } from 'eslint'
+import globals from 'globals'
 import { describe, it } from 'vitest'
 import plugin from './index.js'
 
@@ -48,8 +49,70 @@ tester.run('no-dom-in-agnostic', plugin.rules['no-dom-in-agnostic'], {
       code: 'export const saved = localStorage.getItem("theme")',
       errors: [{ messageId: 'domGlobal' }],
     },
+    // By the longer road, through the global object.
+    {
+      code: 'export const el = globalThis.document.body',
+      errors: [{ messageId: 'domGlobal', data: { name: 'document' } }],
+    },
   ],
 })
+
+/**
+ * The same rule where the globals are configured, which is how the workspace
+ * actually runs it.
+ *
+ * With `globals.browser` or `globals.node` in the configuration, a DOM global is
+ * not an unresolved reference any more: it resolves to the configured global. A
+ * rule that only looked at unresolved references passed every case below, which
+ * is to say it was not running at all in the packages it was written for.
+ */
+tester.run(
+  'no-dom-in-agnostic, with browser globals configured',
+  plugin.rules['no-dom-in-agnostic'],
+  {
+    valid: [
+      {
+        code: 'export const pc = new RTCPeerConnection()',
+        languageOptions: { globals: { ...globals.browser } },
+      },
+      {
+        code: 'export const devices = () => navigator.mediaDevices.enumerateDevices()',
+        languageOptions: { globals: { ...globals.browser } },
+      },
+      {
+        // Declared here, so it is this file's own and not the DOM's.
+        code: 'const document = { title: "" }\nexport const title = document.title',
+        languageOptions: { globals: { ...globals.browser } },
+      },
+      {
+        code: 'export function render(window) { return window.innerWidth }',
+        languageOptions: { globals: { ...globals.browser } },
+      },
+    ],
+    invalid: [
+      {
+        code: 'export const el = document.getElementById("map")',
+        languageOptions: { globals: { ...globals.browser } },
+        errors: [{ messageId: 'domGlobal', data: { name: 'document' } }],
+      },
+      {
+        code: 'export const width = () => window.innerWidth',
+        languageOptions: { globals: { ...globals.browser } },
+        errors: [{ messageId: 'domGlobal', data: { name: 'window' } }],
+      },
+      {
+        code: 'export function theme() { return localStorage.getItem("theme") }',
+        languageOptions: { globals: { ...globals.node } },
+        errors: [{ messageId: 'domGlobal', data: { name: 'localStorage' } }],
+      },
+      {
+        code: 'export const dark = () => matchMedia("(prefers-color-scheme: dark)").matches',
+        languageOptions: { globals: { ...globals.browser, ...globals.node } },
+        errors: [{ messageId: 'domGlobal', data: { name: 'matchMedia' } }],
+      },
+    ],
+  },
+)
 
 tester.run('no-hostname-literal', plugin.rules['no-hostname-literal'], {
   valid: [

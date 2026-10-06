@@ -21,7 +21,27 @@ const DOM_GLOBALS = new Set([
   'alert',
 ])
 
+/** The names the global object goes by, so `globalThis.document` is caught too. */
+const GLOBAL_OBJECTS = new Set(['globalThis', 'self'])
+
 const DOM_MODULES = [/^react-dom(\/|$)/, /^@testing-library\/dom$/, /^jsdom$/]
+
+/**
+ * Whether a reference reads the global of its name.
+ *
+ * Two ways it can: nothing declares it at all, or it resolves to a global the
+ * configuration supplied — `globals.browser`, or `globals.node`, which now
+ * carries `localStorage` too. Checking only the unresolved ones misses the
+ * second, which is the usual case: the realtime client is configured with the
+ * browser globals, so `document` there resolves to a configured global and is
+ * not unresolved at all. Anything declared in the file — a parameter, an
+ * import, a `const` — has a definition and is left alone.
+ */
+function readsGlobal(reference) {
+  const variable = reference.resolved
+  if (variable === null) return true
+  return variable.scope.type === 'global' && variable.defs.length === 0
+}
 
 export default {
   meta: {
@@ -39,6 +59,8 @@ export default {
     },
   },
   create(context) {
+    const report = (node, name) => context.report({ node, messageId: 'domGlobal', data: { name } })
+
     return {
       ImportDeclaration(node) {
         const source = node.source.value
@@ -46,17 +68,36 @@ export default {
           context.report({ node, messageId: 'domModule', data: { source } })
         }
       },
-      Program(node) {
-        const scope = context.sourceCode.getScope(node)
-        // Only globals resolve to `through` references with no declaration, so
-        // a local variable named `document` is correctly left alone.
-        for (const ref of scope.through) {
-          if (DOM_GLOBALS.has(ref.identifier.name)) {
-            context.report({
-              node: ref.identifier,
-              messageId: 'domGlobal',
-              data: { name: ref.identifier.name },
-            })
+
+      'Program:exit'() {
+        for (const scope of context.sourceCode.scopeManager.scopes) {
+          for (const reference of scope.references) {
+            const { identifier } = reference
+            // A type is erased before anything runs on a phone, so `Element` in an
+            // annotation is not the DOM at runtime.
+            if (reference.isValueReference === false) continue
+            if (!readsGlobal(reference)) continue
+
+            if (DOM_GLOBALS.has(identifier.name)) {
+              report(identifier, identifier.name)
+              continue
+            }
+
+            // `globalThis.document` and `self.localStorage` are the same globals
+            // by a longer road.
+            const member = identifier.parent
+            if (
+              GLOBAL_OBJECTS.has(identifier.name) &&
+              member?.type === 'MemberExpression' &&
+              member.object === identifier
+            ) {
+              const name = member.computed
+                ? member.property.type === 'Literal'
+                  ? String(member.property.value)
+                  : null
+                : member.property.name
+              if (name !== null && DOM_GLOBALS.has(name)) report(member, name)
+            }
           }
         }
       },
