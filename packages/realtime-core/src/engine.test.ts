@@ -123,6 +123,13 @@ interface HarnessOptions {
   callHooks?: CallHooks
   /** Swapped by a test that edits the layout under a running office. */
   templates?: (template: Template) => TemplateSource
+  /**
+   * Shared with another harness to stand up a second node: one store, one bus
+   * and one layout between two engines, each with its own sockets.
+   */
+  store?: MemoryPresenceStore
+  template?: Template
+  events?: ReturnType<typeof localEventBus>
 }
 
 function harness({
@@ -136,11 +143,11 @@ function harness({
   provider = builtInProvider(),
   callHooks,
   templates,
+  store = new MemoryPresenceStore(),
+  events = localEventBus(),
+  template = office(),
 }: HarnessOptions = {}): Harness {
-  const template = office()
-  const store = new MemoryPresenceStore()
   const sent = new Recorder()
-  const events = localEventBus()
 
   const engine = new OfficeEngine({
     officeId: OFFICE,
@@ -2527,5 +2534,94 @@ describe('one screen at a time', () => {
     expect((await callFrom(ada))?.sharing).toMatchObject({ deviceId: 'ada-phone' })
     const devices = (await h.engine.snapshot(ada)).people.flatMap((one) => one.devices)
     expect(devices.filter((device) => device.sharing)).toHaveLength(1)
+  })
+})
+
+/**
+ * An admission the host decided on.
+ *
+ * The engine has one way past a lock, and it is one-shot: somebody inside
+ * answers a knock. A host has reasons of its own to let a person in — an
+ * occupant invited them through a feature the engine has never heard of — and
+ * `admitUser` records exactly the same admission without a knock, from wherever
+ * the host happens to be, and the bus carries it to wherever the person is.
+ */
+describe('an admission from the host', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = harness()
+  })
+
+  const named = (name: string) => h.template.rooms.find((room) => room.name === name)?.id ?? ''
+  const userIdOf = async (socket: string) => (await h.engine.snapshot(socket)).you.userId
+
+  async function lockedWorkspace() {
+    const workspace = named('Workspace')
+    const ada = await h.enter({ name: 'Ada' })
+    await h.engine.joinRoom(ada, workspace)
+    expect((await h.engine.lock(ada, workspace)).ok).toBe(true)
+    return { ada, workspace }
+  }
+
+  it('lets the person in on the node it was recorded on, with no knock', async () => {
+    const { workspace } = await lockedWorkspace()
+    const alan = await h.enter({ name: 'Alan' })
+
+    h.engine.admitUser(OFFICE, workspace, await userIdOf(alan))
+
+    expect((await h.engine.joinRoom(alan, workspace)).ok).toBe(true)
+    // Nothing was unlocked, and nobody was told anything: the reason was the
+    // host's, so the telling is too.
+    expect(await h.store.locks(OFFICE)).toHaveLength(1)
+    expect(h.sent.toUsers.filter((one) => one.event === 'knock:admitted')).toHaveLength(0)
+  })
+
+  it('lets them in on another node, carried there by the host event bus', async () => {
+    // Two engines on one store and one bus: Ada's socket is on this node, Alan's
+    // on the other, and the host calls admitUser on this one.
+    const other = harness({ store: h.store, events: h.events, template: h.template })
+    const { workspace } = await lockedWorkspace()
+    const alan = await other.enter({ name: 'Alan' })
+
+    const refused = await other.engine.joinRoom(alan, workspace)
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) expect(refused.code).toBe(Refusal.ROOM_LOCKED)
+
+    h.engine.admitUser(OFFICE, workspace, (await other.engine.snapshot(alan)).you.userId)
+
+    expect((await other.engine.joinRoom(alan, workspace)).ok).toBe(true)
+  })
+
+  it('is spent by the one move it authorises', async () => {
+    const { workspace } = await lockedWorkspace()
+    const alan = await h.enter({ name: 'Alan' })
+    h.engine.admitUser(OFFICE, workspace, await userIdOf(alan))
+
+    expect((await h.engine.joinRoom(alan, workspace)).ok).toBe(true)
+    expect((await h.engine.joinRoom(alan, named('Reception'))).ok).toBe(true)
+
+    // Permission to come in now, not a key: back out, and the door is shut again.
+    const again = await h.engine.joinRoom(alan, workspace)
+    expect(again.ok).toBe(false)
+    if (!again.ok) expect(again.code).toBe(Refusal.ROOM_LOCKED)
+  })
+
+  it('stands for nobody else and for no other room', async () => {
+    const { ada, workspace } = await lockedWorkspace()
+    const alan = await h.enter({ name: 'Alan' })
+    const bob = await h.enter({ name: 'Bob' })
+
+    // Admitted somewhere else, and somebody else admitted here.
+    h.engine.admitUser(OFFICE, named('Reception'), await userIdOf(alan))
+    h.engine.admitUser(OFFICE, workspace, await userIdOf(bob))
+    // And into a different office, which this node does not serve.
+    h.engine.admitUser('elsewhere', workspace, await userIdOf(alan))
+
+    const stillOut = await h.engine.joinRoom(alan, workspace)
+    expect(stillOut.ok).toBe(false)
+    if (!stillOut.ok) expect(stillOut.code).toBe(Refusal.ROOM_LOCKED)
+    // Bob's own admission is untouched by Alan asking.
+    expect((await h.engine.joinRoom(bob, workspace)).ok).toBe(true)
+    expect((await h.engine.snapshot(ada)).locks).toHaveLength(1)
   })
 })

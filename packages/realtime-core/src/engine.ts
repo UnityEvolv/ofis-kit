@@ -225,7 +225,8 @@ export class OfficeEngine {
    */
   readonly #handTimers = new Map<string, ReturnType<typeof setTimeout>>()
   /**
-   * Who has been let into a locked room.
+   * Who has been let into a locked room, by somebody inside answering a knock
+   * or by the host through `admitUser`.
    *
    * One-shot, and spent by the move it authorises: an admission is permission to
    * come in now, not a standing key to the room. Deliberately not in the
@@ -850,6 +851,34 @@ export class OfficeEngine {
       byUserId: identity.id,
     })
     return done()
+  }
+
+  /**
+   * Let one person into one locked room, once, because the host says so.
+   *
+   * The hook for a host-side admission: an occupant invited them through
+   * something the engine has never heard of, a booking names them, whatever the
+   * host's reason is. The engine is not told the reason and does not need one.
+   * The next `joinRoom` by that person into that room is honoured exactly as a
+   * knock admission is — spent by the move it authorises, standing for nobody
+   * else and no other room, and gone when the node restarts — and nothing is
+   * unlocked for anybody else.
+   *
+   * Recorded here and published on the host event bus, so a node holding this
+   * person's socket honours it too: the host calls this wherever it is
+   * convenient, and the bus carries the fact to wherever the person is. Without
+   * a bus, the admission stands on this node alone. Nothing is sent to the
+   * person: what to tell them is the host's, since the reason was.
+   */
+  admitUser(officeId: string, roomId: string, userId: string): void {
+    this.#grantAdmission(officeId, roomId, userId)
+    this.#options.events?.publish({ type: 'admission.granted', officeId, roomId, userId })
+  }
+
+  /** The one place an admission is recorded, for this node's own office only. */
+  #grantAdmission(officeId: string, roomId: string, userId: string): void {
+    if (officeId !== this.#options.officeId) return
+    this.#admissions.add(admissionKey(officeId, roomId, userId))
   }
 
   /**
@@ -1777,6 +1806,14 @@ export class OfficeEngine {
 
     if (event.type === 'status.external') {
       await this.#setExternalStatus(event.userId, event.status, event.quiet === true)
+      return
+    }
+
+    if (event.type === 'admission.granted') {
+      // The same set `admitUser` fills on the node it was called on, so the
+      // person is let in from whichever node their socket is on. Arriving back
+      // on the node that published it only adds what is already there.
+      this.#grantAdmission(event.officeId, event.roomId, event.userId)
     }
   }
 
@@ -1786,12 +1823,21 @@ export class OfficeEngine {
    * and being in a call still outrank it, because resolving is the store's rule
    * and not this method's.
    */
-  async #setExternalStatus(userId: string, status: 'in_meeting' | null, quiet: boolean): Promise<void> {
+  async #setExternalStatus(
+    userId: string,
+    status: 'in_meeting' | null,
+    quiet: boolean,
+  ): Promise<void> {
     const officeId = this.#options.officeId
     const presence = await this.#store.get(officeId, userId)
     if (!presence) return
-    if ((presence.externalStatus ?? null) === status && (presence.externalQuiet ?? false) === quiet) return
-    const told: Presence = { ...presence, externalStatus: status, externalQuiet: status === null ? false : quiet }
+    if ((presence.externalStatus ?? null) === status && (presence.externalQuiet ?? false) === quiet)
+      return
+    const told: Presence = {
+      ...presence,
+      externalStatus: status,
+      externalQuiet: status === null ? false : quiet,
+    }
     await this.#store.put(told)
     this.#broadcaster.queue(officeId, {
       kind: 'person.updated',

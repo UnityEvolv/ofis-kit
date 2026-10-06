@@ -24,6 +24,7 @@ export { TemplateInvalid, joinImagePath, staticTemplateSource } from './template
 export type {
   AccessChanged,
   AccessRevoked,
+  AdmissionGranted,
   EventBus,
   ExternalStatusChanged,
   HostEvent,

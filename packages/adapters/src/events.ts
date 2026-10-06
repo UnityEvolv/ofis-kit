@@ -76,7 +76,24 @@ export interface AccessChanged {
   reason: string
 }
 
-export type HostEvent = AccessRevoked | ExternalStatusChanged | TemplateChanged | AccessChanged
+/**
+ * The host has let one person into one locked room, once.
+ *
+ * Published by the engine's `admitUser`, and how an admission recorded on one
+ * node reaches the node the person's socket is on. The engine keeps admissions
+ * in memory for the seconds between being let in and walking in, so a node
+ * that never hears this simply keeps its door shut, and the person knocks.
+ * Carries no reason: why the host let them in is the host's.
+ */
+export interface AdmissionGranted {
+  type: 'admission.granted'
+  officeId: string
+  roomId: string
+  userId: string
+}
+
+export type HostEvent =
+  AccessRevoked | ExternalStatusChanged | TemplateChanged | AccessChanged | AdmissionGranted
 
 export type HostEventHandler = (event: HostEvent) => void
 
