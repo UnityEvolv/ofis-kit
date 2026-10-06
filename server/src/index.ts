@@ -41,7 +41,19 @@ const templates = fileTemplateSource({
 })
 
 const http = createServer((request, response) => {
-  void serve(request, response)
+  /*
+   * Nothing a request does may take the office down.
+   *
+   * A template saved halfway while it is being watched, a disk that hiccups under
+   * a read — each is one request that failed, and it gets a 500 and a log line.
+   * Left unhandled it would be a rejected promise, and Node ends the process for
+   * one of those: everybody in the office disconnected because of one request.
+   */
+  serve(request, response).catch((cause: unknown) => {
+    logger.error('request failed', { code: cause instanceof Error ? cause.name : 'unknown' })
+    if (response.headersSent) response.destroy()
+    else json(response, 500, { code: 'internal', message: 'Something went wrong.' })
+  })
 })
 
 const realtime = createRealtimeServer({
@@ -80,6 +92,9 @@ const realtime = createRealtimeServer({
   templates,
   logger,
   graceMs: config.graceMs,
+  // The ceiling a public demo sets, enforced at the door. Null, and so no ceiling,
+  // unless MAX_PRESENT is set.
+  maxPresent: config.demo.maxPresent,
   ...(config.allowedOrigins.length > 0 ? { allowedOrigins: config.allowedOrigins } : {}),
 })
 
@@ -210,7 +225,15 @@ async function file(
       ? 'public, max-age=31536000, immutable'
       : 'public, max-age=300',
   })
-  createReadStream(path).pipe(response)
+  // A file that vanishes or fails between the stat and the read is an error on
+  // the stream, and a stream error nobody listens for is an uncaught exception.
+  // The headers are already out by then, so the honest ending is a cut connection.
+  const stream = createReadStream(path)
+  stream.on('error', (cause: NodeJS.ErrnoException) => {
+    logger.warn('could not read a file', { code: cause.code ?? 'unknown' })
+    response.destroy()
+  })
+  stream.pipe(response)
   return true
 }
 

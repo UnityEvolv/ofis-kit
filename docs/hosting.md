@@ -159,7 +159,9 @@ office, which takes a second.
 ### A public demo
 
 If anybody with the link may walk in, set `DEMO=true`. The entry screen then
-says that this is a public demo, and not to say anything private in it.
+says that this is a public demo, and not to say anything private in it. Set
+`MAX_PRESENT` as well, say to `40`, so the demo cannot become free conferencing
+for whoever finds the link.
 
 ## Settings reference
 
@@ -183,6 +185,7 @@ repository allowed to name a host or a port, and it names none of yours.
 | `STUN_URLS`         | none                                          | STUN addresses for browsers, comma separated.                                                                                                       |
 | `TURN_TTL_SECONDS`  | `43200`                                       | How long a relay credential lasts.                                                                                                                  |
 | `DEMO`              | `false`                                       | Public demo mode: a warning on the entry screen.                                                                                                    |
+| `MAX_PRESENT`       | none                                          | The most people in the office at once. A newcomer beyond it is told the office is full; nobody already inside is affected. Empty means no ceiling.  |
 
 ## Your own office
 
