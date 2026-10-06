@@ -1,6 +1,6 @@
 {
   "name": "@unityevolv/ofiskit-adapters",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "The interfaces the office asks its host: who is this, may they do this, where does the layout come from. With the built-in answers the free office uses.",
   "license": "Apache-2.0",
   "type": "module",

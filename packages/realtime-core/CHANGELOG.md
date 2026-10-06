@@ -1,5 +1,19 @@
 # @unityevolv/ofiskit-realtime-core
 
+## 0.3.0
+
+### Minor Changes
+
+- [#52](https://github.com/UnityEvolv/ofis-kit/pull/52) [`65e9c9f`](https://github.com/UnityEvolv/ofis-kit/commit/65e9c9f63bca86630f3fbbf9486096e3f4fced9e) Thanks [@nvamsiram](https://github.com/nvamsiram)! - A host can let one person into one locked room, once, for a reason of its own.
+
+  - **`admitUser(officeId, roomId, userId)` on `OfficeEngine`**: records the same one-shot admission that answering a knock does, with no knock — honoured by that person's next `joinRoom` into that room, spent by the move it authorises, standing for nobody else and no other room, and unlocking nothing. The engine is not told why; nothing is sent to the person. The hook for a host-side invitation, such as an occupant inviting somebody through a feature the engine has never heard of.
+  - **`admission.granted` on the host event bus** (`AdmissionGranted` in the adapters package): published by `admitUser` and recorded by every node serving that office, so an admission recorded on one node is honoured on whichever node the person's socket is on. Without a bus, it stands on the one node.
+
+### Patch Changes
+
+- Updated dependencies [[`65e9c9f`](https://github.com/UnityEvolv/ofis-kit/commit/65e9c9f63bca86630f3fbbf9486096e3f4fced9e)]:
+  - @unityevolv/ofiskit-adapters@0.2.0
+
 ## 0.2.0
 
 ### Minor Changes

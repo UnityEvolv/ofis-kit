@@ -1,5 +1,12 @@
 # @unityevolv/ofiskit-realtime-client
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [[`65e9c9f`](https://github.com/UnityEvolv/ofis-kit/commit/65e9c9f63bca86630f3fbbf9486096e3f4fced9e)]:
+  - @unityevolv/ofiskit-realtime-core@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes
