@@ -1,6 +1,7 @@
 import type { DeviceKind, PublicPresence, Status } from '@unityevolv/ofiskit-realtime-client'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 
 import { PersonAvatar } from './PersonAvatar.js'
 import { STATUS_LOOKS, StatusDot, describeStatus, statusLabel } from './status.js'
@@ -88,10 +89,7 @@ describe('one person on the map', () => {
       <PersonAvatar
         person={person({
           userId: 'ada',
-          devices: [
-            device('p', 'mobile'),
-            device('l'),
-          ],
+          devices: [device('p', 'mobile'), device('l')],
         })}
         size={64}
       />,
@@ -118,9 +116,7 @@ describe('one person on the map', () => {
 
     // On hover on the web, so the map is not covered in text — and in the label
     // either way, because hover is not available to everybody.
-    expect(
-      screen.getByRole('img', { name: /Available — 🥪 Back at three/ }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Available — 🥪 Back at three/ })).toBeInTheDocument()
   })
 
   it('marks one of a linked pair as the same person, not a second colleague', () => {
@@ -128,10 +124,7 @@ describe('one person on the map', () => {
       <PersonAvatar
         person={person({
           userId: 'ada',
-          devices: [
-            device('laptop'),
-            device('phone', 'mobile'),
-          ],
+          devices: [device('laptop'), device('phone', 'mobile')],
         })}
         size={64}
         deviceId="phone"
@@ -390,9 +383,7 @@ describe('asking to speak, and reacting, from the map', () => {
     )
 
     expect(screen.getByTestId('reaction-float')).toHaveTextContent('🎉')
-    expect(screen.getByRole('img', { name: /^ada,/i }).getAttribute('aria-label')).not.toMatch(
-      /🎉/,
-    )
+    expect(screen.getByRole('img', { name: /^ada,/i }).getAttribute('aria-label')).not.toMatch(/🎉/)
   })
 
   it('draws no float at all when nothing is in the air', () => {
@@ -400,5 +391,57 @@ describe('asking to speak, and reacting, from the map', () => {
     // nobody needs and something for a click to land on.
     render(<PersonAvatar person={person({ userId: 'ada' })} size={64} />)
     expect(screen.queryByTestId('reaction-float')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The host's actions on a person.
+ *
+ * A click keeps doing what the host said a click does. An avatar with a menu
+ * and nothing else to do on a click opens the menu, so it is never a button
+ * that does nothing; one with neither stays a picture.
+ */
+describe('the host’s actions on an avatar', () => {
+  const actions = () => [{ id: 'message', label: 'Message', onSelect: vi.fn() }]
+
+  it('opens the menu on a click when there is nothing else a click does', async () => {
+    const user = userEvent.setup()
+    render(<PersonAvatar person={person({ userId: 'ada' })} size={64} actions={actions()} />)
+
+    const avatar = screen.getByRole('button', { name: /^ada,/i })
+    expect(avatar).toHaveAttribute('aria-haspopup', 'menu')
+    await user.click(avatar)
+
+    expect(screen.getByRole('menu', { name: 'Actions for ada' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(avatar).toHaveFocus()
+  })
+
+  it('keeps the host’s click as the click, and the menu behind the right button', async () => {
+    const user = userEvent.setup()
+    const onClick = vi.fn()
+    render(
+      <PersonAvatar
+        person={person({ userId: 'ada' })}
+        size={64}
+        onClick={onClick}
+        actions={actions()}
+      />,
+    )
+
+    const avatar = screen.getByRole('button', { name: /^ada,/i })
+    expect(avatar).not.toHaveAttribute('aria-haspopup')
+    await user.click(avatar)
+    expect(onClick).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('menu')).toBeNull()
+
+    await user.pointer({ keys: '[MouseRight]', target: avatar })
+    expect(screen.getByRole('menu', { name: 'Actions for ada' })).toBeInTheDocument()
+  })
+
+  it('stays a picture with an empty list', () => {
+    render(<PersonAvatar person={person({ userId: 'ada' })} size={64} actions={[]} />)
+    expect(screen.getByRole('img', { name: /^ada,/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button')).toBeNull()
   })
 })

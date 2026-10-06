@@ -218,8 +218,70 @@ describe('a note from the host', () => {
   })
 
   it('gives way to the reason you cannot go in', () => {
-    roomBar({ notice: 'Booked 10:00–11:00: Planning', forbiddenReason: 'This room is for members.' })
+    roomBar({
+      notice: 'Booked 10:00–11:00: Planning',
+      forbiddenReason: 'This room is for members.',
+    })
     expect(screen.getByText('This room is for members.')).toBeTruthy()
     expect(screen.queryByText('Booked 10:00–11:00: Planning')).toBeNull()
+  })
+})
+
+/**
+ * What the host adds.
+ *
+ * A Reserve the engine does not have to understand: drawn after the bar's own
+ * controls, in the same clothes, and disabled the same way — visible, with the
+ * reason in the message row.
+ */
+describe('the host’s actions on the bar', () => {
+  it('draws them as secondary buttons after the bar’s own controls, and runs them', async () => {
+    const reserve = vi.fn()
+    const { user } = roomBar({
+      actions: [{ id: 'reserve', label: 'Reserve', onSelect: reserve }],
+    })
+
+    const buttons = screen.getAllByRole('button').map((one) => one.textContent)
+    expect(buttons).toEqual(['Join', 'Reserve'])
+    expect(screen.getByRole('button', { name: 'Reserve' }).className).toMatch(/btn-secondary/)
+
+    await user.click(screen.getByRole('button', { name: 'Reserve' }))
+    expect(reserve).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a disabled one visible, with its reason in the message row', () => {
+    roomBar({
+      actions: [
+        {
+          id: 'reserve',
+          label: 'Reserve',
+          disabled: 'Reserved by Grace until 15:00.',
+          onSelect() {},
+        },
+      ],
+    })
+
+    const reserve = screen.getByRole('button', { name: 'Reserve' })
+    expect(reserve).toBeDisabled()
+    expect(reserve).toHaveAccessibleDescription('Reserved by Grace until 15:00.')
+    expect(screen.getByText('Reserved by Grace until 15:00.')).toBeInTheDocument()
+  })
+
+  it('lets the bar’s own reason come first, and does not describe Reserve with it', () => {
+    roomBar({
+      forbiddenReason: 'This room is for members.',
+      actions: [{ id: 'reserve', label: 'Reserve', disabled: 'Already reserved.', onSelect() {} }],
+    })
+
+    expect(screen.getByText('This room is for members.')).toBeInTheDocument()
+    expect(screen.queryByText('Already reserved.')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Reserve' })).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('leaves them off a narrow bar, where Join is the one thing that must fit', () => {
+    roomBar({ width: 120, actions: [{ id: 'reserve', label: 'Reserve', onSelect() {} }] })
+
+    expect(screen.getByRole('button', { name: 'Join' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reserve' })).toBeNull()
   })
 })

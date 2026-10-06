@@ -78,6 +78,11 @@ export { tileLayout, VIDEO_ASPECT, type TileLayout } from './tileLayout.js'
 export { Control, controlClasses, type ControlProps } from './controls.js'
 export { DevicePanel, PermissionPrimer, type DevicePanelProps } from './DevicePanel.js'
 export { RoomBar, type RoomBarProps } from './RoomBar.js'
+/**
+ * What a host adds to a person or a room: labelled callbacks the engine offers
+ * in a menu and on the room bar, without knowing what any of them does.
+ */
+export { type HostAction } from './HostActions.js'
 export { StatusControl, type StatusControlProps } from './StatusControl.js'
 export { PersonAvatar, type PersonAvatarProps } from './PersonAvatar.js'
 export {
@@ -86,7 +91,13 @@ export {
   OverflowAvatar,
   type OverflowAvatarProps,
 } from './Overflow.js'
-export { StatusDot, describeStatus, statusLabel, STATUS_LOOKS, type StatusDotProps } from './status.js'
+export {
+  StatusDot,
+  describeStatus,
+  statusLabel,
+  STATUS_LOOKS,
+  type StatusDotProps,
+} from './status.js'
 
 export {
   useClientEvents,
