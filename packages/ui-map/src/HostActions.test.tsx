@@ -296,7 +296,23 @@ describe('targets inside targets', () => {
     expect(screen.getByRole('menu', { name: 'Actions for Workspace' })).toBeInTheDocument()
   })
 
-  it('passes a gesture on a person with no actions up to the room', async () => {
+  it('claims nothing on an element marked as a hole, and leaves the browser’s menu there', () => {
+    render(
+      <ActionTarget as="div" name="Workspace" actions={actions()} className="relative">
+        <button type="button" data-host-actions="none">
+          Grace
+        </button>
+        <button type="button">Join</button>
+      </ActionTarget>,
+    )
+
+    expect(fireEvent.contextMenu(screen.getByRole('button', { name: 'Grace' }))).toBe(true)
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(fireEvent.contextMenu(screen.getByRole('button', { name: 'Join' }))).toBe(false)
+    expect(screen.getByRole('menu', { name: 'Actions for Workspace' })).toBeInTheDocument()
+  })
+
+  it('passes a gesture on an inner target with no actions up to the outer one', async () => {
     const user = userEvent.setup()
     render(
       <ActionTarget as="div" name="Workspace" actions={actions()} className="relative">

@@ -6,7 +6,7 @@ import type {
 } from '@unityevolv/ofiskit-realtime-client'
 import { emptyOffice, fromSnapshot } from '@unityevolv/ofiskit-realtime-client'
 import { createTemplate, type CanvasShape, type Template } from '@unityevolv/ofiskit-template'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -739,9 +739,9 @@ describe('keys pressed on a room’s own controls', () => {
 /**
  * What the host can add to a person and to a room.
  *
- * The engine offers them and never knows what they do. The same list reaches the
- * map and the list view, because the list is the map's accessible twin: a menu
- * that only a right-click could open would be a menu some people never find.
+ * The engine offers them and never knows what they do. A room gets a menu and
+ * buttons on its bar; a person gets a card. The same list reaches the map and
+ * the list view, because the list is the map's accessible twin.
  */
 describe('the host’s actions', () => {
   const message = vi.fn()
@@ -767,27 +767,31 @@ describe('the host’s actions', () => {
     return { ...drawn, workspace }
   }
 
-  it('opens a person’s menu from a right-click on their avatar on the map', async () => {
+  it('gives a person a card on the map, with their status and the host’s buttons', async () => {
     const user = userEvent.setup()
     withActions(false)
 
-    await user.pointer({
-      keys: '[MouseRight]',
-      target: screen.getByRole('button', { name: /^Grace,/ }),
-    })
+    const avatar = screen.getByRole('button', { name: /^Grace,/ })
+    expect(avatar).toHaveAttribute('aria-haspopup', 'dialog')
+    act(() => avatar.focus())
 
-    const menu = screen.getByRole('menu', { name: 'Actions for Grace' })
-    expect(within(menu).getByRole('menuitem', { name: 'Message Grace' })).toBeInTheDocument()
-    expect(within(menu).getByRole('menuitem', { name: /^Pin/ })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    )
-
-    await user.click(within(menu).getByRole('menuitem', { name: 'Message Grace' }))
+    const card = screen.getByRole('dialog', { name: 'Grace' })
+    expect(within(card).getByText('Available')).toBeInTheDocument()
+    expect(within(card).getByRole('button', { name: 'Pin' })).toBeDisabled()
+    await user.click(within(card).getByRole('button', { name: 'Message Grace' }))
     expect(message).toHaveBeenCalledTimes(1)
   })
 
-  it('opens a room’s menu from Shift+F10 on the room, and draws its actions on the bar', async () => {
+  it('opens no menu on a person, and leaves the browser’s own to the browser', () => {
+    withActions(false)
+    const avatar = screen.getByRole('button', { name: /^Grace,/ })
+
+    expect(fireEvent.contextMenu(avatar)).toBe(true)
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('opens a room’s menu from a right-click on the room, and draws its actions on the bar', async () => {
     const user = userEvent.setup()
     const { workspace } = withActions(false)
 
@@ -795,8 +799,7 @@ describe('the host’s actions', () => {
     expect(within(bar).getByRole('button', { name: 'Reserve Workspace' })).toBeInTheDocument()
 
     const room = screen.getByRole('group', { name: /^Workspace,/ })
-    room.focus()
-    await user.keyboard('{Shift>}{F10}{/Shift}')
+    await user.pointer({ keys: '[MouseRight]', target: room })
 
     const menu = screen.getByRole('menu', { name: 'Actions for Workspace' })
     await user.click(within(menu).getByRole('menuitem', { name: 'Reserve Workspace' }))
@@ -804,12 +807,12 @@ describe('the host’s actions', () => {
     expect(room).toHaveFocus()
   })
 
-  it('offers the same menus in the list, behind a button anybody can see', async () => {
+  it('offers the same in the list: the room’s menu behind a button, the person’s card on their avatar', async () => {
     const user = userEvent.setup()
     const { workspace } = withActions(true)
 
-    const card = screen.getByTestId(`room-bar-${workspace.id}`).closest('li')!
-    const moreRoom = within(card).getByRole('button', { name: 'More actions for Workspace' })
+    const row = screen.getByTestId(`room-bar-${workspace.id}`).closest('li')!
+    const moreRoom = within(row).getByRole('button', { name: 'More actions for Workspace' })
     expect(moreRoom).toHaveAttribute('aria-haspopup', 'menu')
     await user.click(moreRoom)
     expect(
@@ -820,24 +823,19 @@ describe('the host’s actions', () => {
     await user.keyboard('{Escape}')
     expect(moreRoom).toHaveFocus()
 
-    const morePerson = within(card).getByRole('button', { name: 'More actions for Grace' })
-    await user.click(morePerson)
-    const menu = screen.getByRole('menu', { name: 'Actions for Grace' })
+    // No menu button for a person: the card is on the avatar, as on the map.
+    expect(within(row).queryByRole('button', { name: /more actions for grace/i })).toBeNull()
+    act(() =>
+      within(row)
+        .getByRole('button', { name: /^Grace,/ })
+        .focus(),
+    )
+    const card = screen.getByRole('dialog', { name: 'Grace' })
     expect(
-      within(menu)
-        .getAllByRole('menuitem')
-        .map((item) => item.textContent),
-    ).toEqual(['Message Grace', 'PinAlready pinned.'])
-  })
-
-  it('opens a person’s menu in the list from the keyboard on their row', async () => {
-    const user = userEvent.setup()
-    withActions(true)
-
-    screen.getByRole('button', { name: 'More actions for Grace' }).focus()
-    await user.keyboard('{Shift>}{F10}{/Shift}')
-
-    expect(screen.getByRole('menu', { name: 'Actions for Grace' })).toBeInTheDocument()
+      within(card)
+        .getAllByRole('button')
+        .map((one) => one.textContent),
+    ).toEqual(['Message Grace', 'Pin'])
   })
 
   it('offers nothing, and no button, when the host gives none', () => {

@@ -26,9 +26,11 @@ import { useAnnounce } from './Announcer.js'
  * The engine draws the office; what somebody can *do* to a colleague or a room
  * beyond walking in is the host's business — book it, message them, pin them —
  * and none of it exists here. So the host hands over a list of labelled
- * callbacks and the engine offers them where the person or the room is: a menu
- * on right-click, on a long press, and from the keyboard, plus a visible button
- * in the list view so nothing depends on knowing a gesture.
+ * callbacks and the engine offers them where the room or the person is. On a
+ * room, a menu: on right-click, on a long press, and from the keyboard, plus a
+ * visible button in the list view so nothing depends on knowing a gesture, and
+ * the same actions as buttons on its bar. On a person, a card (`PersonCard`)
+ * with their status, since the first thing wanted from a face is who it is.
  *
  * A disabled action stays visible with its reason, the same rule the room bar
  * follows for its own controls: a control that vanishes teaches nobody anything.
@@ -36,7 +38,7 @@ import { useAnnounce } from './Announcer.js'
  * a convenience, never the control.
  */
 export interface HostAction {
-  /** Stable across renders: the menu keys by it. */
+  /** Stable across renders: the menu and the card key by it. */
   id: string
   label: string
   /** Why it cannot be used right now. Shown as the disabled item's hint and announced with it. */
@@ -105,8 +107,11 @@ function whereFocusReturns(target: HTMLElement): HTMLElement | null {
  * element. With no actions the element is rendered as given, no gesture is
  * listened for, and the browser's own context menu is left alone.
  *
- * Targets nest — a person stands in a room — and the innermost one with actions
- * claims a gesture, so right-clicking a colleague never opens the room's menu.
+ * Targets may nest, and the innermost one with actions claims a gesture; one
+ * with none is transparent to the one around it. An element marked
+ * `data-host-actions="none"` is a hole: a gesture on it belongs to nothing,
+ * which is how a person standing in a room keeps the room's menu off their
+ * face and the browser's own menu on it.
  */
 export function ActionTarget({
   as: Tag = 'div',
@@ -294,7 +299,7 @@ export function ActionTarget({
  *
  * The kit's Dropdown hangs off a trigger that opens on a left click, Enter,
  * Space and ArrowDown — the right thing for a menu button and the wrong thing
- * for an avatar whose click already does something else. So the trigger here is
+ * for a room whose own controls already answer a click. So the trigger here is
  * an inert, invisible span laid over the target: it positions the menu, it
  * carries the menu's name, and it never opens anything. The target opens the
  * menu by state, and the kit does the rest — a `menu` of `menuitem`s, the arrow
@@ -377,7 +382,7 @@ function ActionMenu({
 /**
  * A visible way in, for anybody who does not know the gesture.
  *
- * The list view puts one on every person and every room. Nothing in the menu is
+ * The list view puts one on every room. Nothing in the menu is
  * reachable only by right-click, which is what makes the list the map's
  * accessible twin rather than a subset of it. Renders nothing when there is
  * nothing to open.
