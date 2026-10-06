@@ -159,7 +159,7 @@ export function startColleagues(options: {
       stopped = true
       for (const timer of timers) clearTimeout(timer)
       timers.clear()
-      for (const client of clients) client.close()
+      for (const client of clients) void client.close()
     },
   }
 }
