@@ -8,10 +8,8 @@ import {
   isSpeaking,
 } from '@unityevolv/ofiskit-realtime-client'
 
-import { useRef } from 'react'
-import type { ReactNode } from 'react'
-
-import { ActionTarget, useActionMenu, type HostAction } from './HostActions.js'
+import type { HostAction } from './HostActions.js'
+import { PersonCard } from './PersonCard.js'
 import { ReactionFloat } from './Reactions.js'
 import { StatusDot, describeStatus } from './status.js'
 import type { LiveReaction } from './useCall.js'
@@ -45,10 +43,11 @@ export interface PersonAvatarProps {
   reactions?: readonly LiveReaction[]
   onClick?(): void
   /**
-   * The host's actions on this person, offered in a menu on right-click, on a
-   * long press and from the keyboard (ContextMenu, Shift+F10). A click keeps
-   * doing what `onClick` says; with no `onClick`, a click opens the menu too, so
-   * an avatar that has a menu is never a button that does nothing.
+   * The host's actions on this person, which give the avatar a card: their
+   * face, their name, their status, and these as buttons. It opens on hover
+   * after a moment, on keyboard focus, and on a tap; a click keeps doing what
+   * `onClick` says, and with one set the card opens on a long press instead.
+   * None, or an empty list, and the avatar is left as it is.
    */
   actions?: readonly HostAction[] | null
 }
@@ -278,77 +277,34 @@ export function PersonAvatar({
     </span>
   )
 
-  // The custom status is shown on hover on the web, so the map is not covered in
-  // text while still carrying it for anybody who wants it.
-  const tooltip = person.custom?.text ? description : null
-
   if (actions && actions.length > 0) {
+    // The card carries the custom status in full, so no tooltip beside it.
     return (
-      <ActionTarget
-        as="span"
-        name={person.displayName}
-        actions={actions}
-        className="relative inline-flex"
-      >
-        <AvatarControl label={label} tooltip={tooltip} onClick={onClick} ownMenu>
-          {body}
-        </AvatarControl>
-      </ActionTarget>
+      <PersonCard person={person} actions={actions} label={label} onClick={onClick}>
+        {body}
+      </PersonCard>
     )
   }
 
-  return (
-    <AvatarControl label={label} tooltip={tooltip} onClick={onClick} ownMenu={false}>
-      {body}
-    </AvatarControl>
-  )
-}
-
-/**
- * What the avatar is to the keyboard and to a screen reader.
- *
- * A button when it does something — the host's click, or opening the host's
- * menu — and a picture otherwise. The menu is read from the target around it,
- * and only when the avatar has one of its own: an avatar drawn inside the list's
- * row, which has a button for the row's menu already, stays a picture.
- */
-function AvatarControl({
-  label,
-  tooltip,
-  onClick,
-  ownMenu,
-  children,
-}: {
-  label: string
-  tooltip: string | null
-  onClick: (() => void) | undefined
-  ownMenu: boolean
-  children: ReactNode
-}) {
-  const menu = useActionMenu()
-  const self = useRef<HTMLButtonElement>(null)
-
-  const control = onClick ? (
-    <button type="button" onClick={onClick} className="cursor-pointer" aria-label={label}>
-      {children}
-    </button>
-  ) : ownMenu && menu.enabled ? (
+  // Not a place to open the room's menu from, with or without a card of its
+  // own: a right-click on a face gets the browser's menu and nothing else.
+  const content = onClick ? (
     <button
-      ref={self}
       type="button"
-      onClick={() => menu.open(self.current)}
-      aria-haspopup="menu"
-      aria-expanded={menu.expanded}
+      onClick={onClick}
       className="cursor-pointer"
       aria-label={label}
+      data-host-actions="none"
     >
-      {children}
+      {body}
     </button>
   ) : (
-    <span role="img" aria-label={label}>
-      {children}
+    <span role="img" aria-label={label} data-host-actions="none">
+      {body}
     </span>
   )
 
-  return tooltip ? <Tooltip content={tooltip}>{control}</Tooltip> : control
+  // The custom status is shown on hover on the web, so the map is not covered in
+  // text while still carrying it for anybody who wants it.
+  return person.custom?.text ? <Tooltip content={description}>{content}</Tooltip> : content
 }

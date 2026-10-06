@@ -61,11 +61,12 @@ export interface OfficeMapProps {
    */
   decoration?: string | null
   /**
-   * The host's actions on a person, offered in a menu on their avatar:
-   * right-click, a long press, ContextMenu or Shift+F10 on the map, and a
-   * visible "More actions" button in the list. What they do is the host's —
-   * message them, pin them — and the engine never knows. None, or an empty
-   * list, and the avatar is left alone. The free office passes none.
+   * The host's actions on a person, which give their avatar a card: their
+   * face, name and status, and these as buttons. It opens on hover, on
+   * keyboard focus and on a tap, on the map and in the list alike. What they
+   * do is the host's — message them, pin them — and the engine never knows.
+   * None, or an empty list, and the avatar is left alone. The free office
+   * passes none.
    */
   personActions?(person: PublicPresence, roomId: string): HostAction[]
   /**
@@ -502,21 +503,17 @@ function RoomCard(props: {
       {people.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-3 px-1" aria-label={`People in ${room.name}`}>
           {people.map((person) => (
-            <ActionTarget
-              as="li"
-              key={person.userId}
-              name={person.displayName}
-              actions={props.personActions(person)}
-              className="relative flex flex-col items-center gap-0.5"
-            >
+            <li key={person.userId}>
+              {/* The same card the map shows, on the same avatar: the host's
+                  actions give it one, here as there. */}
               <PersonAvatar
                 person={person}
                 size={56}
                 reducedMotion={props.reducedMotion}
                 reactions={props.reactions?.get(person.userId) ?? []}
+                actions={props.personActions(person)}
               />
-              <MoreActionsButton label={`More actions for ${person.displayName}`} />
-            </ActionTarget>
+            </li>
           ))}
         </ul>
       )}
