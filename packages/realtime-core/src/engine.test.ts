@@ -2625,3 +2625,26 @@ describe('an admission from the host', () => {
     expect((await h.engine.snapshot(ada)).locks).toHaveLength(1)
   })
 })
+
+describe('a move inside one diff window', () => {
+  it('keeps what an earlier update in the same window said', async () => {
+    const setup = harness()
+    const workspace = setup.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    const ada = await setup.enter({ name: 'Ada' })
+    await setup.flush()
+    setup.sent.clear()
+
+    // A status and then a walk, faster than the window: the walk must not erase
+    // the status on everybody else's screen.
+    await setup.engine.setManualStatus(ada, 'dnd')
+    await setup.engine.joinRoom(ada, workspace)
+    await setup.flush()
+
+    const about = changes(setup.sent)
+    expect(about).toHaveLength(1)
+    expect(about[0]).toMatchObject({
+      kind: 'person.updated',
+      presence: { roomId: workspace, status: 'dnd' },
+    })
+  })
+})
