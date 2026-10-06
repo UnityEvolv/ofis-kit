@@ -159,7 +159,11 @@ export function OfficeBuilder(props: OfficeBuilderProps) {
           Live validation with the reasons visible. An author finds out while they
           are causing a problem, not when they try to save.
         */}
-        <SaveBar issues={issues} saveLabel={props.saveLabel} onSave={() => props.onSave(template)} />
+        <SaveBar
+          issues={issues}
+          saveLabel={props.saveLabel}
+          onSave={() => props.onSave(template)}
+        />
       </aside>
     </div>
   )

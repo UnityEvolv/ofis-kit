@@ -29,9 +29,7 @@ afterEach(() => {
 
 describe('inside the room', () => {
   it('shows nothing at all when nobody is knocking', () => {
-    const { container } = render(
-      <KnockDock knocks={[]} onAdmit={() => {}} onDecline={() => {}} />,
-    )
+    const { container } = render(<KnockDock knocks={[]} onAdmit={() => {}} onDecline={() => {}} />)
     expect(container).toBeEmptyDOMElement()
   })
 
@@ -80,17 +78,19 @@ describe('inside the room', () => {
 
 describe('outside the room', () => {
   it('says the knock was sent, so the button did not appear to do nothing', () => {
-    render(
-      <OutgoingKnock roomName="Studio" outcome="waiting" onDismiss={() => {}} />,
+    render(<OutgoingKnock roomName="Studio" outcome="waiting" onDismiss={() => {}} />)
+    expect(screen.getByTestId('outgoing-knock')).toHaveTextContent(
+      /knocked on Studio.*waiting for an answer/i,
     )
-    expect(screen.getByTestId('outgoing-knock')).toHaveTextContent(/knocked on Studio.*waiting for an answer/i)
   })
 
   it('says when it arrived silently, so an unanswered knock makes sense', () => {
     // Do not disturb suppresses interruption, not access — and the knocker is
     // told, or they are left wondering whether it worked.
     render(<OutgoingKnock roomName="Studio" outcome="waiting" silent onDismiss={() => {}} />)
-    expect(screen.getByTestId('outgoing-knock')).toHaveTextContent(/on do not disturb, so it arrived silently/i)
+    expect(screen.getByTestId('outgoing-knock')).toHaveTextContent(
+      /on do not disturb, so it arrived silently/i,
+    )
   })
 
   it('says every outcome plainly, including nobody answering', () => {

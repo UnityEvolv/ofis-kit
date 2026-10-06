@@ -8,8 +8,8 @@
  * console. It looks like the components are broken. They are not; the CSS for
  * their classes was simply never generated.
  */
-@import "tailwindcss";
-@import "@unityevolv/unitykit/theme.css";
+@import 'tailwindcss';
+@import '@unityevolv/unitykit/theme.css';
 
 /*
  * Three sources, and the paths are load-bearing.

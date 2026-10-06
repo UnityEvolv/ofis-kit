@@ -59,9 +59,9 @@ describe('minting a credential', () => {
     const credential = mintTurnCredential(options(), 'x', AT)
 
     expect(verifyTurnCredential(SECRET, credential.username, credential.credential, AT)).toBe(true)
-    expect(verifyTurnCredential('a-different-secret', credential.username, credential.credential, AT)).toBe(
-      false,
-    )
+    expect(
+      verifyTurnCredential('a-different-secret', credential.username, credential.credential, AT),
+    ).toBe(false)
   })
 
   it('stops working once it has expired, which is the whole point', () => {
@@ -69,12 +69,12 @@ describe('minting a credential', () => {
     // credential that leaked stops mattering by itself.
     const credential = mintTurnCredential(options({ ttlSeconds: 60 }), 'x', AT)
 
-    expect(verifyTurnCredential(SECRET, credential.username, credential.credential, AT + 30_000)).toBe(
-      true,
-    )
-    expect(verifyTurnCredential(SECRET, credential.username, credential.credential, AT + 61_000)).toBe(
-      false,
-    )
+    expect(
+      verifyTurnCredential(SECRET, credential.username, credential.credential, AT + 30_000),
+    ).toBe(true)
+    expect(
+      verifyTurnCredential(SECRET, credential.username, credential.credential, AT + 61_000),
+    ).toBe(false)
   })
 
   it('will not accept a credential moved onto a different username', () => {

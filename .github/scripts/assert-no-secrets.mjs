@@ -48,7 +48,11 @@ function triggersOf(source) {
   // `on: push` and `on: [push, pull_request]` are both legal.
   const inline = lines[start].slice(3).trim()
   if (inline && inline !== '|' && !inline.startsWith('#')) {
-    return inline.replace(/[[\]]/g, '').split(',').map((trigger) => trigger.trim()).filter(Boolean)
+    return inline
+      .replace(/[[\]]/g, '')
+      .split(',')
+      .map((trigger) => trigger.trim())
+      .filter(Boolean)
   }
 
   const triggers = []
@@ -93,5 +97,7 @@ if (problems.length > 0) {
   for (const problem of problems) console.error(`  - ${problem}\n`)
   process.exitCode = 1
 } else {
-  console.log('No workflow a stranger can trigger reads a secret, and none uses pull_request_target.')
+  console.log(
+    'No workflow a stranger can trigger reads a secret, and none uses pull_request_target.',
+  )
 }

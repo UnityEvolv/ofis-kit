@@ -51,12 +51,7 @@ export interface Identity {
  * allowed in somebody's implementation.
  */
 export type Permission =
-  | 'enter_office'
-  | 'join_room'
-  | 'lock_room'
-  | 'knock'
-  | 'invite'
-  | 'join_call'
+  'enter_office' | 'join_room' | 'lock_room' | 'knock' | 'invite' | 'join_call'
 
 export interface PermissionQuestion {
   permission: Permission
@@ -187,7 +182,8 @@ export function typedEmailIdentity(): IdentityAdapter {
         return {
           authenticated: false,
           code: 'identity.email_invalid',
-          message: 'That does not look like an email address. Nothing checks it, but it is your name here.',
+          message:
+            'That does not look like an email address. Nothing checks it, but it is your name here.',
         }
       }
       if (name.length === 0) {

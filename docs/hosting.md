@@ -7,12 +7,12 @@ optional relay, and the office layout in `config/`.
 There are four ways to run it, from trying it on a laptop to putting it on the
 internet for a team:
 
-| | What you get | Calls work |
-| --- | --- | --- |
-| [Development](#1-development) | The server and the app, reloading as you edit | On this machine |
-| [One process](#2-one-process) | The built app and the office on one port | On the same network |
-| [Docker Compose](#3-docker-compose) | The app, the office and a relay, in three containers | Through most firewalls |
-| [A public server](#4-a-public-server) | Compose behind HTTPS, on a domain | For anybody, anywhere |
+|                                       | What you get                                         | Calls work             |
+| ------------------------------------- | ---------------------------------------------------- | ---------------------- |
+| [Development](#1-development)         | The server and the app, reloading as you edit        | On this machine        |
+| [One process](#2-one-process)         | The built app and the office on one port             | On the same network    |
+| [Docker Compose](#3-docker-compose)   | The app, the office and a relay, in three containers | Through most firewalls |
+| [A public server](#4-a-public-server) | Compose behind HTTPS, on a domain                    | For anybody, anywhere  |
 
 There is also [the browser-only demo](#the-browser-only-demo), which runs the
 whole office in a tab and needs no server at all.
@@ -100,11 +100,11 @@ Point a name you own at the machine, for example `office.example.com`, with an
 
 ### Firewall
 
-| Port | Protocol | For |
-| --- | --- | --- |
-| 80, 443 | TCP | HTTPS, and the certificate authority's check |
-| 3478 | UDP and TCP | The relay's listening port |
-| 49152–65535 | UDP | The relay's media ports |
+| Port        | Protocol    | For                                          |
+| ----------- | ----------- | -------------------------------------------- |
+| 80, 443     | TCP         | HTTPS, and the certificate authority's check |
+| 3478        | UDP and TCP | The relay's listening port                   |
+| 49152–65535 | UDP         | The relay's media ports                      |
 
 Keep port 8080 closed to the internet. Only the reverse proxy talks to it.
 
@@ -166,23 +166,23 @@ says that this is a public demo, and not to say anything private in it.
 Read by `server/src/config.ts` once at start. That file is the only place in the
 repository allowed to name a host or a port, and it names none of yours.
 
-| Variable | Default | What it does |
-| --- | --- | --- |
-| `PORT` | `4000` | The port the process listens on. In Compose this is the server's; the app's is `PORT` on the `app` service, default `8080`. |
-| `HOST` | `0.0.0.0` | The address to bind. The default suits a container. |
-| `CONFIG_DIR` | `config/` | Where `template.json` and the office's pictures are. |
-| `TEMPLATE_PATH` | `CONFIG_DIR/template.json` | The layout, if it lives somewhere else. |
-| `APP_DIR` | `app/dist` | The built app this process serves. |
-| `WATCH_TEMPLATE` | `true`, or `false` when `NODE_ENV=production` | Re-read the template when the file changes. |
-| `OFFICE_ID` | `office` | The office's id. One process is one office. |
-| `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. Logs never contain names, emails or photos. |
-| `PRESENCE_GRACE_MS` | `30000` | How long somebody stays in their room after their last device drops, so a flaky connection is not a departure. |
-| `ALLOWED_ORIGINS` | none | Other origins allowed to open the socket, comma separated. Empty means the app's own origin only, which is right unless you host the app elsewhere. |
-| `TURN_SECRET` | none | The secret shared with the relay. It mints short-lived credentials per call; nothing else sees it. |
-| `TURN_URLS` | none | Relay addresses for browsers, comma separated. Empty means no relay. |
-| `STUN_URLS` | none | STUN addresses for browsers, comma separated. |
-| `TURN_TTL_SECONDS` | `43200` | How long a relay credential lasts. |
-| `DEMO` | `false` | Public demo mode: a warning on the entry screen. |
+| Variable            | Default                                       | What it does                                                                                                                                        |
+| ------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`              | `4000`                                        | The port the process listens on. In Compose this is the server's; the app's is `PORT` on the `app` service, default `8080`.                         |
+| `HOST`              | `0.0.0.0`                                     | The address to bind. The default suits a container.                                                                                                 |
+| `CONFIG_DIR`        | `config/`                                     | Where `template.json` and the office's pictures are.                                                                                                |
+| `TEMPLATE_PATH`     | `CONFIG_DIR/template.json`                    | The layout, if it lives somewhere else.                                                                                                             |
+| `APP_DIR`           | `app/dist`                                    | The built app this process serves.                                                                                                                  |
+| `WATCH_TEMPLATE`    | `true`, or `false` when `NODE_ENV=production` | Re-read the template when the file changes.                                                                                                         |
+| `OFFICE_ID`         | `office`                                      | The office's id. One process is one office.                                                                                                         |
+| `LOG_LEVEL`         | `info`                                        | `debug`, `info`, `warn` or `error`. Logs never contain names, emails or photos.                                                                     |
+| `PRESENCE_GRACE_MS` | `30000`                                       | How long somebody stays in their room after their last device drops, so a flaky connection is not a departure.                                      |
+| `ALLOWED_ORIGINS`   | none                                          | Other origins allowed to open the socket, comma separated. Empty means the app's own origin only, which is right unless you host the app elsewhere. |
+| `TURN_SECRET`       | none                                          | The secret shared with the relay. It mints short-lived credentials per call; nothing else sees it.                                                  |
+| `TURN_URLS`         | none                                          | Relay addresses for browsers, comma separated. Empty means no relay.                                                                                |
+| `STUN_URLS`         | none                                          | STUN addresses for browsers, comma separated.                                                                                                       |
+| `TURN_TTL_SECONDS`  | `43200`                                       | How long a relay credential lasts.                                                                                                                  |
+| `DEMO`              | `false`                                       | Public demo mode: a warning on the entry screen.                                                                                                    |
 
 ## Your own office
 

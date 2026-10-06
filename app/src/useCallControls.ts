@@ -1,5 +1,10 @@
 import type { OfisClient } from '@unityevolv/ofiskit-realtime-client'
-import { callIn, sharerIn, you as yourPresence, yourRoom } from '@unityevolv/ofiskit-realtime-client'
+import {
+  callIn,
+  sharerIn,
+  you as yourPresence,
+  yourRoom,
+} from '@unityevolv/ofiskit-realtime-client'
 import { useAnnounce, usePersisted } from '@unityevolv/ofiskit-ui-map'
 import type { OfficeState } from '@unityevolv/ofiskit-realtime-client'
 import type {
@@ -34,8 +39,7 @@ import { useCallback, useState } from 'react'
  * and the browser's picker opens immediately.
  */
 export type ShareQuestion =
-  | { kind: 'take-over'; sharerName: string }
-  | { kind: 'sources'; list: ScreenSource[] }
+  { kind: 'take-over'; sharerName: string } | { kind: 'sources'; list: ScreenSource[] }
 
 export interface CallControls {
   /** False in reception and the break room, which never have calls. */

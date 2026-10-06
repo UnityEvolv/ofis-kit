@@ -223,10 +223,7 @@ describe('the office on the client', () => {
           person({
             userId: 'ada',
             roomId: 'studio',
-            devices: [
-              device('laptop'),
-              device('phone', 'mobile'),
-            ],
+            devices: [device('laptop'), device('phone', 'mobile')],
           }),
         ],
       }),
@@ -238,17 +235,12 @@ describe('the office on the client', () => {
   it('badges somebody who is only on a phone, and nobody who is not', () => {
     // The badge is the only way to tell, since presence is per user. With a
     // laptop among their devices it would say nothing useful.
-    expect(isPhoneOnly(person({ userId: 'ada', devices: [device('p', 'mobile')] }))).toBe(
-      true,
-    )
+    expect(isPhoneOnly(person({ userId: 'ada', devices: [device('p', 'mobile')] }))).toBe(true)
     expect(
       isPhoneOnly(
         person({
           userId: 'ada',
-          devices: [
-            device('p', 'mobile'),
-            device('l'),
-          ],
+          devices: [device('p', 'mobile'), device('l')],
         }),
       ),
     ).toBe(false)

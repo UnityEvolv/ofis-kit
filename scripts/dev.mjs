@@ -68,5 +68,7 @@ build.on('exit', (code) => {
   run('server', npm, ['run', 'dev', '--workspace', 'ofiskit-server'], '35')
   run('app', npm, ['run', 'dev', '--workspace', 'ofiskit-app'], '32')
 
-  process.stdout.write('\nThe app is on the address Vite prints below. The server is behind it.\n\n')
+  process.stdout.write(
+    '\nThe app is on the address Vite prints below. The server is behind it.\n\n',
+  )
 })

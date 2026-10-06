@@ -40,12 +40,60 @@ const AVATAR_SIZE = 'medium'
  * somebody would sit wherever the template puts an avatar cell.
  */
 const ROOMS = [
-  { id: 'reception', name: 'Reception', type: 'reception', rect: { x: 0.04, y: 0.6, width: 0.28, height: 0.32 }, bar: 'top', cells: [2, 1], seats: 'lounge' },
-  { id: 'break', name: 'Break room', type: 'break', rect: { x: 0.68, y: 0.6, width: 0.28, height: 0.32 }, bar: 'top', cells: [3, 1], seats: 'lounge' },
-  { id: 'studio', name: 'Studio', type: 'workspace', rect: { x: 0.04, y: 0.1, width: 0.28, height: 0.38 }, bar: 'top', cells: [3, 2], seats: 'desks' },
-  { id: 'north', name: 'North meeting', type: 'meeting', rect: { x: 0.36, y: 0.1, width: 0.26, height: 0.3 }, bar: 'bottom', cells: [2, 1], seats: 'table' },
-  { id: 'east', name: 'East meeting', type: 'meeting', rect: { x: 0.66, y: 0.1, width: 0.3, height: 0.3 }, bar: 'bottom', cells: [3, 1], seats: 'table' },
-  { id: 'huddle', name: 'Huddle', type: 'workspace', rect: { x: 0.36, y: 0.52, width: 0.26, height: 0.4 }, bar: 'top', cells: [2, 2], seats: 'desks' },
+  {
+    id: 'reception',
+    name: 'Reception',
+    type: 'reception',
+    rect: { x: 0.04, y: 0.6, width: 0.28, height: 0.32 },
+    bar: 'top',
+    cells: [2, 1],
+    seats: 'lounge',
+  },
+  {
+    id: 'break',
+    name: 'Break room',
+    type: 'break',
+    rect: { x: 0.68, y: 0.6, width: 0.28, height: 0.32 },
+    bar: 'top',
+    cells: [3, 1],
+    seats: 'lounge',
+  },
+  {
+    id: 'studio',
+    name: 'Studio',
+    type: 'workspace',
+    rect: { x: 0.04, y: 0.1, width: 0.28, height: 0.38 },
+    bar: 'top',
+    cells: [3, 2],
+    seats: 'desks',
+  },
+  {
+    id: 'north',
+    name: 'North meeting',
+    type: 'meeting',
+    rect: { x: 0.36, y: 0.1, width: 0.26, height: 0.3 },
+    bar: 'bottom',
+    cells: [2, 1],
+    seats: 'table',
+  },
+  {
+    id: 'east',
+    name: 'East meeting',
+    type: 'meeting',
+    rect: { x: 0.66, y: 0.1, width: 0.3, height: 0.3 },
+    bar: 'bottom',
+    cells: [3, 1],
+    seats: 'table',
+  },
+  {
+    id: 'huddle',
+    name: 'Huddle',
+    type: 'workspace',
+    rect: { x: 0.36, y: 0.52, width: 0.26, height: 0.4 },
+    bar: 'top',
+    cells: [2, 2],
+    seats: 'desks',
+  },
 ]
 
 /**
@@ -99,7 +147,9 @@ function desks(area, colour) {
       const y = area.y + row * deskHeight + deskHeight * 0.2
       const width = deskWidth * 0.76
       const height = deskHeight * 0.34
-      parts.push(`<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="10" fill="${colour.wood}"/>`)
+      parts.push(
+        `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="10" fill="${colour.wood}"/>`,
+      )
       // Chairs, as simple discs: a seat read from directly above.
       parts.push(
         `<circle cx="${x + width * 0.3}" cy="${y + height + deskHeight * 0.16}" r="${Math.min(width, height) * 0.22}" fill="${colour.seat}"/>`,
@@ -116,7 +166,9 @@ function table(area, colour) {
   const height = area.height * 0.3
   const x = area.x + (area.width - width) / 2
   const y = area.y + (area.height - height) / 2
-  const parts = [`<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="14" fill="${colour.wood}"/>`]
+  const parts = [
+    `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="14" fill="${colour.wood}"/>`,
+  ]
 
   const seats = 4
   for (let index = 0; index < seats; index += 1) {
@@ -145,9 +197,7 @@ function lounge(area, colour) {
 
 function draw(theme, template) {
   const colour = PALETTES[theme]
-  const parts = [
-    `<rect width="${CANVAS.width}" height="${CANVAS.height}" fill="${colour.slab}"/>`,
-  ]
+  const parts = [`<rect width="${CANVAS.width}" height="${CANVAS.height}" fill="${colour.slab}"/>`]
 
   for (const room of template.rooms) {
     const described = ROOMS.find((candidate) => candidate.name === room.name)
@@ -197,7 +247,14 @@ function buildTemplate() {
       areas: [],
     }
     room.areas = [
-      centredArea(room, CANVAS.shape, AVATAR_SIZE, described.cells[0], described.cells[1], `${described.id}-area`),
+      centredArea(
+        room,
+        CANVAS.shape,
+        AVATAR_SIZE,
+        described.cells[0],
+        described.cells[1],
+        `${described.id}-area`,
+      ),
     ]
     return room
   })
@@ -217,9 +274,13 @@ const template = buildTemplate()
 
 for (const theme of ['light', 'dark']) {
   const svg = draw(theme, template)
-  await sharp(Buffer.from(svg)).webp({ quality: 88 }).toFile(join(here, `office-${theme}.webp`))
+  await sharp(Buffer.from(svg))
+    .webp({ quality: 88 })
+    .toFile(join(here, `office-${theme}.webp`))
 }
 
 await writeFile(join(here, 'template.json'), `${JSON.stringify(template, null, 2)}\n`)
 
-console.log(`Wrote template.json and two ${CANVAS.width}x${CANVAS.height} backgrounds for ${template.rooms.length} rooms.`)
+console.log(
+  `Wrote template.json and two ${CANVAS.width}x${CANVAS.height} backgrounds for ${template.rooms.length} rooms.`,
+)

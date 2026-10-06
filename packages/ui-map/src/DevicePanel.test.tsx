@@ -57,15 +57,7 @@ afterEach(() => {
 })
 
 const panel = (props: Partial<React.ComponentProps<typeof DevicePanel>> = {}) =>
-  render(
-    <DevicePanel
-      open
-      onClose={() => {}}
-      choice={{}}
-      onChoose={() => {}}
-      {...props}
-    />,
-  )
+  render(<DevicePanel open onClose={() => {}} choice={{}} onChoose={() => {}} {...props} />)
 
 describe('the device panel', () => {
   it('lists what is plugged in, by name', async () => {
@@ -82,7 +74,9 @@ describe('the device panel', () => {
     // Permission first, then the list: labels are empty until permission has been
     // granted once, and a picker offering "Microphone 1" helps nobody find their
     // headset.
-    await waitFor(() => expect(screen.getByRole('option', { name: 'Jabra Evolve' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: 'Jabra Evolve' })).toBeInTheDocument(),
+    )
     expect(screen.getByRole('combobox', { name: /microphone/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /camera/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /speaker/i })).toBeInTheDocument()
@@ -92,7 +86,9 @@ describe('the device panel', () => {
     browser({ devices: [info('audioinput', 'mic', 'Built-in')] })
     panel()
 
-    await waitFor(() => expect(screen.getByRole('option', { name: 'Built-in' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: 'Built-in' })).toBeInTheDocument(),
+    )
     expect(screen.queryByRole('combobox', { name: /speaker/i })).not.toBeInTheDocument()
   })
 
@@ -154,7 +150,9 @@ describe('the device panel', () => {
     browser({})
     panel()
     await waitFor(() =>
-      expect(screen.getByText(/noise suppression and echo cancellation are on/i)).toBeInTheDocument(),
+      expect(
+        screen.getByText(/noise suppression and echo cancellation are on/i),
+      ).toBeInTheDocument(),
     )
     expect(screen.getByText(/remembered on this device/i)).toBeInTheDocument()
   })
@@ -168,7 +166,9 @@ describe('before the browser asks', () => {
     const onContinue = vi.fn()
     render(<PermissionPrimer onContinue={onContinue} />)
 
-    expect(screen.getByRole('heading', { name: /let your browser use the microphone/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /let your browser use the microphone/i }),
+    ).toBeInTheDocument()
     expect(screen.getByText(/nothing is recorded/i)).toBeInTheDocument()
 
     await person.click(screen.getByRole('button', { name: /continue/i }))

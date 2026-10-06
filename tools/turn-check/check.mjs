@@ -82,7 +82,9 @@ function message({ method, transactionId, attributes = [], key = null }) {
 
   // 24 = the integrity attribute's own 4-byte header plus its 20-byte value.
   header.writeUInt16BE(body.length + 24, 2)
-  const digest = createHmac('sha1', key).update(Buffer.concat([header, body])).digest()
+  const digest = createHmac('sha1', key)
+    .update(Buffer.concat([header, body]))
+    .digest()
   return Buffer.concat([header, body, attribute(ATTR.messageIntegrity, digest)])
 }
 
@@ -187,7 +189,9 @@ async function allocateOn(socket, credential) {
   const nonce = challenge.attributes.get(ATTR.nonce)
   const realm = challenge.attributes.get(ATTR.realm) ?? Buffer.from(REALM)
   if (!nonce) {
-    throw new Error(`expected a 401 with a nonce, got ${errorCode(challenge.attributes) ?? 'success'}`)
+    throw new Error(
+      `expected a 401 with a nonce, got ${errorCode(challenge.attributes) ?? 'success'}`,
+    )
   }
 
   // The long-term credential key, which is md5 of the three joined by colons.

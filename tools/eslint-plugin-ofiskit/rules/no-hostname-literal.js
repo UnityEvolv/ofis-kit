@@ -9,7 +9,8 @@
  * Only product hostnames are flagged. A W3C namespace URL or a licence URL is
  * not something anyone will ever need to reconfigure.
  */
-const PRODUCT_HOST = /(?:^|[/@.\s"'`])(?:[a-z0-9-]+\.)*(?:unityevolv|unityofis|ofiskit)\.(?:com|dev|io|net|app)\b/i
+const PRODUCT_HOST =
+  /(?:^|[/@.\s"'`])(?:[a-z0-9-]+\.)*(?:unityevolv|unityofis|ofiskit)\.(?:com|dev|io|net|app)\b/i
 const ORIGIN_WITH_PORT = /^(?:https?|wss?):\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?/i
 
 function check(context, node, value) {

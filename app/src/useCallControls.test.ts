@@ -107,11 +107,13 @@ function fakeClient() {
 
 const sources = (list: ScreenSource[]) => ({ list: vi.fn(async () => list) })
 
-function controls(options: {
-  state?: ReturnType<typeof office>
-  screenSources?: { list: () => Promise<ScreenSource[]> } | null
-  narrow?: boolean
-} = {}) {
+function controls(
+  options: {
+    state?: ReturnType<typeof office>
+    screenSources?: { list: () => Promise<ScreenSource[]> } | null
+    narrow?: boolean
+  } = {},
+) {
   const { client, rtc } = fakeClient()
   const hook = renderHook(() =>
     useCallControls(client, options.state ?? office(), {

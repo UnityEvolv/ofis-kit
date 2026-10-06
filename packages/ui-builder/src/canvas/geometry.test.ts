@@ -73,7 +73,12 @@ describe('placing a user area', () => {
     const unit = unitOf(template)
     const usable = usableRect(room, template.canvas)
 
-    const placed = placeArea({ x: usable.x + GRID, y: usable.y + GRID }, { columns: 1, rows: 1 }, usable, unit)
+    const placed = placeArea(
+      { x: usable.x + GRID, y: usable.y + GRID },
+      { columns: 1, rows: 1 },
+      usable,
+      unit,
+    )
 
     expect(placed.x - usable.x).toBeLessThan(unit.width)
     expect(placed.y - usable.y).toBeLessThan(unit.height)
@@ -270,8 +275,8 @@ describe('the keyboard', () => {
   it('leaves a template alone when the thing being nudged is gone', () => {
     const template = office()
     expect(nudgeRoom(template, 'not-a-room', { x: 1, y: 0 }, GRID)).toEqual(template)
-    expect(moveArea(template, 'not-a-room', 'nor-an-area', { x: 0, y: 0 }, unitOf(template))).toEqual(
-      template,
-    )
+    expect(
+      moveArea(template, 'not-a-room', 'nor-an-area', { x: 0, y: 0 }, unitOf(template)),
+    ).toEqual(template)
   })
 })

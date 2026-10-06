@@ -1,0 +1,3 @@
+# Prettier and CI expect LF; without this a Windows checkout with core.autocrlf
+# fails format:check on every file it has never touched.
+* text=auto eol=lf

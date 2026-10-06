@@ -3,3 +3,4 @@ coverage/
 package-lock.json
 app/public/icons/
 CHANGELOG.md
+.claude/

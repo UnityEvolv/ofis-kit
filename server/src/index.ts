@@ -72,8 +72,7 @@ const realtime = createRealtimeServer({
      * back to a call leg without this process keeping a table of who was issued
      * what. There is no such table, because there is no database.
      */
-    iceServersFor: (context) =>
-      iceServersFor(config.turn, `${context.callId}:${context.deviceId}`),
+    iceServersFor: (context) => iceServersFor(config.turn, `${context.callId}:${context.deviceId}`),
   }),
   // No call hooks: there is no database to write a record to. unityofis binds
   // them and gets a record per call and per leg without the engine knowing.
@@ -82,7 +81,6 @@ const realtime = createRealtimeServer({
   logger,
   graceMs: config.graceMs,
   ...(config.allowedOrigins.length > 0 ? { allowedOrigins: config.allowedOrigins } : {}),
-
 })
 
 /**
@@ -128,7 +126,9 @@ async function serve(request: IncomingMessage, response: ServerResponse): Promis
 
   if (url.pathname === '/v1/template') {
     const template = await templates.get(config.officeId)
-    return template ? json(response, 200, template) : json(response, 404, { code: 'office.unknown', message: 'No office here.' })
+    return template
+      ? json(response, 200, template)
+      : json(response, 404, { code: 'office.unknown', message: 'No office here.' })
   }
 
   // The background image, from the config folder beside template.json.
@@ -206,7 +206,9 @@ async function file(
     'content-length': found.size,
     // Hashed assets never change, so they can be cached hard. index.html is the
     // thing that points at them, so it must not be.
-    'cache-control': path.includes('assets') ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
+    'cache-control': path.includes('assets')
+      ? 'public, max-age=31536000, immutable'
+      : 'public, max-age=300',
   })
   createReadStream(path).pipe(response)
   return true

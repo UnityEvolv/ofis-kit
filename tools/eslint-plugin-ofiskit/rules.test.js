@@ -24,7 +24,9 @@ tester.run('no-dom-in-agnostic', plugin.rules['no-dom-in-agnostic'], {
     // navigator and RTCPeerConnection are shimmed by React Native, so they are
     // cross-platform in practice and deliberately allowed.
     { code: 'export const pc = new RTCPeerConnection()' },
-    { code: 'export async function mic() { return navigator.mediaDevices.getUserMedia({ audio: true }) }' },
+    {
+      code: 'export async function mic() { return navigator.mediaDevices.getUserMedia({ audio: true }) }',
+    },
     // A local binding that happens to be called document is not the DOM.
     { code: 'export function render(document) { return document.title }' },
     { code: "import { io } from 'socket.io-client'\nexport const socket = io()" },

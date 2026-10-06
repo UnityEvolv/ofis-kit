@@ -96,13 +96,15 @@ export class MemoryPresenceStore implements PresenceStore {
   }
 
   async listRoom(officeId: string, roomId: string): Promise<Presence[]> {
-    return [...this.#prune(officeId).values()]
-      .filter((presence) => presence.roomId === roomId)
-      // Arrival order, so an avatar keeps its cell while others come and go.
-      // Ties break on user id purely so the order is stable rather than
-      // whatever insertion happened to be.
-      .sort((a, b) => a.arrivedAt.localeCompare(b.arrivedAt) || a.userId.localeCompare(b.userId))
-      .map((presence) => this.#clone(presence))
+    return (
+      [...this.#prune(officeId).values()]
+        .filter((presence) => presence.roomId === roomId)
+        // Arrival order, so an avatar keeps its cell while others come and go.
+        // Ties break on user id purely so the order is stable rather than
+        // whatever insertion happened to be.
+        .sort((a, b) => a.arrivedAt.localeCompare(b.arrivedAt) || a.userId.localeCompare(b.userId))
+        .map((presence) => this.#clone(presence))
+    )
   }
 
   async put(presence: Presence): Promise<void> {

@@ -86,7 +86,9 @@ export async function requestPermission(
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: want.audio
         ? {
-            ...(deviceChoice.audioDeviceId ? { deviceId: { exact: deviceChoice.audioDeviceId } } : {}),
+            ...(deviceChoice.audioDeviceId
+              ? { deviceId: { exact: deviceChoice.audioDeviceId } }
+              : {}),
             echoCancellation: true,
             noiseSuppression: true,
           }
@@ -144,7 +146,9 @@ export function stillAvailable(choice: DeviceChoice, devices: Devices): DeviceCh
     id !== undefined && list.some((device) => device.deviceId === id)
 
   return {
-    ...(has(devices.microphones, choice.audioDeviceId) ? { audioDeviceId: choice.audioDeviceId } : {}),
+    ...(has(devices.microphones, choice.audioDeviceId)
+      ? { audioDeviceId: choice.audioDeviceId }
+      : {}),
     ...(has(devices.cameras, choice.videoDeviceId) ? { videoDeviceId: choice.videoDeviceId } : {}),
     ...(has(devices.speakers, choice.speakerDeviceId)
       ? { speakerDeviceId: choice.speakerDeviceId }
@@ -156,6 +160,10 @@ export function stillAvailable(choice: DeviceChoice, devices: Devices): DeviceCh
 export function labelFor(device: MediaDeviceInfo, index: number): string {
   if (device.label) return device.label
   const kind =
-    device.kind === 'audioinput' ? 'Microphone' : device.kind === 'videoinput' ? 'Camera' : 'Speaker'
+    device.kind === 'audioinput'
+      ? 'Microphone'
+      : device.kind === 'videoinput'
+        ? 'Camera'
+        : 'Speaker'
   return `${kind} ${index + 1}`
 }

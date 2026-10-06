@@ -21,7 +21,15 @@ import { fileURLToPath } from 'node:url'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
-const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-pages', 'coverage', 'test-results', 'playwright-report'])
+const SKIP = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'dist-pages',
+  'coverage',
+  'test-results',
+  'playwright-report',
+])
 
 /** File names that are brand assets whatever they contain. */
 const FORBIDDEN_NAMES = [
@@ -52,7 +60,9 @@ async function walk(directory) {
 
     if (entry.isDirectory()) {
       if (entry.name === 'brand') {
-        problems.push(`${where}/ — a brand folder. Brand assets live in the frontend repo, not here.`)
+        problems.push(
+          `${where}/ — a brand folder. Brand assets live in the frontend repo, not here.`,
+        )
         continue
       }
       await walk(path)
@@ -75,12 +85,16 @@ async function walk(directory) {
 
     for (const line of source.split('\n')) {
       if (line.includes('@unityevolv/unitykit') && FORBIDDEN_IMPORTS.test(line)) {
-        problems.push(`${where} — imports the kit's Brand component. The engine has no identity of its own.`)
+        problems.push(
+          `${where} — imports the kit's Brand component. The engine has no identity of its own.`,
+        )
       }
     }
 
     if (/<link[^>]+rel=["'](icon|apple-touch-icon|manifest)/i.test(source)) {
-      problems.push(`${where} — links an icon or a manifest. Whoever hosts this decides what goes in the tab.`)
+      problems.push(
+        `${where} — links an icon or a manifest. Whoever hosts this decides what goes in the tab.`,
+      )
     }
   }
 }

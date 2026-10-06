@@ -69,7 +69,12 @@ describe('where the call tiles go', () => {
 
 describe('reading order, which is also the tab order', () => {
   it('goes left to right, then top to bottom', () => {
-    const rooms = [room('c', 0.7, 0.1), room('a', 0.1, 0.1), room('d', 0.1, 0.6), room('b', 0.4, 0.1)]
+    const rooms = [
+      room('c', 0.7, 0.1),
+      room('a', 0.1, 0.1),
+      room('d', 0.1, 0.6),
+      room('b', 0.4, 0.1),
+    ]
     expect(readingOrder(rooms).map((one) => one.id)).toEqual(['a', 'b', 'c', 'd'])
   })
 
@@ -99,7 +104,11 @@ describe('the arrow keys', () => {
   it('prefers a room in line with you over one that is closer but off to the side', () => {
     // The penalty for drifting sideways is what makes this feel like moving
     // through a grid rather than jumping diagonally across the office.
-    const diagonal = [room('here', 0.4, 0.4), room('close-but-diagonal', 0.5, 0.75), room('straight-down', 0.4, 0.8)]
+    const diagonal = [
+      room('here', 0.4, 0.4),
+      room('close-but-diagonal', 0.5, 0.75),
+      room('straight-down', 0.4, 0.8),
+    ]
     expect(roomInDirection(diagonal, diagonal[0]!, 'down')?.id).toBe('straight-down')
   })
 

@@ -10,12 +10,7 @@ icon comes from the kit at one weight.
 ```tsx
 import { OfficeMap } from '@unityevolv/ofiskit-ui-map'
 
-;<OfficeMap
-  template={template}
-  state={state}
-  imageUrl={officeImageUrl}
-  onJoin={client.joinRoom}
-/>
+;<OfficeMap template={template} state={state} imageUrl={officeImageUrl} onJoin={client.joinRoom} />
 ```
 
 It takes the office state and calls back; it never opens a socket itself. The
