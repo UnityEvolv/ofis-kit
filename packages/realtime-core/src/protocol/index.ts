@@ -563,6 +563,16 @@ export const Refusal = {
   OFFICE_FORBIDDEN: 'office.forbidden',
   /** Not in an office, so there is nothing to do this in. */
   NOT_PRESENT: 'office.not_present',
+  /** The office is at the ceiling its host set. Somebody has to leave first. */
+  OFFICE_FULL: 'office.full',
+  /**
+   * The device id is already somebody else's here.
+   *
+   * A device id is an address — signalling, call legs and share slots are all
+   * found by it — so two people on one id would be one of them receiving the
+   * other's calls. A client that meets this should pick a fresh id and try again.
+   */
+  DEVICE_IN_USE: 'device.in_use',
 
   ROOM_UNKNOWN: 'room.unknown',
   /** An edit to the layout took away the room you were in. */
