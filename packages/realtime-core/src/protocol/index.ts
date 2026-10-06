@@ -279,8 +279,13 @@ export interface SignalMessage {
    * than as a call event because it is provider-internal — a provider whose SDK
    * labels its own tracks never sends it, and the core relays it without looking
    * inside, exactly as it does an offer.
+   *
+   * `camera` is the same provider saying its camera stream has stopped. Taking a
+   * track off a connection does not end it on the far side — it goes quiet and
+   * the last frame stays on screen — so the sender says so rather than leaving
+   * the receiver to notice.
    */
-  type: 'offer' | 'answer' | 'candidate' | 'share'
+  type: 'offer' | 'answer' | 'candidate' | 'share' | 'camera'
   payload: unknown
 }
 

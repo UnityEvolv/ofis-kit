@@ -74,6 +74,16 @@ interface Peer {
   videoStreams: Map<string, MediaStream>
   /** Which of them the peer says is its screen. Null when it is not sharing. */
   shareStreamId: string | null
+  /**
+   * Streams the peer has said are finished: a camera turned off, a share stopped.
+   *
+   * Remembered so that one of them going briefly live again — a last packet, an
+   * unmute on the way out — cannot put it back on screen. A camera turned on again
+   * is a new stream with a new id, so nothing that is wanted is ever in here.
+   */
+  retired: Set<string>
+  /** The id the far side knows our camera by, which a device switch does not change. */
+  sentCameraStreamId: string | null
   /** What we last told the app, so a re-classification emits the difference only. */
   shown: { camera: string | null; screen: string | null }
   connectTimer: ReturnType<typeof setTimeout> | null
@@ -166,16 +176,7 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
   async function ensureMicrophone(): Promise<MediaStream | null> {
     if (microphone) return microphone
     try {
-      microphone = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          ...(audioDeviceId ? { deviceId: { exact: audioDeviceId } } : {}),
-          // What the browser gives us for free, and what makes a laptop in a
-          // room with three other people usable at all.
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      })
+      microphone = await navigator.mediaDevices.getUserMedia(microphoneConstraints(audioDeviceId))
       watchLevel(microphone)
       return microphone
     } catch (cause) {
@@ -263,6 +264,9 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
    * afterwards is the one mistake this indicator must never make.
    */
   function watchLevel(stream: MediaStream): void {
+    // One watcher, on whichever microphone is live now. A second would go on
+    // measuring a stopped track and report silence over the top of the real one.
+    stopLevel()
     try {
       audioContext = new AudioContext()
       analyser = audioContext.createAnalyser()
@@ -290,6 +294,14 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       // No audio context is survivable: speaking indicators stop working and
       // the call itself is unaffected, which is the right thing to lose.
     }
+  }
+
+  function stopLevel(): void {
+    if (levelTimer) clearInterval(levelTimer)
+    levelTimer = null
+    analyser = null
+    void audioContext?.close().catch(() => {})
+    audioContext = null
   }
 
   // ------------------------------------------------------------------ peers
@@ -320,6 +332,8 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       wantsVideo: true,
       videoStreams: new Map(),
       shareStreamId: null,
+      retired: new Set(),
+      sentCameraStreamId: null,
       shown: { camera: null, screen: null },
       connectTimer: null,
       channels: new Map(),
@@ -373,10 +387,33 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
         return
       }
 
+      if (peer.retired.has(stream.id)) return
       peer.videoStreams.set(stream.id, stream)
-      track.onended = () => {
-        peer.videoStreams.delete(stream.id)
+
+      /*
+       * Every way a remote video can stop, because ending is the one that never
+       * comes.
+       *
+       * `removeTrack` on the far side does not end the track here: it mutes it and
+       * takes it out of its stream, and a tile listening only for `ended` keeps the
+       * last frame up for the rest of the call. So muting takes the stream off
+       * screen and unmuting puts it back — which also covers a sender that has
+       * paused sending to us — and the stream losing its last video track forgets
+       * it. The sender says so over signalling too; whichever arrives first wins.
+       */
+      const forget = () => {
+        if (peer.videoStreams.delete(stream.id)) syncVideo(peer)
+      }
+      track.onended = forget
+      track.onmute = forget
+      track.onunmute = () => {
+        if (peer.retired.has(stream.id) || track.readyState === 'ended') return
+        if (peer.videoStreams.has(stream.id)) return
+        peer.videoStreams.set(stream.id, stream)
         syncVideo(peer)
+      }
+      stream.onremovetrack = () => {
+        if (stream.getVideoTracks().length === 0) forget()
       }
       syncVideo(peer)
     }
@@ -468,6 +505,29 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
     })
   }
 
+  /** A stream the peer has finished with: off screen, and kept off. */
+  function retire(peer: Peer, streamId: string): void {
+    peer.retired.add(streamId)
+    peer.videoStreams.delete(streamId)
+  }
+
+  /**
+   * Tell a peer our camera has stopped.
+   *
+   * Sent because the far side cannot tell for itself: taking the track off the
+   * connection mutes it there rather than ending it, and a receiver that waited
+   * for an end would show our last frame until the call was over.
+   */
+  function announceCameraOff(peer: Peer): void {
+    if (peer.sentCameraStreamId === null) return
+    signaller.send({
+      to: peer.deviceId,
+      type: 'camera',
+      payload: { streamId: peer.sentCameraStreamId, active: false },
+    })
+    peer.sentCameraStreamId = null
+  }
+
   async function restart(peer: Peer): Promise<void> {
     try {
       await peer.connection.setLocalDescription(
@@ -497,6 +557,7 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
     const videoTrack = camera?.getVideoTracks()[0]
     if (videoTrack && !peer.senders.video) {
       peer.senders.video = peer.connection.addTrack(videoTrack, camera!)
+      peer.sentCameraStreamId = camera!.id
       await applyVideoCeiling(peer.senders.video, peer.wantsVideo)
     }
 
@@ -686,8 +747,23 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       if (message.type === 'share') {
         const payload = message.payload as { streamId?: unknown; active?: unknown } | null
         const streamId = typeof payload?.streamId === 'string' ? payload.streamId : null
+        const previous = peer.shareStreamId
         peer.shareStreamId = payload?.active === true ? streamId : null
+        // A share that stopped is finished, not reclassified. Left among the
+        // streams, its last frame would be the only video this peer has and would
+        // be promoted into their face tile.
+        if (previous !== null && previous !== peer.shareStreamId) retire(peer, previous)
         syncVideo(peer)
+        return
+      }
+
+      // The camera going off, said by the one side that knows.
+      if (message.type === 'camera') {
+        const payload = message.payload as { streamId?: unknown; active?: unknown } | null
+        if (payload?.active === false && typeof payload.streamId === 'string') {
+          retire(peer, payload.streamId)
+          syncVideo(peer)
+        }
         return
       }
 
@@ -893,6 +969,10 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       for (const peer of peers.values()) await publishTo(peer)
     } else if (camera) {
       for (const peer of peers.values()) {
+        // Said before the track goes, for the same reason a share is: signalling
+        // is one hop and the removal is a renegotiation, so the receiver hears
+        // first and never draws a frozen frame in between.
+        announceCameraOff(peer)
         if (peer.senders.video) {
           peer.connection.removeTrack(peer.senders.video)
           peer.senders.video = null
@@ -1027,13 +1107,20 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
       // mid-call should not interrupt the conversation.
       if (devices.audioDeviceId && microphone) {
         const replacement = await navigator.mediaDevices
-          .getUserMedia({ audio: { deviceId: { exact: devices.audioDeviceId } } })
+          .getUserMedia(microphoneConstraints(devices.audioDeviceId))
           .catch(() => null)
         const track = replacement?.getAudioTracks()[0]
-        if (track) {
+        if (replacement && track) {
+          // The mute carries over. A new track starts enabled, and switching
+          // headset while muted must not quietly open the microphone to the room.
+          track.enabled = microphone.getAudioTracks()[0]?.enabled ?? true
           for (const peer of peers.values()) await peer.senders.audio?.replaceTrack(track)
           for (const old of microphone.getAudioTracks()) old.stop()
           microphone = replacement
+          // And the speaking indicator listens to the microphone in use, rather
+          // than to the stopped one, which would read as silence for ever.
+          watchLevel(replacement)
+          state()
         }
       }
 
@@ -1054,6 +1141,20 @@ export function meshAdapter(signaller: Signaller): RtcClientAdapter {
     on(handler: RtcHandler) {
       handlers.add(handler)
       return () => handlers.delete(handler)
+    },
+  }
+}
+
+/** What a microphone is asked for, the first time and on every switch. */
+function microphoneConstraints(deviceId: string | undefined): MediaStreamConstraints {
+  return {
+    audio: {
+      ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+      // What the browser gives us for free, and what makes a laptop in a room
+      // with three other people usable at all.
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
     },
   }
 }
