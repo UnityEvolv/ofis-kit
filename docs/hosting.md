@@ -75,6 +75,12 @@ Open `http://localhost:8080`. Three containers, because they are three things:
 `config/` is mounted into the server read-only, so editing the office is an edit
 and a restart, with nothing rebuilt.
 
+Port 8080 is published on `127.0.0.1` only, so the office is reachable from this
+machine and from a reverse proxy on it, and from nowhere else. That is the right
+default for a public server, where Docker's published ports otherwise go around
+the host's firewall. To open it to your network instead — a LAN with no proxy —
+set `BIND=0.0.0.0`; `PORT` changes the port.
+
 **Docker Desktop on Mac or Windows:** coturn uses host networking, which is a
 Linux feature. On Docker Desktop the relay may not be reachable. On a laptop
 that is harmless, because two browsers on one machine never need a relay. It
@@ -106,7 +112,9 @@ Point a name you own at the machine, for example `office.example.com`, with an
 | 3478        | UDP and TCP | The relay's listening port                   |
 | 49152–65535 | UDP         | The relay's media ports                      |
 
-Keep port 8080 closed to the internet. Only the reverse proxy talks to it.
+Keep port 8080 closed to the internet. Only the reverse proxy talks to it, which
+the compose file arranges by publishing it on `127.0.0.1` alone; leave `BIND`
+unset here.
 
 ### Settings
 
