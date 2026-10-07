@@ -15,7 +15,7 @@
   "dependencies": {
     "@unityevolv/ofiskit-adapters": "0.2.0",
     "@unityevolv/ofiskit-presence-store": "0.1.1",
-    "@unityevolv/ofiskit-realtime-core": "0.3.0",
+    "@unityevolv/ofiskit-realtime-core": "0.3.1",
     "@unityevolv/ofiskit-template": "0.2.0"
   }
 }
