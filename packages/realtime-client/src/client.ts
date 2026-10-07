@@ -3,7 +3,10 @@ import type {
   CallJoinResponse,
   CustomStatus,
   DeviceKind,
+  FollowEndReason,
+  FollowState,
   ManualStatus,
+  NudgeDelivery,
   OfficeDiff,
   OfficeSnapshot,
   SignalMessage,
@@ -78,8 +81,55 @@ export type ClientEvent =
    * call, the ordinary way, and needs no event for it.
    */
   | { type: 'share.ended'; roomId: string; reason: 'taken_over'; byUserId: string }
+  /**
+   * Somebody nudged you.
+   *
+   * `delivery: 'held'` means you were busy or in a call when it arrived: keep it
+   * as a quiet badge and show it once the call is over. Not stored anywhere — a
+   * client that was not connected missed it, which is the point of a tap on the
+   * shoulder. `roomId` is where they were, so "join them" is one move.
+   */
+  | {
+      type: 'nudge'
+      nudgeId: string
+      userId: string
+      displayName: string
+      photoUrl?: string
+      roomId: string
+      line?: string
+      delivery: NudgeDelivery
+      at: string
+    }
+  /** Somebody would like to follow you. */
+  | {
+      type: 'follow.requested'
+      requestId: string
+      userId: string
+      displayName: string
+      photoUrl?: string
+      expiresAt: string
+    }
+  /** A follow request is over, either side's — including nobody answering. */
+  | {
+      type: 'follow.resolved'
+      requestId: string
+      outcome: 'accepted' | 'declined' | 'expired' | 'cancelled'
+    }
+  /** You were moved because the person you follow moved. */
+  | { type: 'follow.moved'; leaderId: string; roomId: string }
+  /** They moved and you stayed, and why. You are still following. */
+  | { type: 'follow.held'; leaderId: string; roomId: string; code: string; message: string }
+  /** A follow ended, yours or one of your followers', and why. */
+  | { type: 'follow.ended'; leaderId: string; followerId: string; reason: FollowEndReason }
   /** A move or an action the server refused, with the reason to show. */
-  | { type: 'refused'; action: string; code: string; message: string }
+  | {
+      type: 'refused'
+      action: string
+      code: string
+      message: string
+      /** Detail a host put on its refusal, such as a return date. Never parsed for meaning. */
+      fields?: Record<string, string>
+    }
   | { type: 'status'; status: ConnectionStatus }
   | { type: 'closed'; code: string; message: string }
   /** Everything the provider's client half reports, in one shape. */
@@ -184,6 +234,30 @@ export interface OfisClient {
   raiseHand(raised: boolean): Promise<Ack>
   /** React, without interrupting. Rate limited by the server, which may refuse. */
   react(reaction: string): Promise<Ack>
+
+  /**
+   * Tap somebody on the shoulder, with at most one plain line.
+   *
+   * Refused — and said so as a `refused` event — when they are on do not
+   * disturb, away, offline or out of office, or when you have nudged too often.
+   * Never queued. `delivery` says whether it reached their screen now or is
+   * waiting quietly for their call to end.
+   */
+  nudge(userId: string, line?: string): Promise<Ack<{ nudgeId: string; delivery: NudgeDelivery }>>
+
+  /**
+   * Ask to follow somebody. `following` is true when the host remembered they need
+   * not be asked, and the follow has already started.
+   */
+  requestFollow(userId: string): Promise<Ack<{ requestId: string; following: boolean }>>
+  /** Say yes to somebody asking to follow you, for this session. */
+  acceptFollow(requestId: string): Promise<Ack>
+  /** Say no. Only they are told, and they cannot ask again for a while. */
+  declineFollow(requestId: string): Promise<Ack>
+  /** Stop following, or withdraw a request still waiting. */
+  stopFollowing(): Promise<Ack>
+  /** Stop one person following you. */
+  removeFollower(userId: string): Promise<Ack>
 
   /** The provider's client half. What the controls bar and the tiles talk to. */
   rtc: RtcClientAdapter
@@ -296,6 +370,26 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
     })
   }
 
+  /** A refusal, said as an event, with whatever detail the server attached. */
+  const refuse = (
+    action: string,
+    result: { code: string; message: string; fields?: Record<string, string> },
+  ) =>
+    emit({
+      type: 'refused',
+      action,
+      code: result.code,
+      message: result.message,
+      ...(result.fields ? { fields: result.fields } : {}),
+    })
+
+  /** Ask, and announce a refusal: for the deliberate presses that can be refused. */
+  async function answer(event: string, payload?: unknown): Promise<Ack> {
+    const result = await ask(event, payload)
+    if (!result.ok) refuse(event, result)
+    return result
+  }
+
   /**
    * The gap handler.
    *
@@ -360,6 +454,63 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
   socket.on('template:changed', () => emit({ type: 'template.changed' }))
   socket.on('office:notice', (notice: { code: string; message: string }) =>
     emit({ type: 'notice', code: notice.code, message: notice.message }),
+  )
+
+  socket.on(
+    'nudge:received',
+    (event: {
+      nudgeId: string
+      userId: string
+      displayName: string
+      photoUrl?: string
+      roomId: string
+      line?: string
+      delivery: NudgeDelivery
+      at: string
+    }) => emit({ type: 'nudge', ...event }),
+  )
+
+  socket.on(
+    'follow:requested',
+    (event: {
+      requestId: string
+      userId: string
+      displayName: string
+      photoUrl?: string
+      expiresAt: string
+    }) => emit({ type: 'follow.requested', ...event }),
+  )
+  socket.on(
+    'follow:resolved',
+    (event: { requestId: string; outcome: 'accepted' | 'declined' | 'expired' | 'cancelled' }) =>
+      emit({ type: 'follow.resolved', ...event }),
+  )
+  /*
+   * Your side of following, whole. Kept on the state rather than only emitted,
+   * because the stop control and the followers list are drawn from it and have
+   * to be right after a reload as well as after an event.
+   */
+  socket.on('follow:state', (follow: FollowState) => {
+    publish({ ...state, you: { ...state.you, follow } })
+  })
+  socket.on('follow:moved', (event: { leaderId: string; roomId: string }) =>
+    emit({ type: 'follow.moved', ...event }),
+  )
+  socket.on(
+    'follow:held',
+    (event: { leaderId: string; roomId: string; code: string; message: string }) =>
+      emit({
+        type: 'follow.held',
+        leaderId: event.leaderId,
+        roomId: event.roomId,
+        code: event.code,
+        message: event.message,
+      }),
+  )
+  socket.on(
+    'follow:ended',
+    (event: { leaderId: string; followerId: string; reason: FollowEndReason }) =>
+      emit({ type: 'follow.ended', ...event }),
   )
 
   socket.on(
@@ -642,6 +793,34 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
       }
       return result
     },
+
+    /**
+     * Nudge, and say so if it was refused.
+     *
+     * The refusal is the feature as much as the delivery is: "Priya is on do not
+     * disturb" is how somebody learns not to keep trying, and the fields carry
+     * what a host added, such as when they are back.
+     */
+    async nudge(userId, line) {
+      const result = await ask<{ nudgeId: string; delivery: NudgeDelivery }>('person:nudge', {
+        userId,
+        ...(line === undefined ? {} : { line }),
+      })
+      if (!result.ok) refuse('person:nudge', result)
+      return result
+    },
+
+    async requestFollow(userId) {
+      const result = await ask<{ requestId: string; following: boolean }>('follow:request', {
+        userId,
+      })
+      if (!result.ok) refuse('follow:request', result)
+      return result
+    },
+    acceptFollow: (requestId) => answer('follow:accept', { requestId }),
+    declineFollow: (requestId) => answer('follow:decline', { requestId }),
+    stopFollowing: () => answer('follow:stop'),
+    removeFollower: (userId) => answer('follow:remove', { userId }),
 
     rtc,
   }

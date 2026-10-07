@@ -1,6 +1,8 @@
 import type {
   ConnectionContext,
+  Decision,
   EventBus,
+  FollowChange,
   HostEvent,
   Identity,
   IdentityAdapter,
@@ -28,7 +30,9 @@ import {
 
 import { Broadcaster, DIFF_WINDOW_MS } from './broadcast.js'
 import { CallRegistry, type CallHooks, type CallLeg, type RtcServerPlugin } from './calls.js'
+import { FOLLOW_DEFAULTS, FollowBook, type FollowOptions } from './follow.js'
 import { silentLogger, type Logger } from './logger.js'
+import { NUDGE_DEFAULTS, cleanNudgeLine, nudgeDelivery, type NudgeOptions } from './nudge.js'
 import {
   REACTIONS,
   Refusal,
@@ -37,7 +41,10 @@ import {
   type CallJoinRequest,
   type CallJoinResponse,
   type EnterOfficeRequest,
+  type FollowEndReason,
   type MediaStateRequest,
+  type NudgeDelivery,
+  type NudgeRequest,
   type OfficeSnapshot,
   type PublicPresence,
   type SignalMessage,
@@ -62,8 +69,18 @@ import type { Transport } from './transport.js'
  * added here rather than a change to what is already written.
  */
 
-const fail = (code: string, message: string): Refused => ({ ok: false, code, message })
+const fail = (code: string, message: string, fields?: Record<string, string>): Refused => ({
+  ok: false,
+  code,
+  message,
+  ...(fields ? { fields } : {}),
+})
 const done = (): Ack => ({ ok: true })
+/** Whole seconds to wait, for a sentence. */
+const seconds = (ms: number): number => Math.ceil(ms / 1000)
+/** An adapter's "no", passed on whole — including any fields it carries, such as a return date. */
+const refusedBy = (decision: Extract<Decision, { allowed: false }>): Refused =>
+  fail(decision.code, decision.message, decision.fields)
 
 /**
  * How long a knock waits before it gives up.
@@ -216,6 +233,18 @@ export interface OfficeEngineOptions {
    * anybody can open does not become free conferencing for whoever finds it.
    */
   maxPresent?: number | null
+  /**
+   * How often somebody may nudge: per person and overall. Anything left out takes
+   * its default from `NUDGE_DEFAULTS` — three a minute to one person, ten a minute
+   * overall. Counted by `limiter`, so a host on many nodes has one budget.
+   */
+  nudge?: Partial<NudgeOptions>
+  /**
+   * The limits of following. Anything left out takes its default from
+   * `FOLLOW_DEFAULTS` — five followers per person, ten minutes before a declined
+   * asker may ask again.
+   */
+  follow?: Partial<FollowOptions>
 }
 
 export class OfficeEngine {
@@ -260,6 +289,20 @@ export class OfficeEngine {
   readonly #admissions = new Map<string, { userId: string; expiresAt: number }>()
   /** The calls happening right now, which are not presence and never merged into it. */
   readonly #calls: CallRegistry
+  /**
+   * Who follows whom. In memory, like admissions: a link between two people that
+   * dies with either of them. Kept the same on every node by publishing each
+   * change on the host bus.
+   */
+  readonly #follows: FollowBook
+  /**
+   * The timers following needs: a request lapsing, and a move giving up on a
+   * follower's call. On the node that started them, with expiry also checked at
+   * the moment of use for a node that never fires them.
+   */
+  readonly #followTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  readonly #nudgeLimits: NudgeOptions
+  readonly #followLimits: FollowOptions
   #unsubscribe: (() => void) | null = null
 
   constructor(options: OfficeEngineOptions) {
@@ -268,6 +311,9 @@ export class OfficeEngine {
     this.#transport = options.transport
     this.#logger = options.logger ?? silentLogger()
     this.#now = options.now ?? (() => Date.now())
+    this.#follows = new FollowBook(this.#now)
+    this.#nudgeLimits = { ...NUDGE_DEFAULTS, ...definedOnly(options.nudge) }
+    this.#followLimits = { ...FOLLOW_DEFAULTS, ...definedOnly(options.follow) }
     this.#broadcaster = new Broadcaster(
       options.store,
       options.transport,
@@ -615,19 +661,38 @@ export class OfficeEngine {
       return fail(Refusal.ROOM_ALREADY_THERE, `You are already in ${room.name}.`)
     }
 
+    const refused = await this.#entryRefusal(officeId, identity, room)
+    if (refused) return refused
+
+    await this.#move(officeId, presence, roomId)
+    // Walking somewhere by yourself while following somebody stops the follow,
+    // because that is obviously what was meant.
+    this.#endFollowing(identity.id, 'moved_away')
+    return done()
+  }
+
+  /**
+   * Whether this person may walk into this room now, or the refusal.
+   *
+   * The same three questions for a move somebody makes and a move following makes
+   * for them, so a follower is never pushed through a door they could not open
+   * themselves. Asked in a fixed order: may they (the adapter), is it locked, is
+   * there room.
+   */
+  async #entryRefusal(officeId: string, identity: Identity, room: Room): Promise<Refused | null> {
     const permitted = await this.#options.identity.may({
       permission: 'join_room',
       identity,
       officeId,
-      roomId,
+      roomId: room.id,
     })
-    if (!permitted.allowed) return fail(permitted.code, permitted.message)
+    if (!permitted.allowed) return refusedBy(permitted)
 
     // The lock, and the one thing that gets past it. `#wasAdmitted` is spent by
     // asking: an admission lets one person in once, and does not survive into a
     // second attempt or into anybody else's.
-    const locked = (await this.#store.locks(officeId)).some((lock) => lock.roomId === roomId)
-    if (locked && !this.#wasAdmitted(officeId, roomId, identity.id)) {
+    const locked = (await this.#store.locks(officeId)).some((lock) => lock.roomId === room.id)
+    if (locked && !this.#wasAdmitted(officeId, room.id, identity.id)) {
       return fail(Refusal.ROOM_LOCKED, `${room.name} is locked. Knock to ask to come in.`)
     }
 
@@ -636,12 +701,10 @@ export class OfficeEngine {
     // while they were reaching for the door is refused and stays where they are.
     const capacity = this.#options.roomCapacity?.(room) ?? null
     if (capacity !== null) {
-      const inside = await this.#store.listRoom(officeId, roomId)
+      const inside = await this.#store.listRoom(officeId, room.id)
       if (inside.length >= capacity) return fail(Refusal.ROOM_FULL, `${room.name} is full.`)
     }
-
-    await this.#move(officeId, presence, roomId)
-    return done()
+    return null
   }
 
   /** Leave the room you are in, which puts you back in reception. */
@@ -657,6 +720,7 @@ export class OfficeEngine {
     if (presence.roomId === reception.id) return done()
 
     await this.#move(officeId, presence, reception.id)
+    this.#endFollowing(presence.userId, 'moved_away')
     return done()
   }
 
@@ -715,6 +779,10 @@ export class OfficeEngine {
     })
 
     this.#logger.debug('moved', { userId: presence.userId, officeId, roomId })
+
+    // Whoever follows this person comes along, each by the same rules as walking
+    // in themselves. Nobody who follows can be followed, so this never recurses.
+    await this.#carryFollowers(officeId, presence.userId, roomId)
   }
 
   // ------------------------------------------------------- lock, knock, admit
@@ -833,10 +901,9 @@ export class OfficeEngine {
       KNOCK_WINDOW_MS,
     )
     if (!verdict.allowed) {
-      const seconds = Math.ceil(verdict.retryAfterMs / 1000)
       return fail(
         Refusal.KNOCK_RATE_LIMITED,
-        `You have knocked a few times already. Try again in ${seconds} seconds.`,
+        `You have knocked a few times already. Try again in ${seconds(verdict.retryAfterMs)} seconds.`,
       )
     }
 
@@ -1534,6 +1601,8 @@ export class OfficeEngine {
     const next = { ...presence, inCall }
     await this.#store.put(next)
     await this.#announcePerson(officeId, next)
+    // A follower whose move was waiting for this call to end goes now.
+    if (!inCall) await this.#catchUp(officeId, userId)
   }
 
   /** Still in a call? Only if some device of theirs still has a leg. */
@@ -1565,6 +1634,554 @@ export class OfficeEngine {
         .map((leg) => [leg.deviceId, leg] as const),
     )
     return toPublic(presence, at, legs)
+  }
+
+  // ------------------------------------------------------------------- nudges
+
+  /**
+   * Tap somebody on the shoulder.
+   *
+   * One signal to one person, carrying who and at most one line. **Nothing is
+   * stored**: not here, not in the presence store, not anywhere. It goes to the
+   * recipient's sockets and is forgotten, so a screen that was not connected
+   * missed it — which is right, because it is a tap on the shoulder and not a
+   * letter.
+   *
+   * The questions in order: is the request well formed, is the person here, may
+   * the sender (the host's adapter, which knows about guests and out of office),
+   * what does their status allow, and has the sender done this too often. The
+   * status comes before the limits so that being told somebody is on do not
+   * disturb does not spend the sender's budget.
+   */
+  async nudge(
+    connectionId: string,
+    request: NudgeRequest,
+  ): Promise<Ack<{ nudgeId: string; delivery: NudgeDelivery }>> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { identity, officeId, presence } = resolved
+
+    const targetId = typeof request?.userId === 'string' ? request.userId : ''
+    if (targetId.length === 0) return fail(Refusal.MALFORMED, 'Say who to nudge.')
+    if (targetId === identity.id) return fail(Refusal.NUDGE_SELF, 'You cannot nudge yourself.')
+
+    const line = cleanNudgeLine(request?.line)
+    if (line === null) {
+      return fail(Refusal.NUDGE_LINE_INVALID, 'A nudge carries one short line of plain text.')
+    }
+
+    // Only somebody in this office: a nudge is about now, and somebody who is not
+    // here has nothing to look up from.
+    const target = await this.#store.get(officeId, targetId)
+    if (!target) {
+      return fail(
+        Refusal.NUDGE_OFFLINE,
+        'They are not in the office right now, so the nudge was not sent.',
+      )
+    }
+
+    const permitted = await this.#options.identity.may({
+      permission: 'nudge',
+      identity,
+      officeId,
+      targetUserId: targetId,
+    })
+    if (!permitted.allowed) return refusedBy(permitted)
+
+    const at = this.#now()
+    const delivery = nudgeDelivery(resolveStatus(target, at), target.displayName)
+    if (typeof delivery !== 'string') return fail(delivery.code, delivery.message)
+
+    // The person first: tapping one colleague again and again is the commoner
+    // nuisance, and the refusal can name them.
+    const limits = this.#nudgeLimits
+    const toThem = await this.#options.limiter.take(
+      `nudge:${identity.id}:${targetId}`,
+      limits.perPersonLimit,
+      limits.perPersonWindowMs,
+    )
+    if (!toThem.allowed) {
+      return fail(
+        Refusal.NUDGE_RATE_LIMITED_PERSON,
+        `You nudged ${target.displayName} a moment ago. Try again in ${seconds(toThem.retryAfterMs)} seconds.`,
+        { retry_after_ms: String(toThem.retryAfterMs) },
+      )
+    }
+    const overall = await this.#options.limiter.take(
+      `nudge:${identity.id}`,
+      limits.perSenderLimit,
+      limits.perSenderWindowMs,
+    )
+    if (!overall.allowed) {
+      return fail(
+        Refusal.NUDGE_RATE_LIMITED,
+        `That is a lot of nudges at once. Try again in ${seconds(overall.retryAfterMs)} seconds.`,
+        { retry_after_ms: String(overall.retryAfterMs) },
+      )
+    }
+
+    const nudgeId = newId()
+    this.#transport.toUser(targetId, 'nudge:received', {
+      nudgeId,
+      userId: identity.id,
+      displayName: identity.displayName,
+      ...(identity.photoUrl ? { photoUrl: identity.photoUrl } : {}),
+      // Where they were when they nudged, so "join them" needs nothing else.
+      roomId: presence.roomId,
+      ...(line ? { line } : {}),
+      delivery,
+      at: new Date(at).toISOString(),
+    })
+    // No line in the log: it is something a person wrote to another person.
+    this.#logger.debug('nudged', { officeId, userId: identity.id, targetUserId: targetId })
+    return { ok: true, nudgeId, delivery }
+  }
+
+  // ----------------------------------------------------------------- following
+
+  /**
+   * Ask to follow somebody.
+   *
+   * Asked for, never taken: a person's movements around the office are not
+   * public choreography for anybody to attach themselves to. The request goes to
+   * them and waits, and lapses on its own like a knock. Only when the host says
+   * this pair needs no asking — an allowance the person being followed gave
+   * earlier, which the engine never remembers itself — does it start at once.
+   */
+  async requestFollow(
+    connectionId: string,
+    leaderId: string,
+  ): Promise<Ack<{ requestId: string; following: boolean }>> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { identity, officeId } = resolved
+    const at = this.#now()
+
+    if (leaderId.length === 0) return fail(Refusal.MALFORMED, 'Say who to follow.')
+    if (leaderId === identity.id) return fail(Refusal.FOLLOW_SELF, 'You cannot follow yourself.')
+
+    const leader = await this.#store.get(officeId, leaderId)
+    if (!leader) return fail(Refusal.PERSON_UNKNOWN, 'They are not in the office right now.')
+    const name = leader.displayName
+
+    // Asking the same person again while they decide is the same request, not a
+    // second card on their screen.
+    const pending = this.#follows.requestFrom(identity.id, at)
+    if (pending?.leaderId === leaderId) {
+      return { ok: true, requestId: pending.requestId, following: false }
+    }
+
+    const shape = this.#followShapeRefusal(identity.id, leaderId, name)
+    if (shape) return shape
+
+    if (resolveStatus(leader, at) === 'dnd') {
+      return fail(Refusal.FOLLOW_DND, `${name} is on do not disturb, so they cannot be asked now.`)
+    }
+
+    const wait = this.#follows.cooldownLeft(identity.id, leaderId, at)
+    if (wait > 0) {
+      return fail(
+        Refusal.FOLLOW_COOLDOWN,
+        `${name} said not now. You can ask again in ${Math.ceil(wait / 60_000)} minutes.`,
+        { retry_after_ms: String(wait) },
+      )
+    }
+
+    const permitted = await this.#options.identity.may({
+      permission: 'follow',
+      identity,
+      officeId,
+      targetUserId: leaderId,
+    })
+    if (!permitted.allowed) return refusedBy(permitted)
+
+    // One request out at a time: asking somebody else withdraws the last one.
+    if (pending) this.#withdrawRequest(pending.requestId, pending.leaderId)
+
+    const requestId = newId()
+    const standing =
+      (await this.#options.identity.followsWithoutAsking?.({
+        officeId,
+        follower: identity,
+        leaderId,
+      })) ?? false
+
+    if (standing) {
+      await this.#link(officeId, identity.id, leaderId)
+      return { ok: true, requestId, following: true }
+    }
+
+    const expiresAt = at + this.#followLimits.requestTtlMs
+    this.#changeFollow({
+      op: 'asked',
+      requestId,
+      followerId: identity.id,
+      leaderId,
+      expiresAt,
+    })
+    this.#transport.toUser(leaderId, 'follow:requested', {
+      requestId,
+      userId: identity.id,
+      displayName: identity.displayName,
+      ...(identity.photoUrl ? { photoUrl: identity.photoUrl } : {}),
+      expiresAt: new Date(expiresAt).toISOString(),
+    })
+    this.#sendFollowState(identity.id)
+
+    this.#startFollowTimer(`request:${requestId}`, this.#followLimits.requestTtlMs, () => {
+      if (!this.#follows.request(requestId, Number.NEGATIVE_INFINITY)) return
+      this.#changeFollow({ op: 'unasked', requestId })
+      this.#transport.toUser(identity.id, 'follow:resolved', { requestId, outcome: 'expired' })
+      this.#transport.toUser(leaderId, 'follow:resolved', { requestId, outcome: 'expired' })
+      this.#sendFollowState(identity.id)
+    })
+
+    this.#logger.debug('follow asked', { officeId, userId: identity.id, targetUserId: leaderId })
+    return { ok: true, requestId, following: false }
+  }
+
+  /** Say yes to a follower. For this session only: the engine remembers nothing. */
+  async acceptFollow(connectionId: string, requestId: string): Promise<Ack> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { identity, officeId, presence } = resolved
+
+    const request = this.#follows.request(requestId, this.#now())
+    if (!request || request.leaderId !== identity.id) {
+      return fail(Refusal.FOLLOW_UNKNOWN, 'That request is no longer waiting.')
+    }
+
+    const follower = await this.#store.get(officeId, request.followerId)
+    // Checked again rather than trusted from when they asked: in the minute it
+    // waited, somebody else may have filled the last place or started a chain.
+    const refusal = follower
+      ? this.#followShapeRefusal(request.followerId, identity.id, presence.displayName, true)
+      : fail(Refusal.FOLLOW_UNKNOWN, 'They are not in the office any more.')
+    if (refusal) {
+      this.#withdrawRequest(requestId, identity.id)
+      return refusal
+    }
+
+    this.#clearFollowTimer(`request:${requestId}`)
+    this.#transport.toUser(request.followerId, 'follow:resolved', {
+      requestId,
+      outcome: 'accepted',
+    })
+    this.#transport.toUser(identity.id, 'follow:resolved', { requestId, outcome: 'accepted' })
+    await this.#link(officeId, request.followerId, identity.id)
+    return done()
+  }
+
+  /**
+   * Say no. Silent to everybody but the asker, who cannot ask again for a while.
+   */
+  async declineFollow(connectionId: string, requestId: string): Promise<Ack> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { identity } = resolved
+    const at = this.#now()
+
+    const request = this.#follows.request(requestId, at)
+    if (!request || request.leaderId !== identity.id) {
+      return fail(Refusal.FOLLOW_UNKNOWN, 'That request is no longer waiting.')
+    }
+
+    this.#clearFollowTimer(`request:${requestId}`)
+    this.#changeFollow({ op: 'unasked', requestId })
+    this.#changeFollow({
+      op: 'declined',
+      followerId: request.followerId,
+      leaderId: identity.id,
+      until: at + this.#followLimits.declineCooldownMs,
+    })
+    this.#transport.toUser(request.followerId, 'follow:resolved', {
+      requestId,
+      outcome: 'declined',
+    })
+    // The decliner's own other screens, so the card goes from all of them.
+    this.#transport.toUser(identity.id, 'follow:resolved', { requestId, outcome: 'declined' })
+    this.#sendFollowState(request.followerId)
+    return done()
+  }
+
+  /**
+   * Stop following, or withdraw a request still waiting.
+   *
+   * Always there while following, and always works: an exit that can be refused
+   * is not an exit.
+   */
+  async stopFollowing(connectionId: string): Promise<Ack> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { identity } = resolved
+
+    if (this.#follows.linkOf(identity.id)) {
+      this.#endFollowing(identity.id, 'stopped')
+      return done()
+    }
+    const pending = this.#follows.requestFrom(identity.id, this.#now())
+    if (pending) {
+      this.#withdrawRequest(pending.requestId, pending.leaderId)
+      return done()
+    }
+    return fail(Refusal.FOLLOW_NOT_FOLLOWING, 'You are not following anybody.')
+  }
+
+  /** The person being followed cutting one follower loose. */
+  async removeFollower(connectionId: string, followerId: string): Promise<Ack> {
+    const resolved = await this.#resolve(connectionId)
+    if ('ok' in resolved) return resolved
+    const { identity } = resolved
+
+    if (this.#follows.linkOf(followerId)?.leaderId !== identity.id) {
+      return fail(Refusal.FOLLOW_NOT_FOLLOWING, 'They are not following you.')
+    }
+    this.#endFollowing(followerId, 'removed')
+    return done()
+  }
+
+  /**
+   * Whether this pair can be a follow at all, regardless of who is asking.
+   *
+   * Following cannot be chained, in either direction: somebody who follows
+   * cannot be followed, and somebody being followed cannot follow. And nobody is
+   * followed by more than a handful of people at once.
+   */
+  #followShapeRefusal(
+    followerId: string,
+    leaderId: string,
+    leaderName: string,
+    answering = false,
+  ): Refused | null {
+    const already = this.#follows.linkOf(followerId)
+    if (already) {
+      return fail(
+        Refusal.FOLLOW_ALREADY,
+        answering
+          ? 'They are already following somebody else.'
+          : 'You are already following somebody. Stop first.',
+      )
+    }
+    if (this.#follows.followersOf(followerId).length > 0) {
+      return fail(
+        Refusal.FOLLOW_CHAIN,
+        answering
+          ? 'People are following them, so they cannot follow anybody.'
+          : 'People are following you, so you cannot follow anybody yourself.',
+      )
+    }
+    if (this.#follows.linkOf(leaderId)) {
+      return fail(
+        Refusal.FOLLOW_CHAIN,
+        answering
+          ? 'You are following somebody, so nobody can follow you.'
+          : `${leaderName} is following somebody, so they cannot be followed.`,
+      )
+    }
+    if (this.#follows.followersOf(leaderId).length >= this.#followLimits.maxFollowers) {
+      return fail(
+        Refusal.FOLLOW_FULL,
+        answering
+          ? `You already have ${this.#followLimits.maxFollowers} people following you.`
+          : `${leaderName} already has as many people following them as anybody can.`,
+      )
+    }
+    return null
+  }
+
+  /** Start a follow, tell both, and bring the follower to where they are now. */
+  async #link(officeId: string, followerId: string, leaderId: string): Promise<void> {
+    this.#changeFollow({ op: 'linked', followerId, leaderId, since: this.#now() })
+    this.#sendFollowState(followerId)
+    this.#sendFollowState(leaderId)
+    this.#logger.debug('following', { officeId, userId: followerId, targetUserId: leaderId })
+
+    // Following starts where they are, by the same rules as every later move.
+    const leader = await this.#store.get(officeId, leaderId)
+    if (leader) await this.#carryFollower(officeId, followerId, leaderId, leader.roomId)
+  }
+
+  /** A request withdrawn by the asker, or overtaken: both sides told it is over. */
+  #withdrawRequest(requestId: string, leaderId: string): void {
+    const request = this.#follows.request(requestId, Number.NEGATIVE_INFINITY)
+    this.#clearFollowTimer(`request:${requestId}`)
+    this.#changeFollow({ op: 'unasked', requestId })
+    this.#transport.toUser(leaderId, 'follow:resolved', { requestId, outcome: 'cancelled' })
+    if (request) {
+      this.#transport.toUser(request.followerId, 'follow:resolved', {
+        requestId,
+        outcome: 'cancelled',
+      })
+      this.#sendFollowState(request.followerId)
+    }
+  }
+
+  /** End this person's follow, if they have one, and tell both of them why. */
+  #endFollowing(followerId: string, reason: FollowEndReason): void {
+    const link = this.#follows.linkOf(followerId)
+    if (!link) return
+    this.#clearFollowTimer(`wait:${followerId}`)
+    this.#changeFollow({ op: 'unlinked', followerId })
+    const ended = { leaderId: link.leaderId, followerId, reason }
+    this.#transport.toUser(followerId, 'follow:ended', ended)
+    this.#transport.toUser(link.leaderId, 'follow:ended', ended)
+    this.#sendFollowState(followerId)
+    this.#sendFollowState(link.leaderId)
+  }
+
+  /** Everything following-related about somebody who has gone. */
+  #endFollowsOf(userId: string): void {
+    this.#endFollowing(userId, 'left')
+    for (const follower of this.#follows.followersOf(userId)) {
+      this.#endFollowing(follower.followerId, 'left')
+    }
+    for (const request of this.#follows.requestsInvolving(userId)) {
+      this.#withdrawRequest(request.requestId, request.leaderId)
+    }
+  }
+
+  /** Everybody following this person, to the room they just walked into. */
+  async #carryFollowers(officeId: string, leaderId: string, roomId: string): Promise<void> {
+    if (officeId !== this.#options.officeId) return
+    for (const link of this.#follows.followersOf(leaderId)) {
+      await this.#carryFollower(officeId, link.followerId, leaderId, roomId)
+    }
+  }
+
+  /**
+   * One follower, to one room, if they may.
+   *
+   * Never through a door they could not open themselves: a locked room, a full
+   * one, or one they have no access to leaves them where they are, told why, and
+   * still following, so the next move picks them up. Somebody in a call is not
+   * moved at all — the move waits for the call to end, and a call that goes on
+   * too long ends the follow instead, with a line saying so.
+   */
+  async #carryFollower(
+    officeId: string,
+    followerId: string,
+    leaderId: string,
+    roomId: string,
+  ): Promise<void> {
+    const follower = await this.#store.get(officeId, followerId)
+    if (!follower) return
+    const link = this.#follows.linkOf(followerId)
+    if (!link || link.leaderId !== leaderId) return
+
+    if (follower.roomId === roomId) {
+      if (link.waiting) this.#stopWaiting(followerId)
+      return
+    }
+
+    if (follower.inCall) {
+      const until = link.waiting?.until ?? this.#now() + this.#followLimits.callWaitMs
+      this.#changeFollow({ op: 'waiting', followerId, roomId, until })
+      if (!link.waiting) {
+        this.#startFollowTimer(`wait:${followerId}`, until - this.#now(), () => {
+          void this.#giveUpWaiting(officeId, followerId)
+        })
+      }
+      this.#transport.toUser(followerId, 'follow:held', {
+        leaderId,
+        roomId,
+        code: Refusal.FOLLOW_WAITING_FOR_CALL,
+        message: 'You are in a call, so you will follow once it ends.',
+      })
+      this.#sendFollowState(followerId)
+      return
+    }
+
+    const template = await this.#options.templates.get(officeId)
+    const room = template?.rooms.find((candidate) => candidate.id === roomId)
+    if (!room) return
+
+    // The follower's own identity where their socket is on this node; otherwise
+    // the person as the office knows them, which is all a host needs to answer by id.
+    const identity = this.#identityOf(followerId) ?? {
+      id: followerId,
+      displayName: follower.displayName,
+    }
+    const refused = await this.#entryRefusal(officeId, identity, room)
+    if (link.waiting) this.#stopWaiting(followerId)
+    if (refused) {
+      this.#transport.toUser(followerId, 'follow:held', {
+        leaderId,
+        roomId,
+        code: refused.code,
+        message: refused.message,
+      })
+      return
+    }
+
+    await this.#move(officeId, follower, roomId)
+    this.#transport.toUser(followerId, 'follow:moved', { leaderId, roomId })
+  }
+
+  /** A follower's call ended: if a move was waiting, it goes now — to wherever the leader is. */
+  async #catchUp(officeId: string, followerId: string): Promise<void> {
+    const link = this.#follows.linkOf(followerId)
+    if (!link?.waiting) return
+    if (link.waiting.until <= this.#now()) {
+      this.#endFollowing(followerId, 'call')
+      return
+    }
+    const leader = await this.#store.get(officeId, link.leaderId)
+    if (!leader) return
+    await this.#carryFollower(officeId, followerId, link.leaderId, leader.roomId)
+  }
+
+  /** The call went on longer than a move waits. The follow stops, and both are told. */
+  async #giveUpWaiting(officeId: string, followerId: string): Promise<void> {
+    const link = this.#follows.linkOf(followerId)
+    if (!link?.waiting) return
+    const follower = await this.#store.get(officeId, followerId)
+    if (follower && !follower.inCall) {
+      await this.#catchUp(officeId, followerId)
+      return
+    }
+    this.#endFollowing(followerId, 'call')
+  }
+
+  #stopWaiting(followerId: string): void {
+    this.#clearFollowTimer(`wait:${followerId}`)
+    this.#changeFollow({ op: 'unwaiting', followerId })
+    this.#sendFollowState(followerId)
+  }
+
+  /** One change to the follow table: here, and on every other node. */
+  #changeFollow(change: FollowChange): void {
+    this.#follows.apply(change)
+    this.#options.events?.publish({
+      type: 'follow.changed',
+      officeId: this.#options.officeId,
+      change,
+    })
+  }
+
+  /** The whole of one person's side, to every device they have open. */
+  #sendFollowState(userId: string): void {
+    this.#transport.toUser(userId, 'follow:state', this.#follows.stateFor(userId, this.#now()))
+  }
+
+  #startFollowTimer(key: string, ms: number, run: () => void): void {
+    this.#clearFollowTimer(key)
+    const timer = setTimeout(
+      () => {
+        this.#followTimers.delete(key)
+        run()
+      },
+      Math.max(0, ms),
+    )
+    // Never holds the process open, like every other timer here.
+    timer.unref?.()
+    this.#followTimers.set(key, timer)
+  }
+
+  #clearFollowTimer(key: string): void {
+    const timer = this.#followTimers.get(key)
+    if (!timer) return
+    clearTimeout(timer)
+    this.#followTimers.delete(key)
   }
 
   // ------------------------------------------------------------------- status
@@ -1744,6 +2361,11 @@ export class OfficeEngine {
         // break room set is automatic as far as they are concerned, and the
         // control offers no way back from something they did not choose.
         manual: mine?.manualFrom === 'user' ? (mine.manual ?? null) : null,
+        // Survives a reload like `manual` does: being followed is shown on your
+        // own screen, and a fresh tab must not forget who is behind you.
+        ...(connection?.identity
+          ? { follow: this.#follows.stateFor(connection.identity.id, at) }
+          : {}),
       },
     }
   }
@@ -1926,6 +2548,10 @@ export class OfficeEngine {
 
     await this.#store.remove(officeId, userId)
 
+    // Following dies with either person: leaving the office, going offline for
+    // good or losing access all end every follow and request they were part of.
+    if (officeId === this.#options.officeId) this.#endFollowsOf(userId)
+
     // However they went — a clean exit, a closed tab, a crashed browser, or a
     // connection that dropped and never came back — a room is never left locked
     // with nobody in it.
@@ -1982,6 +2608,14 @@ export class OfficeEngine {
       // person is let in from whichever node their socket is on. Arriving back
       // on the node that published it only adds what is already there.
       this.#grantAdmission(event.officeId, event.roomId, event.userId)
+      return
+    }
+
+    if (event.type === 'follow.changed') {
+      // The table only, never a message: the node that made the change has
+      // already told whoever needed telling. Idempotent, so hearing our own
+      // change back changes nothing.
+      if (event.officeId === this.#options.officeId) this.#follows.apply(event.change)
     }
   }
 
@@ -2108,9 +2742,24 @@ export class OfficeEngine {
     for (const timer of this.#handTimers.values()) clearTimeout(timer)
     this.#handTimers.clear()
     this.#admissions.clear()
+    for (const timer of this.#followTimers.values()) clearTimeout(timer)
+    this.#followTimers.clear()
+    this.#follows.clear()
     this.#unsubscribe?.()
     this.#unsubscribe = null
   }
+}
+
+/**
+ * A partial options object without its `undefined` entries.
+ *
+ * So a host passing `{ maxFollowers: config.maxFollowers }` with the setting
+ * unset gets the default rather than `undefined` spread over it.
+ */
+function definedOnly<T extends object>(given: Partial<T> | undefined): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(given ?? {}).filter(([, value]) => value !== undefined),
+  ) as Partial<T>
 }
 
 /**

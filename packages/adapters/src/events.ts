@@ -92,8 +92,39 @@ export interface AdmissionGranted {
   userId: string
 }
 
+/**
+ * One change to who follows whom, published by the engine for its other nodes.
+ *
+ * Following lives in memory, like admissions, and for the same reason: it is a
+ * link between two sockets and dies with either. On one node that needs nothing.
+ * On many, the follower's request and the leader's move may land on different
+ * nodes, so every node keeps the same small table by applying these. Each
+ * change is idempotent: arriving back at the node that published it changes
+ * nothing. Instants are milliseconds since the epoch, because nobody reads them
+ * but the engine.
+ */
+export type FollowChange =
+  | { op: 'asked'; requestId: string; followerId: string; leaderId: string; expiresAt: number }
+  | { op: 'unasked'; requestId: string }
+  | { op: 'linked'; followerId: string; leaderId: string; since: number }
+  | { op: 'unlinked'; followerId: string }
+  | { op: 'declined'; followerId: string; leaderId: string; until: number }
+  | { op: 'waiting'; followerId: string; roomId: string; until: number }
+  | { op: 'unwaiting'; followerId: string }
+
+export interface FollowChanged {
+  type: 'follow.changed'
+  officeId: string
+  change: FollowChange
+}
+
 export type HostEvent =
-  AccessRevoked | ExternalStatusChanged | TemplateChanged | AccessChanged | AdmissionGranted
+  | AccessRevoked
+  | ExternalStatusChanged
+  | TemplateChanged
+  | AccessChanged
+  | AdmissionGranted
+  | FollowChanged
 
 export type HostEventHandler = (event: HostEvent) => void
 

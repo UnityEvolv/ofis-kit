@@ -7,7 +7,13 @@ import {
   CallControls,
   CallTiles,
   DevicePanel,
+  FollowRequestDock,
+  FollowersControl,
+  FollowingBar,
+  HeldNudges,
   KnockDock,
+  NudgeDialog,
+  NudgeDock,
   OfficeMap,
   OutgoingKnock,
   RoomListView,
@@ -40,6 +46,7 @@ import { officeImageUrl } from './config.js'
 import { hostScreenSources } from './screenSources.js'
 import { useCallControls } from './useCallControls.js'
 import { useKnocks } from './useKnocks.js'
+import { useNudgeFollow } from './useNudgeFollow.js'
 import { useOfficeView } from './useOfficeView.js'
 
 /**
@@ -226,6 +233,12 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
 
   const knocks = useKnocks(client, template)
 
+  /*
+   * Nudging and following: the notices, the card actions and what is said aloud.
+   * The card is the same everywhere a person is drawn, map or list.
+   */
+  const social = useNudgeFollow(client, state, template)
+
   const props = {
     template,
     state,
@@ -235,6 +248,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
     onKnock: knocks.knock,
     onLock: (id: string) => void client.lock(id),
     onUnlock: (id: string) => void client.unlock(id),
+    personActions: social.actionsFor,
   }
 
   return (
@@ -333,6 +347,25 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
 
           <KnockDock knocks={knocks.incoming} onAdmit={knocks.admit} onDecline={knocks.decline} />
 
+          {/*
+            Nudges and follow requests, top right: over the office like the knocks,
+            and out of their way.
+          */}
+          <div className="pointer-events-none absolute right-4 top-4 z-30 flex flex-col gap-2">
+            <NudgeDock
+              nudges={social.nudges.shown}
+              roomName={social.roomName}
+              yourRoomId={roomId}
+              onJoin={social.joinNudger}
+              onDismiss={social.nudges.dismiss}
+            />
+            <FollowRequestDock
+              requests={social.following.requests}
+              onAccept={social.accept}
+              onDecline={social.decline}
+            />
+          </div>
+
           {knocks.outgoing && (
             <div className="pointer-events-none absolute bottom-4 left-4 z-30 w-72">
               <OutgoingKnock
@@ -401,6 +434,14 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
               )}
             </span>
 
+            {/* Following, in plain sight with its stop, never in a menu. */}
+            <FollowingBar
+              follow={social.following.follow}
+              nameOf={social.nameOf}
+              roomName={social.roomName}
+              onStop={social.stopFollowing}
+            />
+
             {room && reception && room.id !== reception.id && (
               <Button size="sm" variant="ghost" onClick={() => void client.leaveRoom()}>
                 <Icon name="chevron-left" size="sm" />
@@ -448,6 +489,13 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
               volume={ambienceVolume}
               onEnabledChange={setAmbienceOn}
               onVolumeChange={setAmbienceVolume}
+            />
+
+            <HeldNudges count={social.nudges.held.length} />
+            <FollowersControl
+              follow={social.following.follow}
+              nameOf={social.nameOf}
+              onRemove={social.removeFollower}
             />
 
             {/* The line break between the second row and the third, on a phone. */}
@@ -510,6 +558,13 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
         nobody is sharing in opens the browser's own picker and nothing else happens
         here.
       */}
+      <NudgeDialog
+        open={social.composing !== null}
+        name={social.composing?.displayName ?? ''}
+        onSend={social.sendNudge}
+        onClose={social.closeComposer}
+      />
+
       {call.asking?.kind === 'take-over' && (
         <TakeOverDialog
           sharerName={call.asking.sharerName || 'Somebody'}

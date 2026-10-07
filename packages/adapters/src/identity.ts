@@ -51,7 +51,21 @@ export interface Identity {
  * allowed in somebody's implementation.
  */
 export type Permission =
-  'enter_office' | 'join_room' | 'lock_room' | 'knock' | 'invite' | 'join_call'
+  | 'enter_office'
+  | 'join_room'
+  | 'lock_room'
+  | 'knock'
+  | 'invite'
+  | 'join_call'
+  /**
+   * Tap this person on the shoulder. Asked with `targetUserId`. A host refuses
+   * here for anything the engine cannot see: a guest nudging somebody they have
+   * never shared a room with, or somebody out of office (`nudge.out_of_office`,
+   * with the return date in `fields.returns_on`).
+   */
+  | 'nudge'
+  /** Ask to follow this person. Asked with `targetUserId`, for the same reasons. */
+  | 'follow'
 
 export interface PermissionQuestion {
   permission: Permission
@@ -59,6 +73,17 @@ export interface PermissionQuestion {
   officeId: string
   /** Present for every room-scoped question. */
   roomId?: string
+  /** Present for every question about another person: `nudge` and `follow`. */
+  targetUserId?: string
+}
+
+/** Whether one person may follow another without being asked each time. */
+export interface FollowAllowanceQuestion {
+  officeId: string
+  /** The person asking to follow. */
+  follower: Identity
+  /** The person they would follow. */
+  leaderId: string
 }
 
 /**
@@ -121,6 +146,17 @@ export interface IdentityAdapter {
     officeId: string
     roomId: string | null
   }): Promise<void>
+
+  /**
+   * Has the person being followed said this follower need not ask?
+   *
+   * Optional, and absent in the free office, which is the engine's own default:
+   * every follow is asked for and lasts the session. unityofis remembers the
+   * allowance per pair, and answers from it. Never a permission — the free
+   * office's `may` says yes to everything, and "yes" here would let anybody
+   * attach themselves to anybody without asking.
+   */
+  followsWithoutAsking?(question: FollowAllowanceQuestion): Promise<boolean>
 }
 
 /**

@@ -2,6 +2,7 @@ import { Icon } from '@unityevolv/unitykit'
 import type { OfficeState, PublicPresence, RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import {
   callIn,
+  followOf,
   isLocked,
   occupancy,
   peopleIn,
@@ -83,6 +84,7 @@ export interface OfficeMapProps {
 
 export function OfficeMap(props: OfficeMapProps) {
   const { template, state, imageUrl, capacityOf, reactions } = props
+  const followersFor = followersOn(state)
   const { theme } = useTheme()
   const reducedMotion = useReducedMotion()
 
@@ -313,6 +315,7 @@ export function OfficeMap(props: OfficeMapProps) {
                           reducedMotion={reducedMotion}
                           reactions={reactions?.get(token.person.userId) ?? []}
                           actions={actions}
+                          followers={followersFor(token.person)}
                         />
                       </li>
                     )
@@ -367,6 +370,7 @@ export function OfficeMap(props: OfficeMapProps) {
  */
 export function RoomListView(props: OfficeMapProps) {
   const { template, state, capacityOf, reactions } = props
+  const followersFor = followersOn(state)
   const yourRoomId = yourRoom(state)
   const reducedMotion = useReducedMotion()
 
@@ -409,6 +413,7 @@ export function RoomListView(props: OfficeMapProps) {
       notice={props.noticeOf?.(room) ?? null}
       actions={props.roomActions?.(room) ?? null}
       personActions={(person) => props.personActions?.(person, room.id) ?? null}
+      followersFor={followersFor}
       reducedMotion={reducedMotion}
       {...(reactions ? { reactions } : {})}
       onJoin={() => props.onJoin(room.id)}
@@ -449,6 +454,7 @@ function RoomCard(props: {
   notice: string | null
   actions: HostAction[] | null
   personActions(person: PublicPresence): HostAction[] | null
+  followersFor(person: PublicPresence): number
   reducedMotion: boolean
   reactions?: ReadonlyMap<string, LiveReaction[]>
   onJoin(): void
@@ -512,6 +518,7 @@ function RoomCard(props: {
                 reducedMotion={props.reducedMotion}
                 reactions={props.reactions?.get(person.userId) ?? []}
                 actions={props.personActions(person)}
+                followers={props.followersFor(person)}
               />
             </li>
           ))}
@@ -598,4 +605,15 @@ export function MaximiseButton({ maximised, onToggle }: { maximised: boolean; on
       {maximised ? 'Restore' : 'Maximise'}
     </button>
   )
+}
+
+/**
+ * How many people follow this person, as far as this screen may know.
+ *
+ * Only ever your own count: who follows whom is between the two of them, so the
+ * office sees nothing, and you see the people behind you on your own avatar.
+ */
+function followersOn(state: OfficeState): (person: PublicPresence) => number {
+  const count = followOf(state).followers.length
+  return (person) => (person.userId === state.you.userId ? count : 0)
 }
