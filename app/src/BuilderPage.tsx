@@ -7,6 +7,8 @@ import {
 import type { Template } from '@unityevolv/ofiskit-template'
 import { useEffect, useState } from 'react'
 
+import { useAmbienceLibrary } from './ambience.js'
+
 /**
  * The builder, hosted as a page.
  *
@@ -21,6 +23,8 @@ import { useEffect, useState } from 'react'
 export function BuilderPage({ onBack }: { onBack?: () => void }) {
   const [prompt, setPrompt] = useState<PromptDocument | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
+  // The loops this app serves, for the office and room ambience controls.
+  const ambienceLibrary = useAmbienceLibrary()
 
   // Fetched rather than bundled, so improving the prompt reaches every author
   // without releasing the builder.
@@ -66,6 +70,7 @@ export function BuilderPage({ onBack }: { onBack?: () => void }) {
             document={prompt}
             saveLabel="Download template.json"
             onSave={download}
+            ambienceLibrary={ambienceLibrary}
             saveHint={(files) => (
               <>
                 When you are done, download <code>template.json</code> and put it in the{' '}

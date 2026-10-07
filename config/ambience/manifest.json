@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "note": "Placeholder loops, all CC0 (public domain dedication). Each was cut to a few minutes, mixed to mono, crossfaded end-into-start so it loops seamlessly, loudness-normalised to -24 LUFS and encoded as 96 kbps MP3. Replace a file and its entry to swap in a licensed loop; the id is what templates store, so keep it.",
+  "tracks": [
+    {
+      "id": "cafe",
+      "label": "Café",
+      "file": "cafe.mp3",
+      "durationSeconds": 150,
+      "placeholder": true,
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Marble Toast",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Cafe_ambiance.ogg",
+      "edit": "150 s from 01:00, mono, 4 s loop crossfade, -24 LUFS"
+    },
+    {
+      "id": "rain",
+      "label": "Rain",
+      "file": "rain.mp3",
+      "durationSeconds": 100,
+      "placeholder": true,
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "kvgarlic (freesound.org/people/kvgarlic)",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Light_Rain_Distant_Thunder_July_5th_2016.wav",
+      "originalUrl": "https://freesound.org/people/kvgarlic/sounds/349454/",
+      "edit": "100 s from 00:02, mono, 4 s loop crossfade, -24 LUFS"
+    },
+    {
+      "id": "stream",
+      "label": "Stream",
+      "file": "stream.mp3",
+      "durationSeconds": 62,
+      "placeholder": true,
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "jackthemurray (freesound.org/people/jackthemurray)",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:433589_jackthemurray_stream-river-water-up-close.wav",
+      "originalUrl": "https://freesound.org/people/jackthemurray/sounds/433589/",
+      "edit": "62 s from 00:01, mono, 4 s loop crossfade, -24 LUFS"
+    },
+    {
+      "id": "waves",
+      "label": "Waves",
+      "file": "waves.mp3",
+      "durationSeconds": 150,
+      "placeholder": true,
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Jarrod Stanley (J.D. Savanyu)",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ocean_Waves_on_a_Tropical_Beach.ogg",
+      "edit": "150 s from 00:30, mono, 4 s loop crossfade, -24 LUFS"
+    }
+  ]
+}

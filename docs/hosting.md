@@ -211,6 +211,29 @@ uploading it (and generating a dark version from an SVG), and placing rooms. It
 downloads `template.json` and tells you what to name the pictures. Put them in
 `config/`, restart, and that is your office.
 
+### Room ambience
+
+A room can play a quiet background loop — café, rain, a stream — chosen in the
+builder per room, with an office default for every room that does not choose.
+Nothing plays unless the template asks for it, and each person can turn it off
+or down from the bar at the bottom of the office; that choice is kept in their
+browser. It fades out when they join a call and back when they leave, and it is
+never part of the call: everyone plays their own copy.
+
+The loops are the library in `config/ambience/`:
+
+```
+config/ambience/manifest.json   the catalogue: each loop's id, label and file,
+                                and where it came from under what licence
+config/ambience/*.mp3           the loops
+```
+
+A template stores only a loop's id. To replace a loop, replace its file and keep
+its id; to add one, add the file and an entry. The loops shipped here are CC0
+placeholders, cut to loop seamlessly and recorded in the manifest with their
+sources. Keep them short (a few minutes), mono, and modest in bitrate: each is
+downloaded once per session by everyone who walks into a room that plays it.
+
 ## The browser-only demo
 
 The Pages build runs the entire office inside the browser: one tab hosts it and

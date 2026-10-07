@@ -2,6 +2,7 @@ import { Button, Icon, Select } from '@unityevolv/unitykit'
 import type { DeviceChoice, OfisClient } from '@unityevolv/ofiskit-realtime-client'
 import { statusIsChosen, you as yourPresence, yourRoom } from '@unityevolv/ofiskit-realtime-client'
 import {
+  AmbienceControl,
   CallAudio,
   CallControls,
   CallTiles,
@@ -16,6 +17,7 @@ import {
   StatusControl,
   TakeOverDialog,
   ViewToggle,
+  useAmbience,
   useAnnounce,
   useClientEvents,
   useIdleReporting,
@@ -30,9 +32,10 @@ import {
   useTheme,
 } from '@unityevolv/ofiskit-ui-map'
 import { tilePlacement } from '@unityevolv/ofiskit-ui-map'
-import { hostsCalls, type Template } from '@unityevolv/ofiskit-template'
+import { hostsCalls, roomTrack, type Template } from '@unityevolv/ofiskit-template'
 import { useCallback, useMemo, useState } from 'react'
 
+import { useAmbienceLibrary } from './ambience.js'
 import { officeImageUrl } from './config.js'
 import { hostScreenSources } from './screenSources.js'
 import { useCallControls } from './useCallControls.js'
@@ -176,6 +179,25 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
    * laptop they bring to meetings. Arrivals in reception make no sound, because
    * reception is where everybody arrives.
    */
+  /*
+   * The room's ambience: a quiet loop, if the room has one and the person wants it.
+   *
+   * There are no profiles here, so the switch and the volume are remembered in this
+   * browser. unityofis keeps the same two on the person's profile instead, which is
+   * the whole of the difference: the engine is told and never decides. It fades out
+   * for a call and back after, and dips under the knock and the chime below.
+   */
+  const ambienceLibrary = useAmbienceLibrary()
+  const [ambienceOn, setAmbienceOn] = usePersisted('ofiskit:ambience', true)
+  const [ambienceVolume, setAmbienceVolume] = usePersisted('ofiskit:ambience-volume', 0.4)
+  const ambience = useAmbience({
+    track: room ? roomTrack(template, room, ambienceLibrary) : null,
+    enabled: ambienceOn,
+    volume: ambienceVolume,
+    suspended: call.inCall,
+    ...(devices.speakerDeviceId ? { speakerDeviceId: devices.speakerDeviceId } : {}),
+  })
+
   const [soundsOn, setSoundsOn] = usePersisted('ofiskit:sounds', true)
   const quietRoomIds = useMemo(
     () => template.rooms.filter((one) => one.type === 'reception').map((one) => one.id),
@@ -184,6 +206,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   useSounds(client, state, {
     enabled: soundsOn,
     quietRoomIds,
+    onSound: ambience.duck,
     ...(devices.speakerDeviceId ? { speakerDeviceId: devices.speakerDeviceId } : {}),
   })
 
@@ -416,6 +439,16 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
                 sounds={{ on: soundsOn, onChange: setSoundsOn }}
               />
             </span>
+
+            {/* Present only in a room with a loop, and then even for somebody who has
+                it off, so they know what the people beside them can hear. */}
+            <AmbienceControl
+              ambience={ambience}
+              enabled={ambienceOn}
+              volume={ambienceVolume}
+              onEnabledChange={setAmbienceOn}
+              onVolumeChange={setAmbienceVolume}
+            />
 
             {/* The line break between the second row and the third, on a phone. */}
             <span aria-hidden="true" className="hidden h-0 basis-full max-sm:block" />
