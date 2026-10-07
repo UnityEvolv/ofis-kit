@@ -12,8 +12,11 @@ export {
   callIn,
   callSeats,
   emptyOffice,
+  followOf,
   fromSnapshot,
   handRaised,
+  isFollowedBy,
+  NOT_FOLLOWING,
   isLocked,
   isMuted,
   isPhoneOnly,
@@ -116,6 +119,18 @@ export {
 export { REACTIONS, type Reaction } from '@unityevolv/ofiskit-realtime-core/protocol'
 
 /**
+ * The longest line a nudge may carry, from the one place it is defined, so the
+ * composer counts down to exactly the number the server refuses past.
+ */
+export { NUDGE_LINE_MAX } from '@unityevolv/ofiskit-realtime-core/protocol'
+
+/**
+ * The refusal codes, so a host can branch on "on do not disturb" to offer a
+ * message instead, without spelling the string out itself.
+ */
+export { Refusal, type RefusalCode } from '@unityevolv/ofiskit-realtime-core/protocol'
+
+/**
  * The wire types, re-exported from the one place they are defined.
  *
  * A UI needs `PublicPresence` to draw a person and `Status` to draw a dot, and
@@ -127,7 +142,10 @@ export type {
   CallJoinResponse,
   CustomStatus,
   DeviceKind,
+  FollowEndReason,
+  FollowState,
   ManualStatus,
+  NudgeDelivery,
   OfficeChange,
   OfficeDiff,
   IceServer,
