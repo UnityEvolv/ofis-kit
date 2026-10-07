@@ -1,5 +1,12 @@
 # @unityevolv/ofiskit-ui-map
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [[`249d980`](https://github.com/UnityEvolv/ofis-kit/commit/249d9805287542f71296e9067645a3ee4f540090)]:
+  - @unityevolv/ofiskit-realtime-client@0.2.3
+
 ## 0.5.0
 
 ### Minor Changes

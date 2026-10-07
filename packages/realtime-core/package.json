@@ -1,6 +1,6 @@
 {
   "name": "@unityevolv/ofiskit-realtime-core",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "The office engine: presence, moves, status, lock and knock, snapshots and diffs, and WebRTC signalling, over one socket.",
   "license": "AGPL-3.0-only",
   "type": "module",
