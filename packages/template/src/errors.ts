@@ -47,6 +47,8 @@ export const TemplateError = {
   AVATAR_SIZE_UNKNOWN: 'template.avatar_size_unknown',
   /** No light background image. The dark one is optional; this one is not. */
   IMAGE_MISSING: 'template.image_missing',
+  /** An ambience that is not shaped like a library id (or, on a room, `"none"`). */
+  AMBIENCE_INVALID: 'template.ambience_invalid',
 
   ROOM_OVERLAP: 'template.room_overlap',
   ROOM_OUTSIDE_CANVAS: 'template.room_outside_canvas',
