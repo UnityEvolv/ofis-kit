@@ -74,6 +74,32 @@ export {
 export { useShare, useShareView, type Share, type UseShareOptions } from './useShare.js'
 export { createSounds, type Sounds } from './sounds.js'
 export { useSounds, type UseSoundsOptions } from './useSounds.js'
+/**
+ * Room ambience: the room's background loop, played locally and never into a
+ * call. The host says what to play and how loud; the engine only plays it.
+ */
+export {
+  AMBIENCE_DUCK_HOLD_MS,
+  AMBIENCE_DUCK_LEVEL,
+  AMBIENCE_FADE_MS,
+  AMBIENCE_LOAD_TIMEOUT_MS,
+  ambienceGain,
+  createAmbiencePlayer,
+  type AmbiencePlayback,
+  type AmbiencePlayer,
+} from './ambience.js'
+export {
+  useAmbience,
+  type Ambience,
+  type AmbienceStatus,
+  type UseAmbienceOptions,
+} from './useAmbience.js'
+export {
+  AMBIENCE_LABELS,
+  AmbienceControl,
+  type AmbienceControlProps,
+  type AmbienceLabels,
+} from './AmbienceControl.js'
 export { tileLayout, VIDEO_ASPECT, type TileLayout } from './tileLayout.js'
 export { Control, controlClasses, type ControlProps } from './controls.js'
 export { DevicePanel, PermissionPrimer, type DevicePanelProps } from './DevicePanel.js'

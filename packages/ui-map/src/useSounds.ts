@@ -30,14 +30,24 @@ export interface UseSoundsOptions {
   quietRoomIds: readonly string[]
   /** The speaker chosen for calls, so the office's sounds come out of the same place. */
   speakerDeviceId?: string
+  /**
+   * Called as a sound plays. The room's ambience ducks under it here
+   * (`useAmbience().duck`), so a knock is never buried under a café.
+   */
+  onSound?: () => void
   /** Injected in tests; the browser's own sounds otherwise. */
   sounds?: Sounds
 }
 
 export function useSounds(client: OfisClient, state: OfficeState, options: UseSoundsOptions): void {
   const sounds = useRef<Sounds | null>(options.sounds ?? null)
+  const onSound = useRef(options.onSound)
+  useEffect(() => {
+    onSound.current = options.onSound
+  }, [options.onSound])
   const play = useCallback((which: 'knock' | 'chime') => {
     sounds.current ??= createSounds()
+    onSound.current?.()
     sounds.current[which]()
   }, [])
 
