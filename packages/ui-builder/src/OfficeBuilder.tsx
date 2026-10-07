@@ -1,6 +1,7 @@
 import {
   validateTemplate,
   withAvatarSize,
+  type AmbienceTrack,
   type AvatarSize,
   type Template,
   type TemplateIssue,
@@ -43,6 +44,14 @@ export interface OfficeBuilderProps {
   onSave(template: Template): void
   /** Lets the host swap the images; the builder does not store files. */
   onPickImage?(which: 'light' | 'dark'): void
+  /**
+   * The loops this host can play, for the office and room ambience controls.
+   *
+   * The template stores only an id, so the builder lists what the host serves
+   * rather than knowing any loops itself. Absent or empty, and the ambience
+   * controls are not offered; a template's existing choices are kept untouched.
+   */
+  ambienceLibrary?: readonly AmbienceTrack[]
 }
 
 export function OfficeBuilder(props: OfficeBuilderProps) {
@@ -135,6 +144,7 @@ export function OfficeBuilder(props: OfficeBuilderProps) {
             <RoomInspector
               template={template}
               room={room}
+              {...(props.ambienceLibrary ? { ambienceLibrary: props.ambienceLibrary } : {})}
               onChange={history.set}
               onSelect={setSelection}
             />
@@ -151,7 +161,12 @@ export function OfficeBuilder(props: OfficeBuilderProps) {
           )}
 
           {selection.kind === 'none' && (
-            <TemplateDetails template={template} onChange={history.set} onSelect={setSelection} />
+            <TemplateDetails
+              template={template}
+              {...(props.ambienceLibrary ? { ambienceLibrary: props.ambienceLibrary } : {})}
+              onChange={history.set}
+              onSelect={setSelection}
+            />
           )}
         </section>
 

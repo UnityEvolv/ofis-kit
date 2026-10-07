@@ -1,7 +1,8 @@
 import { Input, Textarea } from '@unityevolv/unitykit'
-import { MAX_ROOMS, type Template } from '@unityevolv/ofiskit-template'
+import { MAX_ROOMS, type AmbienceTrack, type Template } from '@unityevolv/ofiskit-template'
 
 import type { Selection } from '../canvas/types.js'
+import { AmbienceField } from './AmbienceField.js'
 
 /**
  * The whole template, shown when nothing in particular is selected.
@@ -14,6 +15,8 @@ import type { Selection } from '../canvas/types.js'
 
 export function TemplateDetails(props: {
   template: Template
+  /** The host's loops. Without any, there is nothing to choose and no control. */
+  ambienceLibrary?: readonly AmbienceTrack[]
   onChange(template: Template): void
   onSelect(selection: Selection): void
 }) {
@@ -33,6 +36,19 @@ export function TemplateDetails(props: {
         value={template.description ?? ''}
         onChange={(event) => props.onChange({ ...template, description: event.target.value })}
       />
+
+      {props.ambienceLibrary && props.ambienceLibrary.length > 0 && (
+        <AmbienceField
+          label="Office ambience"
+          help="Every room plays this unless it chooses its own. Nothing plays when this is none."
+          value={template.ambience}
+          library={props.ambienceLibrary}
+          onChange={(ambience) => {
+            const { ambience: _previous, ...rest } = template
+            props.onChange(ambience === undefined ? rest : { ...rest, ambience })
+          }}
+        />
+      )}
 
       <p className="text-xs text-base-content/70">
         {template.rooms.length} of {MAX_ROOMS} rooms.
