@@ -50,6 +50,11 @@ export interface PersonAvatarProps {
    * None, or an empty list, and the avatar is left as it is.
    */
   actions?: readonly HostAction[] | null
+  /**
+   * How many people are following this person. Only ever set on your own avatar:
+   * being followed is shown plainly to the person followed, and to nobody else.
+   */
+  followers?: number
 }
 
 /**
@@ -94,6 +99,7 @@ export function PersonAvatar({
   reactions,
   onClick,
   actions,
+  followers = 0,
 }: PersonAvatarProps) {
   const device = deviceId ? person.devices.find((one) => one.deviceId === deviceId) : undefined
   const reconnecting = person.status === 'reconnecting'
@@ -132,6 +138,8 @@ export function PersonAvatar({
     sharing ? 'sharing their screen' : '',
     microphoneOff ? 'microphone off' : '',
     speaking ? 'speaking' : '',
+    followers === 1 ? 'one person following you' : '',
+    followers > 1 ? `${followers} people following you` : '',
   ]
     .filter(Boolean)
     .join(', ')
@@ -251,6 +259,22 @@ export function PersonAvatar({
         <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-base-100 p-px leading-none">
           <StatusDot status={person.status} size={Math.max(9, face * 0.3)} labelled={false} />
         </span>
+
+        {/*
+          Being followed, on the left, with the number. On your own avatar only:
+          being followed without knowing it is the failure following must never
+          have, and nobody else needs to see it.
+        */}
+        {followers > 0 && (
+          <span
+            aria-hidden="true"
+            data-testid="followers-badge"
+            className="absolute -left-2 top-1/2 flex -translate-y-1/2 items-center rounded-full bg-base-100 px-0.5 leading-none text-secondary ring-1 ring-base-300"
+          >
+            <Icon name="users" size="xs" />
+            <span className="text-[10px] font-semibold">{followers}</span>
+          </span>
+        )}
 
         {/*
           The device badge is the only way to tell somebody is on a phone, since

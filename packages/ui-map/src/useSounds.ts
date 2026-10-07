@@ -11,7 +11,8 @@ import { createSounds, type Sounds } from './sounds.js'
  * Three moments, each one about somebody reaching you:
  * - somebody knocks on the door of the room you are in — a knock;
  * - somebody walks into the room you are in — a chime;
- * - the room you knocked on lets you in — a chime.
+ * - the room you knocked on lets you in — a chime;
+ * - somebody nudges you, or asks to follow you — a chime.
  *
  * And the times it stays quiet, which matter as much:
  * - arrivals in reception, which is where everybody arrives — a chime every time
@@ -56,6 +57,10 @@ export function useSounds(client: OfisClient, state: OfficeState, options: UseSo
         if (quiet) return
         if (event.type === 'knock' && !event.silent) play('knock')
         if (event.type === 'admitted') play('chime')
+        // A nudge on screen now is a soft chime. A held one makes no sound at all:
+        // it waits because you are in a call.
+        if (event.type === 'nudge' && event.delivery === 'now') play('chime')
+        if (event.type === 'follow.requested') play('chime')
       },
       [play, quiet],
     ),

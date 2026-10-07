@@ -24,6 +24,33 @@ export {
   type OutgoingKnockProps,
 } from './Knocks.js'
 
+/**
+ * A tap on the shoulder, and walking with somebody: the notices, the controls
+ * that stay on screen while a follow lasts, and the two hooks behind them, which
+ * carry no strings so a host drawing its own in its own language uses them as
+ * they are.
+ */
+export {
+  HeldNudges,
+  NUDGE_VISIBLE_MS,
+  NudgeDialog,
+  NudgeDock,
+  type HeldNudgesProps,
+  type NudgeDialogProps,
+  type NudgeDockProps,
+} from './Nudges.js'
+export { useNudges, type IncomingNudge, type Nudges, type UseNudgesOptions } from './useNudges.js'
+export {
+  FollowRequestDock,
+  FollowersControl,
+  FollowingBar,
+  type FollowRequestDockProps,
+  type FollowersControlProps,
+  type FollowingBarProps,
+  type IncomingFollowRequest,
+} from './Follow.js'
+export { useFollow, type Following, type UseFollowOptions } from './useFollow.js'
+
 export {
   MaximiseButton,
   OfficeMap,
