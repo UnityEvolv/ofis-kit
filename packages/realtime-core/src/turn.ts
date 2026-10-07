@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 
 import type { IceServer } from './protocol/index.js'
 
@@ -147,5 +147,9 @@ export function verifyTurnCredential(
   const expiresAtSeconds = Number.parseInt(expiry ?? '', 10)
   if (!Number.isFinite(expiresAtSeconds)) return false
   if (expiresAtSeconds * 1000 <= now) return false
-  return createHmac('sha1', secret).update(username).digest('base64') === credential
+  // The same HMAC-SHA1 the relay computes (the TURN REST scheme coturn's
+  // use-auth-secret checks), compared in constant time.
+  const expected = Buffer.from(createHmac('sha1', secret).update(username).digest('base64'))
+  const given = Buffer.from(credential)
+  return expected.length === given.length && timingSafeEqual(expected, given)
 }
