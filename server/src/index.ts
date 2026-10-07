@@ -95,6 +95,9 @@ const realtime = createRealtimeServer({
   // The ceiling a public demo sets, enforced at the door. Null, and so no ceiling,
   // unless MAX_PRESENT is set.
   maxPresent: config.demo.maxPresent,
+  // Nudge and follow limits, from the environment with the decided defaults.
+  nudge: config.nudge,
+  follow: config.follow,
   ...(config.allowedOrigins.length > 0 ? { allowedOrigins: config.allowedOrigins } : {}),
 })
 

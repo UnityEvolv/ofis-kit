@@ -43,6 +43,13 @@ export {
   type RtcServerPlugin,
 } from './calls.js'
 
+/**
+ * The tunables of nudging and following, and their decided defaults, so a host
+ * can read them into its own configuration and pass back only what it changes.
+ */
+export { NUDGE_DEFAULTS, type NudgeOptions } from './nudge.js'
+export { FOLLOW_DEFAULTS, type FollowOptions } from './follow.js'
+
 export { createLogger, silentLogger, type LogFields, type LogLevel, type Logger } from './logger.js'
 
 /**
