@@ -77,7 +77,11 @@ export default tseslint.config(
   // The web half: React DOM, the kit, and the icon rule that keeps the kit's
   // Icon the only way an icon reaches a screen.
   {
-    files: ['packages/ui-map/**/*.{ts,tsx}', 'packages/ui-builder/**/*.{ts,tsx}', 'app/**/*.{ts,tsx}'],
+    files: [
+      'packages/ui-map/**/*.{ts,tsx}',
+      'packages/ui-builder/**/*.{ts,tsx}',
+      'app/**/*.{ts,tsx}',
+    ],
     plugins: { 'react-hooks': reactHooks },
     languageOptions: {
       globals: { ...globals.browser },

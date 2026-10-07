@@ -105,6 +105,15 @@ const REACTION_WINDOW_MS = 10_000
  */
 const HAND_LOWER_AFTER_MS = 3_000
 
+/**
+ * How long an admission waits to be used.
+ *
+ * As long as a knock does, and for the same reason: it is an invitation to come
+ * in now, and an invitation nobody took up a minute later is not one anybody
+ * inside remembers giving.
+ */
+const ADMISSION_TTL_MS = 60_000
+
 /** One open socket. */
 interface Connection {
   connectionId: string
@@ -198,6 +207,15 @@ export interface OfficeEngineOptions {
    * sit through three seconds of somebody talking to watch a hand drop.
    */
   handLowerAfterMs?: number
+  /**
+   * How many people the office holds at once. Null or absent means no ceiling.
+   *
+   * Checked at the door and nowhere else: somebody already inside coming back on
+   * a second device or after a reload is never counted twice, and nobody is ever
+   * removed to make the number true. The public demo sets it so that a link
+   * anybody can open does not become free conferencing for whoever finds it.
+   */
+  maxPresent?: number | null
 }
 
 export class OfficeEngine {
@@ -233,8 +251,13 @@ export class OfficeEngine {
    * presence store — it lives for the few seconds between being let in and
    * walking in, and a node that dies in that window is a person who knocks
    * again, which is the right outcome.
+   *
+   * Keyed by office, room and person, and holding who it is for and when it
+   * stops counting: an admission nobody used is gone after a minute, and gone at
+   * once when its person leaves the office, so walking back in tomorrow is not
+   * walking past a lock on the strength of yesterday's knock.
    */
-  readonly #admissions = new Set<string>()
+  readonly #admissions = new Map<string, { userId: string; expiresAt: number }>()
   /** The calls happening right now, which are not presence and never merged into it. */
   readonly #calls: CallRegistry
   #unsubscribe: (() => void) | null = null
@@ -308,6 +331,28 @@ export class OfficeEngine {
 
     const template = await this.#options.templates.get(officeId)
     if (!template) return fail(Refusal.OFFICE_UNKNOWN, 'There is no office here.')
+
+    // The client chooses its own device id, and everything per-screen is found by
+    // it: signalling, call legs, the share slot. Letting a second person stand on
+    // an id somebody else is using would hand them that person's leg and route
+    // that person's offers to them, so it is refused here, before anything is
+    // keyed by it.
+    if (await this.#deviceHeldByAnother(officeId, connection.deviceId, identity.id)) {
+      return fail(
+        Refusal.DEVICE_IN_USE,
+        'This device is already in the office as somebody else. Try again in a moment.',
+      )
+    }
+
+    // The ceiling, at the door and only for somebody new: a reload, a second
+    // device or a reconnect is somebody already counted.
+    const ceiling = this.#options.maxPresent ?? null
+    if (ceiling !== null && !(await this.#store.get(officeId, identity.id))) {
+      const present = await this.#store.list(officeId)
+      if (present.length >= ceiling) {
+        return fail(Refusal.OFFICE_FULL, 'The office is full right now. Try again in a while.')
+      }
+    }
 
     // Presence is one office at a time, so arriving somewhere ends being
     // anywhere else. In the free office there is only ever one, but the rule
@@ -469,17 +514,41 @@ export class OfficeEngine {
 
     const devices = presence.devices.filter((device) => device.connectionId !== connectionId)
 
+    // A socket the record no longer mentions was already replaced — the same
+    // device came back on a new one before this one was noticed dying — so its
+    // going changes nothing, and must not start a grace period over the top of a
+    // person who is plainly here.
+    if (devices.length === presence.devices.length) return
+
     if (devices.length > 0) {
-      // Another device is still there, so nothing about the person changed except
-      // which screens they are on — but this screen's call leg goes, because there
-      // is nothing behind it any more.
-      await this.#leaveCallLeg(officeId, presence.roomId, connection.deviceId)
+      /*
+       * Another device is still there, so nothing about the person changed except
+       * which screens they are on — but this screen's call leg goes, because there
+       * is nothing behind it any more.
+       *
+       * Unless this screen is still there. A reload or a network handover opens
+       * the new socket before the old one is noticed dying, and the new one has
+       * the same device id and has already taken over its leg; ending that leg
+       * here would hang up on somebody for having reconnected.
+       */
+      const sameScreen =
+        devices.some((device) => device.deviceId === connection.deviceId) ||
+        this.#hasOpenConnection(userId, connection.deviceId)
+
       const remaining = { ...presence, devices }
       await this.#store.put(remaining)
       this.#broadcaster.queue(officeId, {
         kind: 'person.updated',
         presence: this.#public(remaining, this.#now()),
       })
+
+      if (!sameScreen) {
+        await this.#leaveCallLeg(officeId, presence.roomId, connection.deviceId)
+        // Whether they are still in a call now depends on whether the leg that
+        // went was their last one, and the record has to say so or they are shown
+        // in a call for as long as they stay in the room.
+        await this.#refreshInCall(officeId, userId, presence.roomId)
+      }
       return
     }
 
@@ -714,6 +783,7 @@ export class OfficeEngine {
     }
 
     await this.#store.unlock(officeId, roomId)
+    await this.#endKnocks(officeId, roomId)
     this.#broadcaster.queue(officeId, { kind: 'room.unlocked', roomId })
     return done()
   }
@@ -837,7 +907,7 @@ export class OfficeEngine {
 
     await this.#store.clearKnock(officeId, knockId)
     this.#clearKnockTimer(knockId)
-    this.#admissions.add(admissionKey(officeId, knock.roomId, knock.userId))
+    this.#grantAdmission(officeId, knock.roomId, knock.userId)
 
     this.#transport.toUser(knock.userId, 'knock:admitted', {
       roomId: knock.roomId,
@@ -861,8 +931,9 @@ export class OfficeEngine {
    * host's reason is. The engine is not told the reason and does not need one.
    * The next `joinRoom` by that person into that room is honoured exactly as a
    * knock admission is — spent by the move it authorises, standing for nobody
-   * else and no other room, and gone when the node restarts — and nothing is
-   * unlocked for anybody else.
+   * else and no other room, and gone when the node restarts, when a minute passes
+   * unused or when the person leaves the office — and nothing is unlocked for
+   * anybody else.
    *
    * Recorded here and published on the host event bus, so a node holding this
    * person's socket honours it too: the host calls this wherever it is
@@ -878,7 +949,23 @@ export class OfficeEngine {
   /** The one place an admission is recorded, for this node's own office only. */
   #grantAdmission(officeId: string, roomId: string, userId: string): void {
     if (officeId !== this.#options.officeId) return
-    this.#admissions.add(admissionKey(officeId, roomId, userId))
+    const at = this.#now()
+    // Swept here, as the only place the set grows, so admissions nobody used do
+    // not pile up for the life of the process. There is still no scheduler.
+    for (const [key, admission] of this.#admissions) {
+      if (admission.expiresAt <= at) this.#admissions.delete(key)
+    }
+    this.#admissions.set(admissionKey(officeId, roomId, userId), {
+      userId,
+      expiresAt: at + ADMISSION_TTL_MS,
+    })
+  }
+
+  /** Every admission this person holds here, gone: they left, so they were not coming in. */
+  #dropAdmissions(userId: string): void {
+    for (const [key, admission] of this.#admissions) {
+      if (admission.userId === userId) this.#admissions.delete(key)
+    }
   }
 
   /**
@@ -965,6 +1052,14 @@ export class OfficeEngine {
      * place feed back into each other. `add` keeps both, counted separately
      * because each is a real leg in the mesh.
      */
+    // Checked at the door already; checked again here because joining is what
+    // would overwrite the leg, and a seat held for somebody else on their way back
+    // is not this device's to take.
+    const occupant = this.#calls.get(officeId, room.id)?.legs.get(connection.deviceId)
+    if (occupant && occupant.userId !== identity.id) {
+      return fail(Refusal.DEVICE_IN_USE, 'This device is already in the call as somebody else.')
+    }
+
     const mine = this.#calls.legsOf(officeId, room.id, identity.id)
     const elsewhere = mine.filter((leg) => leg.deviceId !== connection.deviceId)
     const rejoining = mine.find((leg) => leg.deviceId === connection.deviceId)
@@ -1090,7 +1185,7 @@ export class OfficeEngine {
     if (state?.sharing) {
       const claim = this.#calls.claimShare(officeId, presence.roomId, connection.deviceId)
       for (const displaced of claim?.displaced ?? []) {
-        const target = this.#connectionFor(officeId, displaced.deviceId)
+        const target = this.#connectionFor(officeId, displaced)
         if (target) {
           this.#transport.toConnection(target, 'call:share_ended', {
             roomId: presence.roomId,
@@ -1300,13 +1395,51 @@ export class OfficeEngine {
    * need exactly one socket, and reaching the room or the person instead would be
    * sending private plumbing to people it means nothing to.
    */
-  #connectionFor(officeId: string, deviceId: string): string | null {
+  #connectionFor(officeId: string, leg: Pick<CallLeg, 'userId' | 'deviceId'>): string | null {
+    // The leg's owner as well as its device, so a socket that is somebody else
+    // can never be the one a leg's plumbing is sent to. And the newest match
+    // rather than the first: a device that reconnected has its old socket still
+    // dying beside the new one for a moment, and only the new one is listening.
+    let found: string | null = null
     for (const candidate of this.#connections.values()) {
-      if (candidate.deviceId === deviceId && candidate.officeId === officeId) {
-        return candidate.connectionId
+      if (
+        candidate.deviceId === leg.deviceId &&
+        candidate.officeId === officeId &&
+        candidate.identity?.id === leg.userId
+      ) {
+        found = candidate.connectionId
       }
     }
-    return null
+    return found
+  }
+
+  /**
+   * Is this device id somebody else's in this office right now?
+   *
+   * Three places it could be: an open socket on this node, a call leg — which
+   * may be a seat held for somebody on their way back — and a presence record,
+   * which is the one that sees devices on other nodes.
+   */
+  async #deviceHeldByAnother(officeId: string, deviceId: string, userId: string): Promise<boolean> {
+    for (const candidate of this.#connections.values()) {
+      if (
+        candidate.deviceId === deviceId &&
+        candidate.officeId === officeId &&
+        candidate.identity !== null &&
+        candidate.identity.id !== userId
+      ) {
+        return true
+      }
+    }
+    for (const call of this.#calls.all(officeId)) {
+      const leg = call.legs.get(deviceId)
+      if (leg && leg.userId !== userId) return true
+    }
+    const people = await this.#store.list(officeId)
+    return people.some(
+      (person) =>
+        person.userId !== userId && person.devices.some((device) => device.deviceId === deviceId),
+    )
   }
 
   async signal(connectionId: string, message: SignalMessage): Promise<void> {
@@ -1321,9 +1454,14 @@ export class OfficeEngine {
     // Both ends have to be in this call: the sender, because otherwise anybody in
     // the office could signal into a conversation, and the recipient, because
     // otherwise the address is a way to reach an arbitrary socket.
-    if (!call || !call.legs.has(connection.deviceId) || !call.legs.has(to)) return
+    //
+    // The sender's leg has to be the sender's own, not merely on the same device
+    // id, for the same reason: an id is chosen by the client and proves nothing.
+    const sender = call?.legs.get(connection.deviceId)
+    const recipient = call?.legs.get(to)
+    if (!sender || sender.userId !== connection.identity.id || !recipient) return
 
-    const target = this.#connectionFor(connection.officeId, to)
+    const target = this.#connectionFor(connection.officeId, recipient)
     if (!target) return
 
     this.#transport.toConnection(target, 'signal', {
@@ -1674,9 +1812,11 @@ export class OfficeEngine {
    */
   #wasAdmitted(officeId: string, roomId: string, userId: string): boolean {
     const key = admissionKey(officeId, roomId, userId)
-    if (!this.#admissions.has(key)) return false
+    const admission = this.#admissions.get(key)
+    if (!admission) return false
     this.#admissions.delete(key)
-    return true
+    // Spent either way; only one still inside its minute lets anybody in.
+    return admission.expiresAt > this.#now()
   }
 
   /**
@@ -1701,18 +1841,35 @@ export class OfficeEngine {
     // "did that departure empty the room" without counting anybody here.
     if (await this.#isLocked(officeId, roomId)) return
 
+    await this.#endKnocks(officeId, roomId)
+    this.#broadcaster.queue(officeId, { kind: 'room.unlocked', roomId })
+  }
+
+  /**
+   * Every knock waiting on a door that has just opened, over.
+   *
+   * However it opened — somebody inside pressing unlock, or the last person
+   * walking out — a knock on an open door is a question nobody needs to answer,
+   * and a knocker left watching "waiting" on a room they could walk into is the
+   * kind of stale screen nobody reports and everybody notices. The card goes from
+   * every screen inside too, for anybody still there to have seen it.
+   */
+  async #endKnocks(officeId: string, roomId: string): Promise<void> {
     const knocks = await this.#store.knocks(officeId, roomId)
     for (const knock of knocks) {
       await this.#store.clearKnock(officeId, knock.id)
       this.#clearKnockTimer(knock.id)
-      // There is nobody left to answer, and the room is open now anyway.
+      // Expired rather than admitted: nobody let them in, the door simply stopped
+      // being shut, and they still choose whether to walk through it.
       this.#transport.toUser(knock.userId, 'knock:resolved', {
         knockId: knock.id,
         outcome: 'expired',
       })
+      this.#transport.toRoom(officeId, roomId, 'knock:resolved', {
+        knockId: knock.id,
+        outcome: 'expired',
+      })
     }
-
-    this.#broadcaster.queue(officeId, { kind: 'room.unlocked', roomId })
   }
 
   /** A knock nobody answered. Ignoring one is a complete answer. */
@@ -1738,6 +1895,14 @@ export class OfficeEngine {
     }
   }
 
+  /** Whether this person still has a socket open here on this device. */
+  #hasOpenConnection(userId: string, deviceId: string): boolean {
+    for (const connectionId of this.#byUser.get(userId) ?? []) {
+      if (this.#connections.get(connectionId)?.deviceId === deviceId) return true
+    }
+    return false
+  }
+
   #track(userId: string, connectionId: string): void {
     const open = this.#byUser.get(userId) ?? new Set<string>()
     open.add(connectionId)
@@ -1747,6 +1912,9 @@ export class OfficeEngine {
   /** End somebody's presence entirely and tell the office. */
   async #endPresence(officeId: string, userId: string): Promise<void> {
     this.#cancelGrace(userId)
+    // An admission is permission to walk in now. Somebody who has left the office
+    // is not walking in now, and coming back later is a new knock.
+    if (officeId === this.#options.officeId) this.#dropAdmissions(userId)
     const presence = await this.#store.get(officeId, userId)
     // Before the removal, because afterwards the store has already dropped the
     // lock and there is no way to tell that this is what did it.

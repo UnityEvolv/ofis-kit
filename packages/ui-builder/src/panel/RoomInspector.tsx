@@ -54,7 +54,9 @@ export function RoomInspector(props: {
         label="Control bar"
         help="Put it on whichever edge is clearer in your picture."
         value={room.bar}
-        onChange={(event) => edit((one) => ({ ...one, bar: event.target.value as 'top' | 'bottom' }))}
+        onChange={(event) =>
+          edit((one) => ({ ...one, bar: event.target.value as 'top' | 'bottom' }))
+        }
       >
         <option value="top">Top</option>
         <option value="bottom">Bottom</option>

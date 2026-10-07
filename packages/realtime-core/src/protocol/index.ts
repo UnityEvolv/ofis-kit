@@ -279,8 +279,13 @@ export interface SignalMessage {
    * than as a call event because it is provider-internal — a provider whose SDK
    * labels its own tracks never sends it, and the core relays it without looking
    * inside, exactly as it does an offer.
+   *
+   * `camera` is the same provider saying its camera stream has stopped. Taking a
+   * track off a connection does not end it on the far side — it goes quiet and
+   * the last frame stays on screen — so the sender says so rather than leaving
+   * the receiver to notice.
    */
-  type: 'offer' | 'answer' | 'candidate' | 'share'
+  type: 'offer' | 'answer' | 'candidate' | 'share' | 'camera'
   payload: unknown
 }
 
@@ -563,6 +568,16 @@ export const Refusal = {
   OFFICE_FORBIDDEN: 'office.forbidden',
   /** Not in an office, so there is nothing to do this in. */
   NOT_PRESENT: 'office.not_present',
+  /** The office is at the ceiling its host set. Somebody has to leave first. */
+  OFFICE_FULL: 'office.full',
+  /**
+   * The device id is already somebody else's here.
+   *
+   * A device id is an address — signalling, call legs and share slots are all
+   * found by it — so two people on one id would be one of them receiving the
+   * other's calls. A client that meets this should pick a fresh id and try again.
+   */
+  DEVICE_IN_USE: 'device.in_use',
 
   ROOM_UNKNOWN: 'room.unknown',
   /** An edit to the layout took away the room you were in. */

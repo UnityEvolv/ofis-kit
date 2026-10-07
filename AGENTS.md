@@ -80,13 +80,13 @@ Each of these fails CI, and each has a test in
 `tools/eslint-plugin-ofiskit/rules.test.js` proving that it fails. A rule nobody
 has seen fail is indistinguishable from one that is not wired up.
 
-| Rule | Why |
-| --- | --- |
-| `ofiskit/no-dom-in-agnostic` | A `document` in the realtime client is a crash on a phone, not a type error in CI. |
-| `ofiskit/no-hostname-literal` | The product has to change domain by changing one variable, and the demo has to run on a stranger's box. |
-| `ofiskit/no-provider-sdk-outside-adapter` | A UI component importing an SDK makes every app ship it, and swapping providers stops being configuration. |
-| `ofiskit/no-lucide-direct` | The kit's `Icon` fixes size, stroke and accessible naming; an icon around it is a different weight from every other icon. |
-| `ofiskit/no-pii-in-logs` | Logs are shipped, retained and searched by people who were never granted access to the office. |
+| Rule                                      | Why                                                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `ofiskit/no-dom-in-agnostic`              | A `document` in the realtime client is a crash on a phone, not a type error in CI.                                        |
+| `ofiskit/no-hostname-literal`             | The product has to change domain by changing one variable, and the demo has to run on a stranger's box.                   |
+| `ofiskit/no-provider-sdk-outside-adapter` | A UI component importing an SDK makes every app ship it, and swapping providers stops being configuration.                |
+| `ofiskit/no-lucide-direct`                | The kit's `Icon` fixes size, stroke and accessible naming; an icon around it is a different weight from every other icon. |
+| `ofiskit/no-pii-in-logs`                  | Logs are shipped, retained and searched by people who were never granted access to the office.                            |
 
 Plus a bundle-size budget per entry point (`npm run budget`), so a careless
 import cannot quietly double the app.
@@ -222,6 +222,6 @@ Every story inherits [docs/definition-of-done.md](docs/definition-of-done.md)
 rather than restating it. The short form: responsive with no horizontal scroll;
 correct in **both** light and dark theme, every colour from a unitykit token;
 loading, empty and error states handled; WCAG 2.1 AA, keyboard-operable, with
-things that happen *to* you announced through a live region; and every control
+things that happen _to_ you announced through a live region; and every control
 the UI disables refused by the server independently, because the disabled state
 is a convenience and never the control.

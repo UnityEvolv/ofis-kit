@@ -59,6 +59,9 @@ function fakeSocket(): Fake {
     },
 
     disconnect() {
+      // As Socket.IO does: its own disconnect is reported as a disconnect, and
+      // synchronously, before the call returns.
+      socket.fire('disconnect', 'io client disconnect')
       return socket
     },
 
@@ -619,5 +622,61 @@ describe('a notice from the office', () => {
       code: 'room.removed',
       message: 'The room you were in was removed.',
     })
+  })
+})
+
+describe('being closed', () => {
+  function fakeRtc() {
+    return {
+      join: vi.fn(async () => {}),
+      leave: vi.fn(async () => {}),
+      setMicrophone: vi.fn(async () => {}),
+      setCamera: vi.fn(async () => {}),
+      startScreenShare: vi.fn(async () => true),
+      stopScreenShare: vi.fn(async () => {}),
+      setVideoSubscriptions: vi.fn(),
+      useDevices: vi.fn(async () => {}),
+      on: vi.fn(() => () => {}),
+    }
+  }
+
+  async function connected() {
+    const socket = fakeSocket()
+    const rtc = fakeRtc()
+    const events: ClientEvent[] = []
+    const client = createOfisClient({
+      url: 'http://localhost',
+      deviceId: 'ada-laptop',
+      connect: () => socket,
+      rtc: () => rtc,
+    })
+    client.on((event) => events.push(event))
+    socket.answer('office:enter', { ok: true, snapshot: snapshot() })
+    await client.enter({ email: 'ada@example.com', name: 'Ada' })
+    return { client, socket, rtc, events }
+  }
+
+  it('stays closed when the server removes it, rather than claiming to reconnect', async () => {
+    const { client, socket, rtc, events } = await connected()
+
+    socket.fire('disconnected', { code: 'auth.revoked', message: 'Access ended.' })
+    await settle()
+
+    expect(client.status()).toBe('closed')
+    expect(events.filter((event) => event.type === 'status').at(-1)).toEqual({
+      type: 'status',
+      status: 'closed',
+    })
+    // And the camera goes off: removed from the office is out of the call too.
+    expect(rtc.leave).toHaveBeenCalled()
+  })
+
+  it('stops the media when the app closes it, and stays closed', async () => {
+    const { client, rtc } = await connected()
+
+    await client.close()
+
+    expect(rtc.leave).toHaveBeenCalledTimes(1)
+    expect(client.status()).toBe('closed')
   })
 })

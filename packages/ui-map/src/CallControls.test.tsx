@@ -153,7 +153,9 @@ describe('the controls bar', () => {
       call: call({ participants: [{ userId: 'a', deviceId: 'a' }], limit: 1 }),
     })
 
-    expect(screen.getByRole('button', { name: /mute microphone|turn on microphone/i })).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: /mute microphone|turn on microphone/i }),
+    ).toBeEnabled()
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 

@@ -200,10 +200,7 @@ describe('when the hardware changes underneath', () => {
     // A headset that has been unplugged should fall back to the operating
     // system's default, not fail with a constraint error nobody can interpret.
     const choice = { audioDeviceId: 'headset', videoDeviceId: 'webcam', speakerDeviceId: 'out' }
-    const surviving = stillAvailable(
-      choice,
-      devices({ cameras: [device('videoinput', 'webcam')] }),
-    )
+    const surviving = stillAvailable(choice, devices({ cameras: [device('videoinput', 'webcam')] }))
 
     expect(surviving).toEqual({ videoDeviceId: 'webcam' })
   })

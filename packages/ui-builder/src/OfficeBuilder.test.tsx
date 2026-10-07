@@ -22,7 +22,10 @@ import { OfficeBuilder } from './OfficeBuilder.js'
 
 function open(overrides: Partial<Template> = {}) {
   const onSave = vi.fn()
-  const template = { ...createTemplate({ name: 'My office', canvas: 'landscape', images: { light: 'o.webp' } }), ...overrides }
+  const template = {
+    ...createTemplate({ name: 'My office', canvas: 'landscape', images: { light: 'o.webp' } }),
+    ...overrides,
+  }
 
   render(
     <OfficeBuilder
@@ -71,7 +74,9 @@ describe('the office builder', () => {
     await selectRoom(person, 'workspace')
     await person.click(screen.getByRole('button', { name: /delete room/i }))
 
-    expect(within(screen.getByRole('list', { name: 'Rooms' })).getAllByRole('button')).toHaveLength(2)
+    expect(within(screen.getByRole('list', { name: 'Rooms' })).getAllByRole('button')).toHaveLength(
+      2,
+    )
   })
 
   it('will not let the type of a required room be changed', async () => {
@@ -185,11 +190,7 @@ describe('the office builder', () => {
     if (!first || !second) return
 
     open({
-      rooms: [
-        first,
-        { ...second, rect: { ...first.rect } },
-        ...overlapping.rooms.slice(2),
-      ],
+      rooms: [first, { ...second, rect: { ...first.rect } }, ...overlapping.rooms.slice(2)],
     })
 
     expect(screen.getByRole('button', { name: /download template\.json/i })).toBeDisabled()
@@ -255,10 +256,14 @@ describe('the office builder', () => {
 
     await selectRoom(person, 'workspace')
     await person.click(screen.getByRole('button', { name: /delete room/i }))
-    expect(within(screen.getByRole('list', { name: 'Rooms' })).getAllByRole('button')).toHaveLength(2)
+    expect(within(screen.getByRole('list', { name: 'Rooms' })).getAllByRole('button')).toHaveLength(
+      2,
+    )
 
     await person.click(screen.getByRole('button', { name: /^undo$/i }))
-    expect(within(screen.getByRole('list', { name: 'Rooms' })).getAllByRole('button')).toHaveLength(3)
+    expect(within(screen.getByRole('list', { name: 'Rooms' })).getAllByRole('button')).toHaveLength(
+      3,
+    )
 
     await person.click(screen.getByRole('button', { name: /download template\.json/i }))
     expect((onSave.mock.calls[0]?.[0] as Template).rooms).toHaveLength(3)

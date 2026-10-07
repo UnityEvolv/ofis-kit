@@ -130,6 +130,10 @@ interface HarnessOptions {
   store?: MemoryPresenceStore
   template?: Template
   events?: ReturnType<typeof localEventBus>
+  /** A clock a test can move, for the one about an admission going stale. */
+  now?: () => number
+  /** The office's ceiling, for the tests about a full office. */
+  maxPresent?: number | null
 }
 
 function harness({
@@ -146,6 +150,8 @@ function harness({
   store = new MemoryPresenceStore(),
   events = localEventBus(),
   template = office(),
+  now,
+  maxPresent,
 }: HarnessOptions = {}): Harness {
   const sent = new Recorder()
 
@@ -164,6 +170,8 @@ function harness({
     ...(graceMs === undefined ? {} : { graceMs }),
     ...(knockTtlMs === undefined ? {} : { knockTtlMs }),
     ...(handLowerAfterMs === undefined ? {} : { handLowerAfterMs }),
+    ...(now ? { now } : {}),
+    ...(maxPresent === undefined ? {} : { maxPresent }),
   })
 
   let counter = 0
@@ -2581,7 +2589,9 @@ describe('an admission from the host', () => {
     // on the other, and the host calls admitUser on this one.
     const other = harness({ store: h.store, events: h.events, template: h.template })
     const { workspace } = await lockedWorkspace()
-    const alan = await other.enter({ name: 'Alan' })
+    // A device id of his own: each harness counts from one, and two people on one
+    // id is now refused at the door.
+    const alan = await other.enter({ name: 'Alan', deviceId: 'alan-laptop' })
 
     const refused = await other.engine.joinRoom(alan, workspace)
     expect(refused.ok).toBe(false)
@@ -2623,5 +2633,261 @@ describe('an admission from the host', () => {
     // Bob's own admission is untouched by Alan asking.
     expect((await h.engine.joinRoom(bob, workspace)).ok).toBe(true)
     expect((await h.engine.snapshot(ada)).locks).toHaveLength(1)
+  })
+})
+
+/**
+ * A device id is the client's own choice, and everything per-screen is found by
+ * it — signalling, call legs, the share slot. These are the ways it used to be
+ * possible for one screen to end up with somebody else's, or for a screen coming
+ * back to be treated as one going away.
+ */
+describe('a device id belongs to one person', () => {
+  const named = (setup: Harness, name: string) =>
+    setup.template.rooms.find((room) => room.name === name)?.id ?? ''
+
+  it('refuses somebody else arriving on a device id that is in a call', async () => {
+    const setup = harness()
+    const workspace = named(setup, 'Workspace')
+    const ada = await setup.enter({ name: 'Ada', deviceId: 'shared' })
+    const grace = await setup.enter({ name: 'Grace', deviceId: 'grace-laptop' })
+    await setup.engine.joinRoom(ada, workspace)
+    await setup.engine.joinRoom(grace, workspace)
+    await setup.engine.joinCall(ada, { audio: true, video: false })
+    await setup.engine.joinCall(grace, { audio: true, video: false })
+
+    setup.engine.connected({ connectionId: 'mallory', deviceId: 'shared', kind: 'web' })
+    const refused = await setup.engine.enter('mallory', {
+      credentials: { email: 'mallory@example.com', name: 'Mallory' },
+      deviceId: 'shared',
+      kind: 'web',
+    })
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) expect(refused.code).toBe(Refusal.DEVICE_IN_USE)
+
+    // Grace's offer still reaches Ada, and nobody else.
+    setup.sent.clear()
+    await setup.engine.signal(grace, { to: 'shared', type: 'offer', payload: { sdp: 'v=0' } })
+    expect(setup.sent.connections.map((one) => one.connectionId)).toEqual([ada])
+  })
+
+  it('refuses it while the seat is being held for somebody on their way back', async () => {
+    const setup = harness({ graceMs: 5000 })
+    const workspace = named(setup, 'Workspace')
+    const ada = await setup.enter({ name: 'Ada', deviceId: 'shared' })
+    await setup.engine.joinRoom(ada, workspace)
+    await setup.engine.joinCall(ada, { audio: true, video: false })
+    await setup.engine.disconnected(ada)
+
+    setup.engine.connected({ connectionId: 'mallory', deviceId: 'shared', kind: 'web' })
+    const refused = await setup.engine.enter('mallory', {
+      credentials: { email: 'mallory@example.com', name: 'Mallory' },
+      deviceId: 'shared',
+      kind: 'web',
+    })
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) expect(refused.code).toBe(Refusal.DEVICE_IN_USE)
+
+    // And Ada comes back to her own seat, in the state she left it.
+    const back = await setup.enter({ name: 'Ada', deviceId: 'shared', connectionId: 'ada-back' })
+    expect((await setup.engine.joinCall(back, { audio: true, video: false })).ok).toBe(true)
+    const snapshot = await setup.engine.snapshot(back)
+    expect(snapshot.calls[0]?.participants).toEqual([
+      { userId: snapshot.you.userId, deviceId: 'shared' },
+    ])
+  })
+
+  it('keeps the call of a device that reconnected before its old socket was noticed dying', async () => {
+    const setup = harness({ graceMs: 5000 })
+    const workspace = named(setup, 'Workspace')
+    const ada = await setup.enter({ name: 'Ada', deviceId: 'laptop' })
+    const grace = await setup.enter({ name: 'Grace', deviceId: 'grace-laptop' })
+    await setup.engine.joinRoom(ada, workspace)
+    await setup.engine.joinRoom(grace, workspace)
+    await setup.engine.joinCall(ada, { audio: true, video: false })
+    await setup.engine.joinCall(grace, { audio: true, video: false })
+
+    // The new socket is in, and has its leg back, before the old one goes.
+    const back = await setup.enter({ name: 'Ada', deviceId: 'laptop', connectionId: 'ada-back' })
+    expect((await setup.engine.joinCall(back, { audio: true, video: false })).ok).toBe(true)
+    await setup.engine.disconnected(ada)
+
+    const snapshot = await setup.engine.snapshot(back)
+    expect(snapshot.calls[0]?.participants.map((one) => one.deviceId).sort()).toEqual([
+      'grace-laptop',
+      'laptop',
+    ])
+    const person = snapshot.people.find((one) => one.userId === snapshot.you.userId)
+    expect(person?.status).toBe('in_call')
+    expect(person?.devices.map((one) => one.deviceId)).toEqual(['laptop'])
+
+    // And what is sent to that device goes to the socket that is listening.
+    setup.sent.clear()
+    await setup.engine.signal(grace, { to: 'laptop', type: 'offer', payload: {} })
+    expect(setup.sent.connections.map((one) => one.connectionId)).toEqual(['ada-back'])
+  })
+
+  it('stops showing somebody in a call when the device that was in it drops', async () => {
+    const setup = harness()
+    const workspace = named(setup, 'Workspace')
+    const laptop = await setup.enter({ name: 'Ada', deviceId: 'laptop' })
+    const phone = await setup.enter({
+      name: 'Ada',
+      deviceId: 'phone',
+      kind: 'mobile',
+      connectionId: 'socket-phone',
+    })
+    await setup.engine.joinRoom(laptop, workspace)
+    await setup.engine.joinCall(laptop, { audio: true, video: false })
+    expect((await setup.engine.snapshot(phone)).people[0]?.status).toBe('in_call')
+
+    // The phone is in the room and not in the conversation, so with the laptop
+    // gone, nobody of hers is in the call.
+    await setup.engine.disconnected(laptop)
+
+    const snapshot = await setup.engine.snapshot(phone)
+    expect(snapshot.calls).toHaveLength(0)
+    expect(snapshot.people[0]?.status).not.toBe('in_call')
+    expect((await setup.store.get(OFFICE, snapshot.you.userId))?.inCall).toBe(false)
+  })
+})
+
+describe('a full office', () => {
+  it('turns away a newcomer at the ceiling, and nobody already inside', async () => {
+    const setup = harness({ maxPresent: 2 })
+    const ada = await setup.enter({ name: 'Ada', deviceId: 'ada-laptop' })
+    await setup.enter({ name: 'Grace' })
+
+    setup.engine.connected({ connectionId: 'alan', deviceId: 'alan-laptop', kind: 'web' })
+    const alanArrives = () =>
+      setup.engine.enter('alan', {
+        credentials: { email: 'alan@example.com', name: 'Alan' },
+        deviceId: 'alan-laptop',
+        kind: 'web',
+      })
+    const refused = await alanArrives()
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) expect(refused.code).toBe(Refusal.OFFICE_FULL)
+
+    // A second device of somebody already counted is not somebody new.
+    await expect(
+      setup.enter({ name: 'Ada', deviceId: 'ada-phone', connectionId: 'ada-phone' }),
+    ).resolves.toBe('ada-phone')
+
+    // And once somebody leaves, there is room again.
+    await setup.engine.leaveOffice(ada)
+    expect((await alanArrives()).ok).toBe(true)
+  })
+
+  it('has no ceiling unless one is set', async () => {
+    const setup = harness()
+    for (const name of ['Ada', 'Grace', 'Alan', 'Barbara', 'Edsger']) {
+      await setup.enter({ name })
+    }
+    expect((await setup.engine.readOffice()).people).toHaveLength(5)
+  })
+})
+
+describe('a door that opens', () => {
+  it('ends the knocks on it when somebody inside unlocks, and tells the knocker', async () => {
+    const setup = harness()
+    const workspace = setup.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    const ada = await setup.enter({ name: 'Ada' })
+    await setup.engine.joinRoom(ada, workspace)
+    await setup.engine.lock(ada, workspace)
+    const alan = await setup.enter({ name: 'Alan' })
+    const knocked = await setup.engine.knock(alan, workspace)
+    expect(knocked.ok).toBe(true)
+    if (!knocked.ok) return
+    const alanId = (await setup.engine.snapshot(alan)).you.userId
+    setup.sent.clear()
+
+    expect((await setup.engine.unlock(ada, workspace)).ok).toBe(true)
+
+    expect(await setup.store.knocks(OFFICE, workspace)).toHaveLength(0)
+    expect(setup.sent.toUsers).toContainEqual({
+      userId: alanId,
+      event: 'knock:resolved',
+      payload: { knockId: knocked.knockId, outcome: 'expired' },
+    })
+    // The card goes from the screens inside as well.
+    expect(setup.sent.rooms).toContainEqual({
+      roomId: workspace,
+      event: 'knock:resolved',
+      payload: { knockId: knocked.knockId, outcome: 'expired' },
+    })
+  })
+})
+
+describe('an admission that was never used', () => {
+  async function admitted(clock: { at: number }) {
+    const setup = harness({ now: () => clock.at })
+    const workspace = setup.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    const ada = await setup.enter({ name: 'Ada' })
+    await setup.engine.joinRoom(ada, workspace)
+    await setup.engine.lock(ada, workspace)
+    const alan = await setup.enter({ name: 'Alan', deviceId: 'alan-laptop' })
+    setup.engine.admitUser(OFFICE, workspace, (await setup.engine.snapshot(alan)).you.userId)
+    return { setup, workspace, alan }
+  }
+
+  it('is gone when its person leaves the office', async () => {
+    const clock = { at: Date.parse('2026-01-01T09:00:00Z') }
+    const { setup, workspace, alan } = await admitted(clock)
+
+    await setup.engine.leaveOffice(alan)
+    const again = await setup.enter({
+      name: 'Alan',
+      deviceId: 'alan-laptop',
+      kind: 'web',
+      connectionId: 'alan-again',
+    })
+
+    const refused = await setup.engine.joinRoom(again, workspace)
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) expect(refused.code).toBe(Refusal.ROOM_LOCKED)
+  })
+
+  it('goes stale after a minute', async () => {
+    const clock = { at: Date.parse('2026-01-01T09:00:00Z') }
+    const { setup, workspace, alan } = await admitted(clock)
+
+    clock.at += 61_000
+
+    const refused = await setup.engine.joinRoom(alan, workspace)
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) expect(refused.code).toBe(Refusal.ROOM_LOCKED)
+  })
+
+  it('still lets them in within the minute', async () => {
+    const clock = { at: Date.parse('2026-01-01T09:00:00Z') }
+    const { setup, workspace, alan } = await admitted(clock)
+
+    clock.at += 30_000
+
+    expect((await setup.engine.joinRoom(alan, workspace)).ok).toBe(true)
+  })
+})
+
+describe('a move inside one diff window', () => {
+  it('keeps what an earlier update in the same window said', async () => {
+    const setup = harness()
+    const workspace = setup.template.rooms.find((room) => room.name === 'Workspace')?.id ?? ''
+    const ada = await setup.enter({ name: 'Ada' })
+    await setup.flush()
+    setup.sent.clear()
+
+    // A status and then a walk, faster than the window: the walk must not erase
+    // the status on everybody else's screen.
+    await setup.engine.setManualStatus(ada, 'dnd')
+    await setup.engine.joinRoom(ada, workspace)
+    await setup.flush()
+
+    const about = changes(setup.sent)
+    expect(about).toHaveLength(1)
+    expect(about[0]).toMatchObject({
+      kind: 'person.updated',
+      presence: { roomId: workspace, status: 'dnd' },
+    })
   })
 })

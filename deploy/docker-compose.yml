@@ -19,7 +19,11 @@ services:
       dockerfile: deploy/Dockerfile
       target: app
     ports:
-      - '${PORT:-8080}:8080'
+      # This machine only, by default. The app speaks plain HTTP and belongs
+      # behind a reverse proxy that adds HTTPS, so nothing else should reach it
+      # directly; Docker publishing a port also goes around a host firewall like
+      # ufw. BIND=0.0.0.0 opens it to the network, for a LAN with no proxy.
+      - '${BIND:-127.0.0.1}:${PORT:-8080}:8080'
     depends_on:
       - server
     restart: unless-stopped
@@ -41,8 +45,8 @@ services:
       TURN_URLS: ${TURN_URLS:-turn:localhost:3478?transport=udp}
       STUN_URLS: ${STUN_URLS:-stun:localhost:3478}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      # Set DEMO=true for a public deployment: it says so on screen and caps
-      # how many people can be in the office at once.
+      # Set DEMO=true for a public deployment, so it says so on screen, and
+      # MAX_PRESENT to cap how many people can be in the office at once.
       DEMO: ${DEMO:-false}
       MAX_PRESENT: ${MAX_PRESENT:-}
     volumes:

@@ -28,7 +28,7 @@ between rooms, you can see who is in each one and what they are doing, and
 pressing the microphone in a room starts a call with the people in it. A room
 can be locked; somebody outside can knock; anyone inside can let them in.
 
-It is also the engine behind unityofis, and it is the *whole* engine. The
+It is also the engine behind unityofis, and it is the _whole_ engine. The
 product is a wrapper around this code, not a different program — the same
 realtime core, the same map, the same call. What the wrapper adds is
 configuration: its own identity adapter, its own template source, Redis instead
@@ -44,11 +44,11 @@ office, because there was never anywhere for the office to be kept.
 the map fills the window and the controls bar sits at the bottom. Nothing in it
 names ofiskit or unityofis anywhere a person can see, and the repository carries
 no logo, no favicon and no icons of ours. A team self-hosting this is running
-*their* office, not somebody else's product, and whoever hosts it decides what
+_their_ office, not somebody else's product, and whoever hosts it decides what
 goes in the browser tab.
 
 None of these absences is work left undone. They are what makes the boundary
-provable: with nothing here to query, every permission question *has* to be an
+provable: with nothing here to query, every permission question _has_ to be an
 adapter call, and the free office and the product cannot quietly drift apart.
 
 ## The office is a few files
@@ -73,11 +73,11 @@ and [in the demo](https://unityevolv.com/ofis-kit/builder).
 The interfaces are published separately and under Apache-2.0, so building
 against them is not a licensing decision:
 
-| Package | What it is |
-| --- | --- |
-| `@unityevolv/ofiskit-template` | The layout schema and its geometry validator. |
+| Package                              | What it is                                            |
+| ------------------------------------ | ----------------------------------------------------- |
+| `@unityevolv/ofiskit-template`       | The layout schema and its geometry validator.         |
 | `@unityevolv/ofiskit-presence-store` | Who is where: the interface, and the in-memory store. |
-| `@unityevolv/ofiskit-adapters` | Identity, template source, event bus, rate limiting. |
+| `@unityevolv/ofiskit-adapters`       | Identity, template source, event bus, rate limiting.  |
 
 The engine, the realtime client and the UI packages are AGPL-3.0-only:
 `ofiskit-realtime-core`, `ofiskit-realtime-client`, `ofiskit-ui-map`,

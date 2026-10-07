@@ -138,7 +138,13 @@ export interface OfisClient {
 
   enter(credentials: unknown): Promise<Ack<{ snapshot: OfficeSnapshot }>>
   leave(): Promise<void>
-  close(): void
+  /**
+   * Close the socket and stop the call's media.
+   *
+   * Resolves once the camera and microphone are released; the socket is closed
+   * straight away, so a caller with nothing to wait for need not wait.
+   */
+  close(): Promise<void>
 
   joinRoom(roomId: string): Promise<Ack>
   leaveRoom(): Promise<Ack>
@@ -201,6 +207,14 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
   let credentials: unknown = null
   let heartbeat: ReturnType<typeof setInterval> | null = null
   let resyncing = false
+  /**
+   * Set once this client has been closed, by the person or by the server.
+   *
+   * Socket.IO reports its own `disconnect()` as a disconnect, synchronously, and
+   * without this the client would hear its own goodbye as the network dropping
+   * and say it was reconnecting — for ever, since nothing is going to reconnect.
+   */
+  let closing = false
 
   const listeners = new Set<(state: OfficeState) => void>()
   const events = new Set<(event: ClientEvent) => void>()
@@ -308,8 +322,12 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
     if (credentials !== null) void enter(credentials)
   })
 
-  socket.on('disconnect', () => setStatusTo('reconnecting'))
-  socket.io.on('reconnect_attempt', () => setStatusTo('reconnecting'))
+  socket.on('disconnect', () => {
+    if (!closing) setStatusTo('reconnecting')
+  })
+  socket.io.on('reconnect_attempt', () => {
+    if (!closing) setStatusTo('reconnecting')
+  })
 
   socket.on('office:diff', (diff: OfficeDiff) => {
     const outcome = applyDiff(state, diff)
@@ -424,13 +442,31 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
     },
   )
 
+  /**
+   * Stop everything this client holds: the heartbeat, the socket, and the call.
+   *
+   * The call's media last and awaited, because it is the part with a camera light
+   * on it. A person removed from the office, or closing it, who is still being
+   * recorded by their own laptop is the outcome this exists to rule out.
+   */
+  async function shutDown(): Promise<void> {
+    closing = true
+    if (heartbeat) clearInterval(heartbeat)
+    heartbeat = null
+    socket.disconnect()
+    setStatusTo('closed')
+    endLocalCall()
+    await rtc.leave()
+  }
+
   socket.on('disconnected', (reason: { code: string; message: string }) => {
     // Told why, rather than just going quiet. The client stops retrying, because
     // retrying a revoked credential forever helps nobody.
     credentials = null
+    closing = true
     setStatusTo('closed')
     emit({ type: 'closed', ...reason })
-    socket.disconnect()
+    void shutDown()
   })
 
   async function enter(given: unknown): Promise<Ack<{ snapshot: OfficeSnapshot }>> {
@@ -484,12 +520,7 @@ export function createOfisClient(options: OfisClientOptions): OfisClient {
       publish(emptyOffice())
     },
 
-    close() {
-      if (heartbeat) clearInterval(heartbeat)
-      heartbeat = null
-      socket.disconnect()
-      setStatusTo('closed')
-    },
+    close: shutDown,
 
     /**
      * Move, optimistically.

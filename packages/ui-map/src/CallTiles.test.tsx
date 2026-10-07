@@ -231,9 +231,7 @@ describe('the tiles', () => {
     // The kit's Icon turns a title into an accessible name, which is what a screen
     // reader reads — so that is what this looks for.
     expect(within(tile).getByRole('img', { name: /microphone off/i })).toBeInTheDocument()
-    expect(
-      within(tile).getByRole('img', { name: /relayed, weak connection/i }),
-    ).toBeInTheDocument()
+    expect(within(tile).getByRole('img', { name: /relayed, weak connection/i })).toBeInTheDocument()
   })
 
   it('mutes somebody for yourself only, and says so in one place a click can undo', async () => {
@@ -241,9 +239,7 @@ describe('the tiles', () => {
     // noise in a call with no host.
     const { user, onMuteForMe } = tiles({ names: ['grace'] })
 
-    await user.click(
-      screen.getByRole('button', { name: /mute grace for yourself only/i }),
-    )
+    await user.click(screen.getByRole('button', { name: /mute grace for yourself only/i }))
     expect(onMuteForMe).toHaveBeenCalledWith('grace-laptop', true)
   })
 
@@ -251,9 +247,10 @@ describe('the tiles', () => {
     tiles({ names: ['grace'], media: media({ mutedForMe: new Set(['grace-laptop']) }) })
 
     expect(screen.getByText(/muted for you/i)).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /unmute grace for yourself/i }),
-    ).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /unmute grace for yourself/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
   })
 
   it('never offers to mute yourself for yourself', () => {
@@ -276,8 +273,14 @@ describe('the tiles', () => {
 describe('the speaking order', () => {
   const people = new Map<string, PublicPresence>([
     ['quiet', person('quiet', [device('quiet-laptop')])],
-    ['early', person('early', [device('early-laptop', { lastSpokeAt: '2026-01-01T09:00:00.000Z' })])],
-    ['recent', person('recent', [device('recent-laptop', { lastSpokeAt: '2026-01-01T09:05:00.000Z' })])],
+    [
+      'early',
+      person('early', [device('early-laptop', { lastSpokeAt: '2026-01-01T09:00:00.000Z' })]),
+    ],
+    [
+      'recent',
+      person('recent', [device('recent-laptop', { lastSpokeAt: '2026-01-01T09:05:00.000Z' })]),
+    ],
   ])
 
   const participants = [

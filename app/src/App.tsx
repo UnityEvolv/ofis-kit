@@ -99,7 +99,7 @@ function Office({ onBuilder }: { onBuilder(): void }) {
       try {
         const { config: loaded, template: layout, client: connection } = await openOffice()
         if (cancelled) {
-          connection.close()
+          void connection.close()
           return
         }
 
@@ -123,7 +123,12 @@ function Office({ onBuilder }: { onBuilder(): void }) {
 
   // Close the socket on the way out, rather than leaving the server to work it
   // out from a heartbeat that stops arriving.
-  useEffect(() => () => client?.close(), [client])
+  useEffect(
+    () => () => {
+      void client?.close()
+    },
+    [client],
+  )
 
   const enter = useCallback(
     async (entry: Entry) => {

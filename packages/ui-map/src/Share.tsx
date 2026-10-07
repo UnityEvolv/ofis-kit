@@ -73,8 +73,8 @@ export function ShareStage({ sharerName, mine, stream, speakerDeviceId, onStop }
         </span>
         <p className="text-sm font-medium">You are sharing your screen.</p>
         <p className="max-w-sm text-xs text-base-content/70 [@media(max-height:480px)]:hidden">
-          Everybody in the call can see it. Your own screen is not shown back to you,
-          because that would be a picture of a picture.
+          Everybody in the call can see it. Your own screen is not shown back to you, because that
+          would be a picture of a picture.
         </p>
         {onStop && (
           <Button size="sm" variant="secondary" onClick={onStop}>
@@ -187,8 +187,8 @@ export function TakeOverDialog({
       }
     >
       <p className="text-sm">
-        {sharerName} is sharing a screen. A call shows one screen at a time, so yours
-        would replace theirs, and they would be told that it stopped.
+        {sharerName} is sharing a screen. A call shows one screen at a time, so yours would replace
+        theirs, and they would be told that it stopped.
       </p>
     </Modal>
   )
@@ -232,8 +232,7 @@ export function ScreenSourcePicker({ sources, onPick, onCancel }: ScreenSourcePi
       {offered.length === 0 ? (
         // Empty rather than broken, and it says what to do about it.
         <p className="text-sm text-base-content/70">
-          There is nothing available to share. Open the window you want to show, then
-          try again.
+          There is nothing available to share. Open the window you want to show, then try again.
         </p>
       ) : (
         <ul data-testid="screen-sources" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -268,7 +267,6 @@ export function ScreenSourcePicker({ sources, onPick, onCancel }: ScreenSourcePi
           ))}
         </ul>
       )}
-
     </Modal>
   )
 }

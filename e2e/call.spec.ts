@@ -68,9 +68,7 @@ test('two people in a room hear each other', async ({ browser }) => {
 
   // And, the part that matters: the peer connection actually completed. The
   // server never saw a byte of this — it only relayed the offer and the answer.
-  await expect
-    .poll(() => connectionStates(ada.page), { timeout: 20_000 })
-    .toContain('connected')
+  await expect.poll(() => connectionStates(ada.page), { timeout: 20_000 }).toContain('connected')
   await expect.poll(() => connectionStates(grace.page), { timeout: 20_000 }).toContain('connected')
 
   await leave(ada)
@@ -170,14 +168,18 @@ test('the other person is actually audible', async ({ browser }) => {
       })),
     )
 
-  await expect.poll(() => playing(ada.page), { timeout: 20_000 }).toContainEqual({
-    hasStream: true,
-    muted: false,
-  })
-  await expect.poll(() => playing(grace.page), { timeout: 20_000 }).toContainEqual({
-    hasStream: true,
-    muted: false,
-  })
+  await expect
+    .poll(() => playing(ada.page), { timeout: 20_000 })
+    .toContainEqual({
+      hasStream: true,
+      muted: false,
+    })
+  await expect
+    .poll(() => playing(grace.page), { timeout: 20_000 })
+    .toContainEqual({
+      hasStream: true,
+      muted: false,
+    })
 
   await leave(ada)
   await leave(grace)
@@ -212,7 +214,10 @@ test('the microphone joins with audio only, and the camera adds video without in
         grace.page.evaluate(async () => {
           const response = await fetch('/v1/office')
           const office = (await response.json()) as {
-            people: Array<{ displayName: string; devices: Array<{ inCall: boolean; cameraOn: boolean }> }>
+            people: Array<{
+              displayName: string
+              devices: Array<{ inCall: boolean; cameraOn: boolean }>
+            }>
           }
           return office.people.find((one) => one.displayName === 'Ada')?.devices[0]
         }),
@@ -341,15 +346,14 @@ test('a call is visible from outside the room, and the speaker lights up inside 
    * a conversation in there and how many people are in it — which is the whole
    * reason the call is on the bar rather than only inside the room.
    */
-  await expect(room(cleo.page, 'Studio').getByRole('img', { name: /call with 2 people/i })).toBeVisible({
+  await expect(
+    room(cleo.page, 'Studio').getByRole('img', { name: /call with 2 people/i }),
+  ).toBeVisible({
     timeout: 10_000,
   })
 
   // And the same thing said to a screen reader arrowing between rooms.
-  await expect(room(cleo.page, 'Studio')).toHaveAttribute(
-    'aria-label',
-    /call with 2 people/i,
-  )
+  await expect(room(cleo.page, 'Studio')).toHaveAttribute('aria-label', /call with 2 people/i)
 
   /*
    * Inside the room, whoever is talking lights up.
@@ -444,7 +448,10 @@ test('a reaction appears over the right person and clears on its own', async ({ 
   const gracesTile = ada.page.getByTestId(/^tile-/).filter({ hasText: 'Grace' })
   await expect(gracesTile.getByTestId('reaction-float')).toBeVisible({ timeout: 10_000 })
   await expect(
-    ada.page.getByTestId(/^tile-/).filter({ hasText: 'You' }).getByTestId('reaction-float'),
+    ada.page
+      .getByTestId(/^tile-/)
+      .filter({ hasText: 'You' })
+      .getByTestId('reaction-float'),
   ).toHaveCount(0)
 
   /*
@@ -519,7 +526,10 @@ test('a share takes over everybody’s view, and gives it back', async ({ browse
   // Never a mirror: her own screen is not played back to her.
   await expect(ada.page.getByTestId('share-stage')).toHaveText(/you are sharing your screen/i)
 
-  await ada.page.getByTestId('sharing-banner').getByRole('button', { name: /stop sharing/i }).click()
+  await ada.page
+    .getByTestId('sharing-banner')
+    .getByRole('button', { name: /stop sharing/i })
+    .click()
 
   // Back to the map she was on, which is the half that makes the switch acceptable
   // rather than annoying.

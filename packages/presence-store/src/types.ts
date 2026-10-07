@@ -18,13 +18,7 @@ export type Instant = string
  * not look like someone leaving.
  */
 export type AutomaticStatus =
-  | 'available'
-  | 'in_call'
-  | 'in_meeting'
-  | 'away'
-  | 'dnd'
-  | 'reconnecting'
-  | 'offline'
+  'available' | 'in_call' | 'in_meeting' | 'away' | 'dnd' | 'reconnecting' | 'offline'
 
 /**
  * What someone chose for themselves. Always wins over the automatic status.

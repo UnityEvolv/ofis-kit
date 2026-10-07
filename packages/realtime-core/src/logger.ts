@@ -68,7 +68,9 @@ export function createLogger(options: LoggerOptions = {}): Logger {
       if (ORDER[severity] < threshold) return
       // ISO 8601 in UTC with the zone explicit, like every other instant that
       // leaves this process. Nothing here formats a date for a person.
-      write(JSON.stringify({ at: now().toISOString(), level: severity, message, ...bound, ...fields }))
+      write(
+        JSON.stringify({ at: now().toISOString(), level: severity, message, ...bound, ...fields }),
+      )
     }
     return {
       debug: (message, fields) => emit('debug', message, fields),

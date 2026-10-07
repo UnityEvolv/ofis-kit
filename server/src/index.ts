@@ -41,7 +41,19 @@ const templates = fileTemplateSource({
 })
 
 const http = createServer((request, response) => {
-  void serve(request, response)
+  /*
+   * Nothing a request does may take the office down.
+   *
+   * A template saved halfway while it is being watched, a disk that hiccups under
+   * a read — each is one request that failed, and it gets a 500 and a log line.
+   * Left unhandled it would be a rejected promise, and Node ends the process for
+   * one of those: everybody in the office disconnected because of one request.
+   */
+  serve(request, response).catch((cause: unknown) => {
+    logger.error('request failed', { code: cause instanceof Error ? cause.name : 'unknown' })
+    if (response.headersSent) response.destroy()
+    else json(response, 500, { code: 'internal', message: 'Something went wrong.' })
+  })
 })
 
 const realtime = createRealtimeServer({
@@ -72,8 +84,7 @@ const realtime = createRealtimeServer({
      * back to a call leg without this process keeping a table of who was issued
      * what. There is no such table, because there is no database.
      */
-    iceServersFor: (context) =>
-      iceServersFor(config.turn, `${context.callId}:${context.deviceId}`),
+    iceServersFor: (context) => iceServersFor(config.turn, `${context.callId}:${context.deviceId}`),
   }),
   // No call hooks: there is no database to write a record to. unityofis binds
   // them and gets a record per call and per leg without the engine knowing.
@@ -81,8 +92,10 @@ const realtime = createRealtimeServer({
   templates,
   logger,
   graceMs: config.graceMs,
+  // The ceiling a public demo sets, enforced at the door. Null, and so no ceiling,
+  // unless MAX_PRESENT is set.
+  maxPresent: config.demo.maxPresent,
   ...(config.allowedOrigins.length > 0 ? { allowedOrigins: config.allowedOrigins } : {}),
-
 })
 
 /**
@@ -128,7 +141,9 @@ async function serve(request: IncomingMessage, response: ServerResponse): Promis
 
   if (url.pathname === '/v1/template') {
     const template = await templates.get(config.officeId)
-    return template ? json(response, 200, template) : json(response, 404, { code: 'office.unknown', message: 'No office here.' })
+    return template
+      ? json(response, 200, template)
+      : json(response, 404, { code: 'office.unknown', message: 'No office here.' })
   }
 
   // The background image, from the config folder beside template.json.
@@ -206,9 +221,19 @@ async function file(
     'content-length': found.size,
     // Hashed assets never change, so they can be cached hard. index.html is the
     // thing that points at them, so it must not be.
-    'cache-control': path.includes('assets') ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
+    'cache-control': path.includes('assets')
+      ? 'public, max-age=31536000, immutable'
+      : 'public, max-age=300',
   })
-  createReadStream(path).pipe(response)
+  // A file that vanishes or fails between the stat and the read is an error on
+  // the stream, and a stream error nobody listens for is an uncaught exception.
+  // The headers are already out by then, so the honest ending is a cut connection.
+  const stream = createReadStream(path)
+  stream.on('error', (cause: NodeJS.ErrnoException) => {
+    logger.warn('could not read a file', { code: cause.code ?? 'unknown' })
+    response.destroy()
+  })
+  stream.pipe(response)
   return true
 }
 

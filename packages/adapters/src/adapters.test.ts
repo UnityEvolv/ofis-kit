@@ -59,7 +59,14 @@ describe('the typed-email identity adapter', () => {
     const identity = await adapter.authenticate({ email: 'ada@example.com', name: 'Ada' }, context)
     if (!('id' in identity)) throw new Error('expected an identity')
 
-    for (const permission of ['enter_office', 'join_room', 'lock_room', 'knock', 'invite', 'join_call'] as const) {
+    for (const permission of [
+      'enter_office',
+      'join_room',
+      'lock_room',
+      'knock',
+      'invite',
+      'join_call',
+    ] as const) {
       const decision = await adapter.may({ permission, identity, officeId: 'office', roomId: 'r1' })
       expect(decision.allowed, permission).toBe(true)
     }

@@ -24,11 +24,24 @@ Change those and you have changed the office; nothing else needs to know.
 npm run lint
 npm run typecheck
 npm test
+npm run format:check
 ```
 
-CI runs the same things plus a two-browser call test on fake devices, a bundle
-budget, and an accessibility check. A pull request cannot merge with a failing
-check.
+CI runs the same four, then builds the packages, the app and the Pages demo,
+and checks the kit's styles were generated and the bundle is within budget. It
+also proves the repository's own lint rules fail on the mistakes they catch,
+that the engine carries no branding and no secret reaches the workflow, and
+that a real coturn relays and refuses an expired credential. A pull request
+cannot merge with a failing check.
+
+The browser tests are not in CI; run them yourself when you touch anything a
+person sees or anything about calls:
+
+```
+npm run build
+npm run test:e2e    # two browsers, fake camera and microphone, a real call
+npm run test:a11y   # axe on every page, in both themes
+```
 
 If your change is visible to someone using a published package, add a changeset:
 

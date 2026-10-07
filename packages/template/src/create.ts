@@ -168,7 +168,10 @@ export function withAvatarSize(
       const height = area.rows * unit.height
 
       const x = Math.min(Math.max(centreX - width / 2, usable.x), usable.x + usable.width - width)
-      const y = Math.min(Math.max(centreY - height / 2, usable.y), usable.y + usable.height - height)
+      const y = Math.min(
+        Math.max(centreY - height / 2, usable.y),
+        usable.y + usable.height - height,
+      )
 
       if (width > usable.width || height > usable.height) {
         unfitted.push({

@@ -54,10 +54,13 @@ function readRect(value: unknown, path: string, issues: TemplateIssue[]): Rect |
     return null
   }
   const { x, y, width, height } = value
-  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(width) || !isFiniteNumber(height)) {
-    issues.push(
-      issue(TemplateError.MALFORMED, path, 'x, y, width and height must all be numbers.'),
-    )
+  if (
+    !isFiniteNumber(x) ||
+    !isFiniteNumber(y) ||
+    !isFiniteNumber(width) ||
+    !isFiniteNumber(height)
+  ) {
+    issues.push(issue(TemplateError.MALFORMED, path, 'x, y, width and height must all be numbers.'))
     return null
   }
   if (width <= 0 || height <= 0) {
@@ -135,7 +138,9 @@ function readRoom(value: unknown, path: string, issues: TemplateIssue[]): Room |
   if (rect === null) return null
 
   if (!Array.isArray(areas)) {
-    issues.push(issue(TemplateError.MALFORMED, `${path}.areas`, 'A room needs a list of user areas.'))
+    issues.push(
+      issue(TemplateError.MALFORMED, `${path}.areas`, 'A room needs a list of user areas.'),
+    )
     return null
   }
 
@@ -261,7 +266,10 @@ export function validateTemplate(input: unknown): Validated<Template> {
   const issues: TemplateIssue[] = []
 
   if (!isObject(input)) {
-    return { ok: false, issues: [issue(TemplateError.MALFORMED, '', 'A template must be an object.')] }
+    return {
+      ok: false,
+      issues: [issue(TemplateError.MALFORMED, '', 'A template must be an object.')],
+    }
   }
 
   if (input.version !== 1) {

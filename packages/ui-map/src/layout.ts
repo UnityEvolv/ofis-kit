@@ -108,7 +108,13 @@ export function roomInDirection<T extends { rect: Rect }>(
     const dy = target.y - origin.y
 
     const goes =
-      direction === 'left' ? dx < -0.001 : direction === 'right' ? dx > 0.001 : direction === 'up' ? dy < -0.001 : dy > 0.001
+      direction === 'left'
+        ? dx < -0.001
+        : direction === 'right'
+          ? dx > 0.001
+          : direction === 'up'
+            ? dy < -0.001
+            : dy > 0.001
     if (!goes) continue
 
     // Distance along the direction, plus a penalty for drifting off to the

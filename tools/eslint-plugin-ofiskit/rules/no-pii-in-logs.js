@@ -106,7 +106,11 @@ export default {
               continue
             }
             const key = property.key
-            if (!property.computed && key && (key.type === 'Identifier' || key.type === 'Literal')) {
+            if (
+              !property.computed &&
+              key &&
+              (key.type === 'Identifier' || key.type === 'Literal')
+            ) {
               const name = key.type === 'Identifier' ? key.name : key.value
               if (PII_NAMES.has(normalise(name))) {
                 context.report({ node: property, messageId: 'piiField', data: { name } })

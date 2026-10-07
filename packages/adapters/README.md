@@ -13,7 +13,11 @@ interfaces, and never through a query into somebody's database:
   what it will put up with.
 
 ```ts
-import { typedEmailIdentity, memoryRateLimiter, fileTemplateSource } from '@unityevolv/ofiskit-adapters'
+import {
+  typedEmailIdentity,
+  memoryRateLimiter,
+  fileTemplateSource,
+} from '@unityevolv/ofiskit-adapters'
 import { staticTemplateSource } from '@unityevolv/ofiskit-adapters/portable'
 ```
 

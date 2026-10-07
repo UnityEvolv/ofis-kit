@@ -72,7 +72,8 @@ export function CallControls(props: CallControlsProps) {
   // Full is about the call rather than the room, and about other people rather
   // than you: somebody already in it is never told it is full.
   const full = call !== null && call.participants.length >= call.limit && !inCall
-  const reason = props.disabledReason ?? (full ? `This call is full (${call?.limit} people).` : null)
+  const reason =
+    props.disabledReason ?? (full ? `This call is full (${call?.limit} people).` : null)
   const blocked = Boolean(reason)
 
   /**

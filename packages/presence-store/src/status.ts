@@ -57,7 +57,10 @@ export function resolveStatus(presence: Presence, now: number = Date.now()): Sta
  * Read-time expiry, so nothing has to run to clear it. A status set to last an
  * hour disappears after an hour because the next reader does this comparison.
  */
-export function isCustomStatusLive(custom: CustomStatus | null | undefined, now = Date.now()): boolean {
+export function isCustomStatusLive(
+  custom: CustomStatus | null | undefined,
+  now = Date.now(),
+): boolean {
   if (!custom) return false
   if (!custom.expiresAt) return true
   return Date.parse(custom.expiresAt) > now

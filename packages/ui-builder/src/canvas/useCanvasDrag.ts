@@ -202,4 +202,3 @@ export function useCanvasDrag(options: {
 
   return { preview, guides, onPointerDown, onPointerMove, onPointerUp }
 }
-

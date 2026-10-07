@@ -1,4 +1,8 @@
-import type { CustomStatus, ManualStatus, PublicPresence } from '@unityevolv/ofiskit-realtime-client'
+import type {
+  CustomStatus,
+  ManualStatus,
+  PublicPresence,
+} from '@unityevolv/ofiskit-realtime-client'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -217,9 +221,9 @@ describe('the status control', () => {
       />,
     )
 
-    expect(screen.getByRole('button', { name: /your status: available, lunch/i })).toHaveTextContent(
-      '🥪 Lunch',
-    )
+    expect(
+      screen.getByRole('button', { name: /your status: available, lunch/i }),
+    ).toHaveTextContent('🥪 Lunch')
   })
 
   it('shows no presets in an office that has none', async () => {

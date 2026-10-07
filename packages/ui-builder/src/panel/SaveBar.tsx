@@ -12,11 +12,7 @@ import type { TemplateIssue } from '@unityevolv/ofiskit-template'
 /** Enough to show what kind of trouble it is in without filling the panel. */
 const SHOWN = 6
 
-export function SaveBar(props: {
-  issues: TemplateIssue[]
-  saveLabel: string
-  onSave(): void
-}) {
+export function SaveBar(props: { issues: TemplateIssue[]; saveLabel: string; onSave(): void }) {
   const { issues } = props
 
   return (

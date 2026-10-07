@@ -1,5 +1,10 @@
 import { Alert, Button, Icon, Select, Toggle } from '@unityevolv/unitykit'
-import { AVATAR_SIZES, MAX_ROOMS, type AvatarSize, type Template } from '@unityevolv/ofiskit-template'
+import {
+  AVATAR_SIZES,
+  MAX_ROOMS,
+  type AvatarSize,
+  type Template,
+} from '@unityevolv/ofiskit-template'
 
 import type { Selection, Tool } from '../canvas/types.js'
 

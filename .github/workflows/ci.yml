@@ -39,6 +39,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Formatting is checked rather than argued about in review.
+      - name: Formatting
+        run: npm run format:check
+
       - name: Typecheck
         run: npm run typecheck
 

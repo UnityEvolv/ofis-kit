@@ -121,11 +121,7 @@ export function barRect(rect: Rect, bar: BarPosition, shape: CanvasShape): Rect 
 }
 
 /** The rectangle a user area occupies, from its corner and its cell counts. */
-export function areaRect(
-  area: UserArea,
-  shape: CanvasShape,
-  size: AvatarSize,
-): Rect {
+export function areaRect(area: UserArea, shape: CanvasShape, size: AvatarSize): Rect {
   const unit = avatarUnit(shape, size)
   return {
     x: area.x,
@@ -173,11 +169,7 @@ export const CANVAS_RECT: Rect = { x: 0, y: 0, width: 1, height: 1 }
  * The grid is anchored to the room rather than to the canvas, so areas in a room
  * line up with each other even when the room itself sits at an awkward offset.
  */
-export function snapToUnits(
-  value: number,
-  origin: number,
-  unit: number,
-): number {
+export function snapToUnits(value: number, origin: number, unit: number): number {
   return origin + Math.round((value - origin) / unit) * unit
 }
 

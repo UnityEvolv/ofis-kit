@@ -84,6 +84,9 @@ export class Broadcaster {
    *   leaves it with nothing to apply the update to.
    * - A departure following an entry cancels **both**. Nobody ever saw them
    *   arrive, so telling the office that a stranger has left is pure noise.
+   *
+   * And one about losing information: a move following an update is folded into
+   * the update, because the move alone would throw away what the update said.
    */
   queue(officeId: string, change: OfficeChange): void {
     const pending = this.#pending.get(officeId) ?? new Map<string, OfficeChange>()
@@ -111,6 +114,19 @@ export class Broadcaster {
         this.#arm(officeId)
         return
       }
+    }
+
+    // A move after an update keeps the update. A bare move carries only where
+    // somebody went, so letting it supersede a pending update would drop
+    // whatever the update said — a status, a mute, a hand — and leave every
+    // client showing the old one until something else about that person changed.
+    if (existing?.kind === 'person.updated' && change.kind === 'person.moved') {
+      pending.set(key, {
+        kind: 'person.updated',
+        presence: { ...existing.presence, roomId: change.roomId, arrivedAt: change.arrivedAt },
+      })
+      this.#arm(officeId)
+      return
     }
 
     pending.set(key, change)

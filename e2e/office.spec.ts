@@ -28,9 +28,7 @@ test('two people see each other move between rooms', async ({ browser }) => {
 
   // The one that matters: Grace's screen, which nobody touched.
   await seeIn(grace.page, 'Studio', 'Ada')
-  await expect(
-    room(grace.page, 'Reception').getByRole('img', { name: /^Ada,/ }),
-  ).toHaveCount(0)
+  await expect(room(grace.page, 'Reception').getByRole('img', { name: /^Ada,/ })).toHaveCount(0)
 
   // Within a second, which the story asks for. The diff window is fifty
   // milliseconds and the rest is the round trip, so a second is loose — loose
@@ -58,7 +56,9 @@ test('a reload puts somebody back in the room they were in', async ({ browser })
   await leave(ada)
 })
 
-test('a room says it is locked, and knocking is offered in place of joining', async ({ browser }) => {
+test('a room says it is locked, and knocking is offered in place of joining', async ({
+  browser,
+}) => {
   const ada = await walkIn(browser, 'Ada')
   const grace = await walkIn(browser, 'Grace')
 
@@ -178,7 +178,9 @@ test('the fifth knock in a minute explains itself instead of disappearing', asyn
   const knockButton = room(alan.page, 'Studio').getByRole('button', { name: 'Knock' })
   for (let attempt = 0; attempt < 6; attempt += 1) await knockButton.click()
 
-  await expect(alan.page.getByTestId('outgoing-knock')).toContainText(/knocked a few times already/i)
+  await expect(alan.page.getByTestId('outgoing-knock')).toContainText(
+    /knocked a few times already/i,
+  )
 
   await leave(ada)
   await leave(alan)

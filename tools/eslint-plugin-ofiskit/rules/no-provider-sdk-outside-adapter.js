@@ -64,7 +64,9 @@ export default {
         const source = node.source.value
         if (typeof source !== 'string') return
         // Match the package root so 'livekit-client/dist/x' is caught too.
-        const root = source.startsWith('@') ? source.split('/').slice(0, 2).join('/') : source.split('/')[0]
+        const root = source.startsWith('@')
+          ? source.split('/').slice(0, 2).join('/')
+          : source.split('/')[0]
         if (!sdks.has(root)) return
         if (allow.some((fragment) => filename.includes(fragment))) return
         context.report({

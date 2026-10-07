@@ -1,0 +1,24 @@
+# What the image build never needs. The build installs its own dependencies and
+# builds its own output, so a host's copies of either would only be shipped into
+# the build context for nothing — or, worse, copied over the top of the real ones.
+node_modules
+**/node_modules
+dist
+**/dist
+app/dist-pages
+coverage
+**/coverage
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# History and agent worktrees, which can be bigger than everything else together.
+.git
+.claude
+
+# End-to-end results.
+test-results
+playwright-report
+
+# Local secrets stay local.
+.env
+.env.*

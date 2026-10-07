@@ -87,6 +87,7 @@ export function applyPreset(preset: PromptPreset): SlotValues {
  */
 export async function loadPromptDocument(path: string): Promise<PromptDocument> {
   const response = await fetch(path)
-  if (!response.ok) throw new Error(`The background prompt could not be loaded (${response.status}).`)
+  if (!response.ok)
+    throw new Error(`The background prompt could not be loaded (${response.status}).`)
   return (await response.json()) as PromptDocument
 }

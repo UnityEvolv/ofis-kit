@@ -188,7 +188,11 @@ describe('geometry', () => {
       ...template,
       rooms: template.rooms.map((room, index) =>
         index === 0
-          ? { ...room, rect: { ...room.rect, width: minimum.width / 2, height: minimum.height / 2 }, areas: [] }
+          ? {
+              ...room,
+              rect: { ...room.rect, width: minimum.width / 2, height: minimum.height / 2 },
+              areas: [],
+            }
           : room,
       ),
     }
@@ -209,7 +213,12 @@ describe('geometry', () => {
     // Stacked off in a corner: this test is about the count, and the other
     // geometry rules have their own tests.
     for (let index = template.rooms.length; index <= MAX_ROOMS; index += 1) {
-      template = addRoom(template, 'workspace', { x: 0.01, y: 0.01, width: 0.2, height: 0.3 }, `Room ${index}`)
+      template = addRoom(
+        template,
+        'workspace',
+        { x: 0.01, y: 0.01, width: 0.2, height: 0.3 },
+        `Room ${index}`,
+      )
     }
     expect(template.rooms.length).toBeGreaterThan(MAX_ROOMS)
     expect(codes(template)).toContain(TemplateError.ROOMS_TOO_MANY)
@@ -222,9 +231,7 @@ describe('user areas', () => {
     const fractional = {
       ...template,
       rooms: template.rooms.map((room, index) =>
-        index === 0
-          ? { ...room, areas: [{ ...room.areas[0]!, columns: 2.5 }] }
-          : room,
+        index === 0 ? { ...room, areas: [{ ...room.areas[0]!, columns: 2.5 }] } : room,
       ),
     }
     expect(codes(fractional)).toContain(TemplateError.AREA_FRACTIONAL)
@@ -246,7 +253,9 @@ describe('user areas', () => {
     const outside = {
       ...template,
       rooms: template.rooms.map((room, index) =>
-        index === 0 ? { ...room, areas: [{ ...room.areas[0]!, x: room.rect.x + room.rect.width }] } : room,
+        index === 0
+          ? { ...room, areas: [{ ...room.areas[0]!, x: room.rect.x + room.rect.width }] }
+          : room,
       ),
     }
     expect(codes(outside)).toContain(TemplateError.AREA_OUTSIDE_ROOM)
@@ -257,7 +266,9 @@ describe('user areas', () => {
     const underBar = {
       ...template,
       rooms: template.rooms.map((room, index) =>
-        index === 0 ? { ...room, bar: 'top' as const, areas: [{ ...room.areas[0]!, y: room.rect.y }] } : room,
+        index === 0
+          ? { ...room, bar: 'top' as const, areas: [{ ...room.areas[0]!, y: room.rect.y }] }
+          : room,
       ),
     }
     expect(codes(underBar)).toContain(TemplateError.AREA_OVERLAPS_BAR)
@@ -359,7 +370,9 @@ describe('template.json from the open-source app', () => {
   it('refuses an unknown canvas shape and an unknown avatar size', () => {
     const template = seeded()
     expect(codes({ ...template, canvas: 'ultrawide' })).toContain(TemplateError.CANVAS_UNKNOWN)
-    expect(codes({ ...template, avatarSize: 'enormous' })).toContain(TemplateError.AVATAR_SIZE_UNKNOWN)
+    expect(codes({ ...template, avatarSize: 'enormous' })).toContain(
+      TemplateError.AVATAR_SIZE_UNKNOWN,
+    )
   })
 })
 
