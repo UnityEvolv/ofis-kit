@@ -1,20 +1,29 @@
 import { Button, Icon, Input, Select } from '@unityevolv/unitykit'
-import { isRequired, type Room, type Template } from '@unityevolv/ofiskit-template'
+import {
+  isRequired,
+  roomAmbience,
+  type AmbienceTrack,
+  type Room,
+  type Template,
+} from '@unityevolv/ofiskit-template'
 
 import { mapRoom } from '../canvas/geometry.js'
 import type { Selection } from '../canvas/types.js'
+import { AmbienceField } from './AmbienceField.js'
 
 /**
  * The selected room's own settings.
  *
- * Its name, what kind of room it is, which edge its control bar sits on, and the
- * user areas in it. Nothing about geometry: a room is moved and resized on the
+ * Its name, what kind of room it is, which edge its control bar sits on, its
+ * background loop where the host has a library, and the user areas in it. Nothing about geometry: a room is moved and resized on the
  * canvas, where the author can see what they are doing to it.
  */
 
 export function RoomInspector(props: {
   template: Template
   room: Room
+  /** The host's loops. Without any, there is nothing to choose and no control. */
+  ambienceLibrary?: readonly AmbienceTrack[]
   onChange(template: Template): void
   onSelect(selection: Selection): void
 }) {
@@ -61,6 +70,36 @@ export function RoomInspector(props: {
         <option value="top">Top</option>
         <option value="bottom">Bottom</option>
       </Select>
+
+      {props.ambienceLibrary && props.ambienceLibrary.length > 0 && (
+        <>
+          <AmbienceField
+            label="Ambience"
+            help="Suits reception, break rooms and open areas. People can turn it off for themselves."
+            value={room.ambience}
+            library={props.ambienceLibrary}
+            inherited={{
+              label: template.ambience
+                ? (props.ambienceLibrary.find((one) => one.id === template.ambience)?.label ??
+                  template.ambience)
+                : null,
+            }}
+            onChange={(ambience) =>
+              edit(({ ambience: _previous, ...one }) =>
+                ambience === undefined ? one : { ...one, ambience },
+              )
+            }
+          />
+          {/* Guidance, not a rule: the author may still do it. */}
+          {roomAmbience(template, room) !== null &&
+            (room.type === 'meeting' || room.type === 'conference') && (
+              <p className="text-xs text-base-content/70">
+                Background audio tends to get in the way where people meet. It pauses for anyone in
+                a call, but consider none here.
+              </p>
+            )}
+        </>
+      )}
 
       <div>
         <p className="text-xs font-medium text-base-content/70">User areas</p>

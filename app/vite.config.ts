@@ -1,5 +1,5 @@
 import { copyFile, readFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import react from '@vitejs/plugin-react'
@@ -70,6 +70,22 @@ function officeImages(): Plugin {
           type: 'asset',
           fileName: `office/${name}`,
           source: await readFile(join(configDir, name as string)),
+        })
+      }
+
+      // The ambience library, read from its manifest for the same reason: a host
+      // who swaps a loop in config/ swaps the demo's too. No manifest, no loops.
+      const manifest = await readFile(join(configDir, 'ambience', 'manifest.json'), 'utf8').catch(
+        () => null,
+      )
+      if (manifest === null) return
+      this.emitFile({ type: 'asset', fileName: 'office/ambience/manifest.json', source: manifest })
+      const { tracks } = JSON.parse(manifest) as { tracks: Array<{ file: string }> }
+      for (const track of tracks) {
+        this.emitFile({
+          type: 'asset',
+          fileName: `office/ambience/${basename(track.file)}`,
+          source: await readFile(join(configDir, 'ambience', basename(track.file))),
         })
       }
     },

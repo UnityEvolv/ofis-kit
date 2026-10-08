@@ -2,11 +2,18 @@ import { Button, Icon, Select } from '@unityevolv/unitykit'
 import type { DeviceChoice, OfisClient } from '@unityevolv/ofiskit-realtime-client'
 import { statusIsChosen, you as yourPresence, yourRoom } from '@unityevolv/ofiskit-realtime-client'
 import {
+  AmbienceControl,
   CallAudio,
   CallControls,
   CallTiles,
   DevicePanel,
+  FollowRequestDock,
+  FollowersControl,
+  FollowingBar,
+  HeldNudges,
   KnockDock,
+  NudgeDialog,
+  NudgeDock,
   OfficeMap,
   OutgoingKnock,
   RoomListView,
@@ -16,6 +23,7 @@ import {
   StatusControl,
   TakeOverDialog,
   ViewToggle,
+  useAmbience,
   useAnnounce,
   useClientEvents,
   useIdleReporting,
@@ -30,13 +38,15 @@ import {
   useTheme,
 } from '@unityevolv/ofiskit-ui-map'
 import { tilePlacement } from '@unityevolv/ofiskit-ui-map'
-import { hostsCalls, type Template } from '@unityevolv/ofiskit-template'
+import { hostsCalls, roomTrack, type Template } from '@unityevolv/ofiskit-template'
 import { useCallback, useMemo, useState } from 'react'
 
+import { useAmbienceLibrary } from './ambience.js'
 import { officeImageUrl } from './config.js'
 import { hostScreenSources } from './screenSources.js'
 import { useCallControls } from './useCallControls.js'
 import { useKnocks } from './useKnocks.js'
+import { useNudgeFollow } from './useNudgeFollow.js'
 import { useOfficeView } from './useOfficeView.js'
 
 /**
@@ -176,6 +186,25 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
    * laptop they bring to meetings. Arrivals in reception make no sound, because
    * reception is where everybody arrives.
    */
+  /*
+   * The room's ambience: a quiet loop, if the room has one and the person wants it.
+   *
+   * There are no profiles here, so the switch and the volume are remembered in this
+   * browser. unityofis keeps the same two on the person's profile instead, which is
+   * the whole of the difference: the engine is told and never decides. It fades out
+   * for a call and back after, and dips under the knock and the chime below.
+   */
+  const ambienceLibrary = useAmbienceLibrary()
+  const [ambienceOn, setAmbienceOn] = usePersisted('ofiskit:ambience', true)
+  const [ambienceVolume, setAmbienceVolume] = usePersisted('ofiskit:ambience-volume', 0.4)
+  const ambience = useAmbience({
+    track: room ? roomTrack(template, room, ambienceLibrary) : null,
+    enabled: ambienceOn,
+    volume: ambienceVolume,
+    suspended: call.inCall,
+    ...(devices.speakerDeviceId ? { speakerDeviceId: devices.speakerDeviceId } : {}),
+  })
+
   const [soundsOn, setSoundsOn] = usePersisted('ofiskit:sounds', true)
   const quietRoomIds = useMemo(
     () => template.rooms.filter((one) => one.type === 'reception').map((one) => one.id),
@@ -184,6 +213,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
   useSounds(client, state, {
     enabled: soundsOn,
     quietRoomIds,
+    onSound: ambience.duck,
     ...(devices.speakerDeviceId ? { speakerDeviceId: devices.speakerDeviceId } : {}),
   })
 
@@ -203,6 +233,12 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
 
   const knocks = useKnocks(client, template)
 
+  /*
+   * Nudging and following: the notices, the card actions and what is said aloud.
+   * The card is the same everywhere a person is drawn, map or list.
+   */
+  const social = useNudgeFollow(client, state, template)
+
   const props = {
     template,
     state,
@@ -212,6 +248,7 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
     onKnock: knocks.knock,
     onLock: (id: string) => void client.lock(id),
     onUnlock: (id: string) => void client.unlock(id),
+    personActions: social.actionsFor,
   }
 
   return (
@@ -310,6 +347,25 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
 
           <KnockDock knocks={knocks.incoming} onAdmit={knocks.admit} onDecline={knocks.decline} />
 
+          {/*
+            Nudges and follow requests, top right: over the office like the knocks,
+            and out of their way.
+          */}
+          <div className="pointer-events-none absolute right-4 top-4 z-30 flex flex-col gap-2">
+            <NudgeDock
+              nudges={social.nudges.shown}
+              roomName={social.roomName}
+              yourRoomId={roomId}
+              onJoin={social.joinNudger}
+              onDismiss={social.nudges.dismiss}
+            />
+            <FollowRequestDock
+              requests={social.following.requests}
+              onAccept={social.accept}
+              onDecline={social.decline}
+            />
+          </div>
+
           {knocks.outgoing && (
             <div className="pointer-events-none absolute bottom-4 left-4 z-30 w-72">
               <OutgoingKnock
@@ -378,6 +434,14 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
               )}
             </span>
 
+            {/* Following, in plain sight with its stop, never in a menu. */}
+            <FollowingBar
+              follow={social.following.follow}
+              nameOf={social.nameOf}
+              roomName={social.roomName}
+              onStop={social.stopFollowing}
+            />
+
             {room && reception && room.id !== reception.id && (
               <Button size="sm" variant="ghost" onClick={() => void client.leaveRoom()}>
                 <Icon name="chevron-left" size="sm" />
@@ -416,6 +480,23 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
                 sounds={{ on: soundsOn, onChange: setSoundsOn }}
               />
             </span>
+
+            {/* Present only in a room with a loop, and then even for somebody who has
+                it off, so they know what the people beside them can hear. */}
+            <AmbienceControl
+              ambience={ambience}
+              enabled={ambienceOn}
+              volume={ambienceVolume}
+              onEnabledChange={setAmbienceOn}
+              onVolumeChange={setAmbienceVolume}
+            />
+
+            <HeldNudges count={social.nudges.held.length} />
+            <FollowersControl
+              follow={social.following.follow}
+              nameOf={social.nameOf}
+              onRemove={social.removeFollower}
+            />
 
             {/* The line break between the second row and the third, on a phone. */}
             <span aria-hidden="true" className="hidden h-0 basis-full max-sm:block" />
@@ -477,6 +558,13 @@ export function OfficePage({ client, template, onLeave }: OfficePageProps) {
         nobody is sharing in opens the browser's own picker and nothing else happens
         here.
       */}
+      <NudgeDialog
+        open={social.composing !== null}
+        name={social.composing?.displayName ?? ''}
+        onSend={social.sendNudge}
+        onClose={social.closeComposer}
+      />
+
       {call.asking?.kind === 'take-over' && (
         <TakeOverDialog
           sharerName={call.asking.sharerName || 'Somebody'}

@@ -1,7 +1,13 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { hasTurn } from '@unityevolv/ofiskit-realtime-core'
+import {
+  FOLLOW_DEFAULTS,
+  NUDGE_DEFAULTS,
+  hasTurn,
+  type FollowOptions,
+  type NudgeOptions,
+} from '@unityevolv/ofiskit-realtime-core'
 
 /**
  * Everything this process needs to know, read from the environment once.
@@ -92,6 +98,18 @@ export interface Config {
     /** People in the office at once. Null means no ceiling. */
     maxPresent: number | null
   }
+
+  /**
+   * How often somebody may nudge: three a minute to one person and ten a minute
+   * overall unless the environment says otherwise.
+   */
+  nudge: NudgeOptions
+
+  /**
+   * The limits of following: five followers per person, ten minutes before a
+   * declined asker may ask again, unless the environment says otherwise.
+   */
+  follow: FollowOptions
 }
 
 export function loadConfig(): Config {
@@ -127,6 +145,20 @@ export function loadConfig(): Config {
     demo: {
       enabled: text('DEMO', 'false') === 'true',
       maxPresent: process.env.MAX_PRESENT ? number('MAX_PRESENT', 40) : null,
+    },
+
+    nudge: {
+      perPersonLimit: number('NUDGE_PER_PERSON_LIMIT', NUDGE_DEFAULTS.perPersonLimit),
+      perPersonWindowMs: number('NUDGE_PER_PERSON_WINDOW_MS', NUDGE_DEFAULTS.perPersonWindowMs),
+      perSenderLimit: number('NUDGE_PER_SENDER_LIMIT', NUDGE_DEFAULTS.perSenderLimit),
+      perSenderWindowMs: number('NUDGE_PER_SENDER_WINDOW_MS', NUDGE_DEFAULTS.perSenderWindowMs),
+    },
+
+    follow: {
+      maxFollowers: number('FOLLOW_MAX_FOLLOWERS', FOLLOW_DEFAULTS.maxFollowers),
+      declineCooldownMs: number('FOLLOW_DECLINE_COOLDOWN_MS', FOLLOW_DEFAULTS.declineCooldownMs),
+      requestTtlMs: number('FOLLOW_REQUEST_TTL_MS', FOLLOW_DEFAULTS.requestTtlMs),
+      callWaitMs: number('FOLLOW_CALL_WAIT_MS', FOLLOW_DEFAULTS.callWaitMs),
     },
   }
 }

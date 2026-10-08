@@ -1,3 +1,4 @@
+import { AMBIENCE_NONE, isAmbienceId } from './ambience.js'
 import {
   CANVAS_RECT,
   areaRect,
@@ -150,7 +151,32 @@ function readRoom(value: unknown, path: string, issues: TemplateIssue[]): Room |
     if (parsed !== null) read.push(parsed)
   }
 
-  return { id, name, type: type as RoomType, rect, bar: bar as BarPosition, areas: read }
+  const room: Room = {
+    id,
+    name,
+    type: type as RoomType,
+    rect,
+    bar: bar as BarPosition,
+    areas: read,
+  }
+
+  // Reported but not fatal to the room: a mistyped loop is no reason to stop
+  // checking the geometry, and the author is told about both at once.
+  const { ambience } = value
+  if (ambience !== undefined) {
+    if (ambience === AMBIENCE_NONE || isAmbienceId(ambience)) room.ambience = ambience
+    else {
+      issues.push(
+        issue(
+          TemplateError.AMBIENCE_INVALID,
+          `${path}.ambience`,
+          `A room's ambience is a loop's id, or "${AMBIENCE_NONE}" for silence.`,
+        ),
+      )
+    }
+  }
+
+  return room
 }
 
 /**
@@ -335,6 +361,22 @@ export function validateTemplate(input: unknown): Validated<Template> {
     if (typeof images.dark === 'string' && images.dark.length > 0) dark = images.dark
   }
 
+  // The office default. Silence is the field's absence, so "none" here would be
+  // a second way of saying nothing and is refused rather than kept.
+  let ambience: string | undefined
+  if (input.ambience !== undefined) {
+    if (isAmbienceId(input.ambience)) ambience = input.ambience
+    else {
+      issues.push(
+        issue(
+          TemplateError.AMBIENCE_INVALID,
+          'ambience',
+          "The office ambience is a loop's id. Leave it out for silence.",
+        ),
+      )
+    }
+  }
+
   if (!Array.isArray(input.rooms)) {
     issues.push(issue(TemplateError.MALFORMED, 'rooms', 'A template needs a list of rooms.'))
     return { ok: false, issues }
@@ -422,6 +464,7 @@ export function validateTemplate(input: unknown): Validated<Template> {
   if (typeof input.description === 'string' && input.description.length > 0) {
     template.description = input.description
   }
+  if (ambience !== undefined) template.ambience = ambience
 
   return { ok: true, value: template }
 }

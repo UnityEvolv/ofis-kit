@@ -93,6 +93,14 @@ export interface Room {
   rect: Rect
   bar: BarPosition
   areas: UserArea[]
+  /**
+   * The room's background loop: a library id, `"none"` for silence whatever the
+   * template's default is, or absent to inherit that default. See `roomAmbience`.
+   *
+   * Suits reception, break rooms and open areas, and suits meeting rooms badly;
+   * the builder says so and leaves the choice to the author.
+   */
+  ambience?: string
 }
 
 /**
@@ -118,6 +126,12 @@ export interface Template {
   avatarSize: AvatarSize
   images: TemplateImages
   rooms: Room[]
+  /**
+   * The office default background loop, by library id, for every room that
+   * does not choose its own. Absent means silence, which is every template's
+   * default: nothing starts making noise unless an author asked it to.
+   */
+  ambience?: string
 }
 
 /** The three rooms a template always has, and which of them may not be deleted. */

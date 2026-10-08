@@ -176,24 +176,32 @@ for whoever finds the link.
 Read by `server/src/config.ts` once at start. That file is the only place in the
 repository allowed to name a host or a port, and it names none of yours.
 
-| Variable            | Default                                       | What it does                                                                                                                                        |
-| ------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`              | `4000`                                        | The port the process listens on. In Compose this is the server's; the app's is `PORT` on the `app` service, default `8080`.                         |
-| `HOST`              | `0.0.0.0`                                     | The address to bind. The default suits a container.                                                                                                 |
-| `CONFIG_DIR`        | `config/`                                     | Where `template.json` and the office's pictures are.                                                                                                |
-| `TEMPLATE_PATH`     | `CONFIG_DIR/template.json`                    | The layout, if it lives somewhere else.                                                                                                             |
-| `APP_DIR`           | `app/dist`                                    | The built app this process serves.                                                                                                                  |
-| `WATCH_TEMPLATE`    | `true`, or `false` when `NODE_ENV=production` | Re-read the template when the file changes.                                                                                                         |
-| `OFFICE_ID`         | `office`                                      | The office's id. One process is one office.                                                                                                         |
-| `LOG_LEVEL`         | `info`                                        | `debug`, `info`, `warn` or `error`. Logs never contain names, emails or photos.                                                                     |
-| `PRESENCE_GRACE_MS` | `30000`                                       | How long somebody stays in their room after their last device drops, so a flaky connection is not a departure.                                      |
-| `ALLOWED_ORIGINS`   | none                                          | Other origins allowed to open the socket, comma separated. Empty means the app's own origin only, which is right unless you host the app elsewhere. |
-| `TURN_SECRET`       | none                                          | The secret shared with the relay. It mints short-lived credentials per call; nothing else sees it.                                                  |
-| `TURN_URLS`         | none                                          | Relay addresses for browsers, comma separated. Empty means no relay.                                                                                |
-| `STUN_URLS`         | none                                          | STUN addresses for browsers, comma separated.                                                                                                       |
-| `TURN_TTL_SECONDS`  | `43200`                                       | How long a relay credential lasts.                                                                                                                  |
-| `DEMO`              | `false`                                       | Public demo mode: a warning on the entry screen.                                                                                                    |
-| `MAX_PRESENT`       | none                                          | The most people in the office at once. A newcomer beyond it is told the office is full; nobody already inside is affected. Empty means no ceiling.  |
+| Variable                     | Default                                       | What it does                                                                                                                                        |
+| ---------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                       | `4000`                                        | The port the process listens on. In Compose this is the server's; the app's is `PORT` on the `app` service, default `8080`.                         |
+| `HOST`                       | `0.0.0.0`                                     | The address to bind. The default suits a container.                                                                                                 |
+| `CONFIG_DIR`                 | `config/`                                     | Where `template.json` and the office's pictures are.                                                                                                |
+| `TEMPLATE_PATH`              | `CONFIG_DIR/template.json`                    | The layout, if it lives somewhere else.                                                                                                             |
+| `APP_DIR`                    | `app/dist`                                    | The built app this process serves.                                                                                                                  |
+| `WATCH_TEMPLATE`             | `true`, or `false` when `NODE_ENV=production` | Re-read the template when the file changes.                                                                                                         |
+| `OFFICE_ID`                  | `office`                                      | The office's id. One process is one office.                                                                                                         |
+| `LOG_LEVEL`                  | `info`                                        | `debug`, `info`, `warn` or `error`. Logs never contain names, emails or photos.                                                                     |
+| `PRESENCE_GRACE_MS`          | `30000`                                       | How long somebody stays in their room after their last device drops, so a flaky connection is not a departure.                                      |
+| `ALLOWED_ORIGINS`            | none                                          | Other origins allowed to open the socket, comma separated. Empty means the app's own origin only, which is right unless you host the app elsewhere. |
+| `TURN_SECRET`                | none                                          | The secret shared with the relay. It mints short-lived credentials per call; nothing else sees it.                                                  |
+| `TURN_URLS`                  | none                                          | Relay addresses for browsers, comma separated. Empty means no relay.                                                                                |
+| `STUN_URLS`                  | none                                          | STUN addresses for browsers, comma separated.                                                                                                       |
+| `TURN_TTL_SECONDS`           | `43200`                                       | How long a relay credential lasts.                                                                                                                  |
+| `DEMO`                       | `false`                                       | Public demo mode: a warning on the entry screen.                                                                                                    |
+| `MAX_PRESENT`                | none                                          | The most people in the office at once. A newcomer beyond it is told the office is full; nobody already inside is affected. Empty means no ceiling.  |
+| `NUDGE_PER_PERSON_LIMIT`     | `3`                                           | Nudges one person may send to one colleague per window.                                                                                             |
+| `NUDGE_PER_PERSON_WINDOW_MS` | `60000`                                       | The window for the limit above.                                                                                                                     |
+| `NUDGE_PER_SENDER_LIMIT`     | `10`                                          | Nudges one person may send to anybody per window.                                                                                                   |
+| `NUDGE_PER_SENDER_WINDOW_MS` | `60000`                                       | The window for the limit above.                                                                                                                     |
+| `FOLLOW_MAX_FOLLOWERS`       | `5`                                           | The most people who may follow one person at once.                                                                                                  |
+| `FOLLOW_DECLINE_COOLDOWN_MS` | `600000`                                      | How long somebody whose follow request was declined waits before asking the same person again.                                                      |
+| `FOLLOW_REQUEST_TTL_MS`      | `60000`                                       | How long a follow request waits for an answer.                                                                                                      |
+| `FOLLOW_CALL_WAIT_MS`        | `120000`                                      | How long a follower's move waits for their own call to end before the follow stops.                                                                 |
 
 ## Your own office
 
@@ -210,6 +218,29 @@ demo. It walks you through three steps: a prompt for generating the picture,
 uploading it (and generating a dark version from an SVG), and placing rooms. It
 downloads `template.json` and tells you what to name the pictures. Put them in
 `config/`, restart, and that is your office.
+
+### Room ambience
+
+A room can play a quiet background loop — café, rain, a stream — chosen in the
+builder per room, with an office default for every room that does not choose.
+Nothing plays unless the template asks for it, and each person can turn it off
+or down from the bar at the bottom of the office; that choice is kept in their
+browser. It fades out when they join a call and back when they leave, and it is
+never part of the call: everyone plays their own copy.
+
+The loops are the library in `config/ambience/`:
+
+```
+config/ambience/manifest.json   the catalogue: each loop's id, label and file,
+                                and where it came from under what licence
+config/ambience/*.mp3           the loops
+```
+
+A template stores only a loop's id. To replace a loop, replace its file and keep
+its id; to add one, add the file and an entry. The loops shipped here are CC0
+placeholders, cut to loop seamlessly and recorded in the manifest with their
+sources. Keep them short (a few minutes), mono, and modest in bitrate: each is
+downloaded once per session by everyone who walks into a room that plays it.
 
 ## The browser-only demo
 

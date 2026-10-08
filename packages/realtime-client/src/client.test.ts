@@ -6,6 +6,7 @@ import type {
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createOfisClient, type ClientEvent, type SocketLike } from './client.js'
+import { NOT_FOLLOWING, followOf } from './office-state.js'
 
 /**
  * The client, driven without a network.
@@ -678,5 +679,175 @@ describe('being closed', () => {
 
     expect(rtc.leave).toHaveBeenCalledTimes(1)
     expect(client.status()).toBe('closed')
+  })
+})
+
+describe('nudging', () => {
+  it('sends who and the line, and hands back how it was delivered', async () => {
+    const { client, socket } = await entered()
+    socket.answer('person:nudge', { ok: true, nudgeId: 'n1', delivery: 'held' })
+
+    const result = await client.nudge('priya', 'got a minute?')
+
+    expect(socket.sent.at(-1)).toEqual({
+      event: 'person:nudge',
+      payload: { userId: 'priya', line: 'got a minute?' },
+    })
+    expect(result).toEqual({ ok: true, nudgeId: 'n1', delivery: 'held' })
+  })
+
+  it('says a refusal out loud, with whatever detail the host attached', async () => {
+    const { client, socket, events } = await entered()
+    socket.answer('person:nudge', {
+      ok: false,
+      code: 'nudge.out_of_office',
+      message: 'Priya is out of office.',
+      fields: { returns_on: '2026-10-14' },
+    })
+
+    await client.nudge('priya')
+
+    expect(socket.sent.at(-1)).toEqual({ event: 'person:nudge', payload: { userId: 'priya' } })
+    expect(events.at(-1)).toEqual({
+      type: 'refused',
+      action: 'person:nudge',
+      code: 'nudge.out_of_office',
+      message: 'Priya is out of office.',
+      fields: { returns_on: '2026-10-14' },
+    })
+  })
+
+  it('passes a nudge on as an event, and keeps nothing of it', async () => {
+    const { client, socket, events } = await entered()
+    const before = client.state()
+
+    socket.fire('nudge:received', {
+      nudgeId: 'n1',
+      userId: 'priya',
+      displayName: 'Priya',
+      roomId: 'studio',
+      line: 'got a minute?',
+      delivery: 'now',
+      at: '2026-10-08T09:00:00.000Z',
+    })
+
+    expect(events.at(-1)).toMatchObject({ type: 'nudge', userId: 'priya', roomId: 'studio' })
+    expect(client.state()).toBe(before)
+  })
+})
+
+describe('following', () => {
+  it('asks, answers, stops and removes over the matching events', async () => {
+    const { client, socket } = await entered()
+    for (const event of [
+      'follow:request',
+      'follow:accept',
+      'follow:decline',
+      'follow:stop',
+      'follow:remove',
+    ]) {
+      socket.answer(event, { ok: true, requestId: 'r1', following: false })
+    }
+
+    await client.requestFollow('priya')
+    await client.acceptFollow('r1')
+    await client.declineFollow('r2')
+    await client.stopFollowing()
+    await client.removeFollower('alan')
+
+    expect(socket.sent.slice(-5)).toEqual([
+      { event: 'follow:request', payload: { userId: 'priya' } },
+      { event: 'follow:accept', payload: { requestId: 'r1' } },
+      { event: 'follow:decline', payload: { requestId: 'r2' } },
+      { event: 'follow:stop' },
+      { event: 'follow:remove', payload: { userId: 'alan' } },
+    ])
+  })
+
+  it('starts from the snapshot, so a reload still knows who is behind you', async () => {
+    const { client } = await entered({
+      snapshot: snapshot({
+        you: {
+          userId: 'ada',
+          deviceId: 'ada-laptop',
+          manual: null,
+          follow: {
+            following: null,
+            followers: [{ userId: 'alan', since: '2026-10-08T09:00:00.000Z' }],
+            asking: null,
+          },
+        },
+      }),
+    })
+
+    expect(followOf(client.state()).followers).toEqual([
+      { userId: 'alan', since: '2026-10-08T09:00:00.000Z' },
+    ])
+  })
+
+  it('reads as nobody following before anything is known', async () => {
+    const { client } = await entered()
+    expect(followOf(client.state())).toEqual(NOT_FOLLOWING)
+  })
+
+  it('keeps your side of following on the state as it changes', async () => {
+    const { client, socket } = await entered()
+
+    socket.fire('follow:state', {
+      following: { userId: 'priya', since: '2026-10-08T09:00:00.000Z' },
+      followers: [],
+      asking: null,
+    })
+
+    expect(followOf(client.state()).following).toEqual({
+      userId: 'priya',
+      since: '2026-10-08T09:00:00.000Z',
+    })
+  })
+
+  it('passes requests, answers, moves, holds and endings on as events', async () => {
+    const { socket, events } = await entered()
+
+    socket.fire('follow:requested', {
+      requestId: 'r1',
+      userId: 'alan',
+      displayName: 'Alan',
+      expiresAt: '2026-10-08T09:01:00.000Z',
+    })
+    socket.fire('follow:resolved', { requestId: 'r1', outcome: 'declined' })
+    socket.fire('follow:moved', { leaderId: 'priya', roomId: 'studio' })
+    socket.fire('follow:held', {
+      leaderId: 'priya',
+      roomId: 'studio',
+      code: 'room.locked',
+      message: 'Studio is locked.',
+    })
+    socket.fire('follow:ended', { leaderId: 'priya', followerId: 'ada', reason: 'moved_away' })
+
+    expect(events.slice(-5).map((event) => event.type)).toEqual([
+      'follow.requested',
+      'follow.resolved',
+      'follow.moved',
+      'follow.held',
+      'follow.ended',
+    ])
+  })
+
+  it('says a refused request out loud', async () => {
+    const { client, socket, events } = await entered()
+    socket.answer('follow:request', {
+      ok: false,
+      code: 'follow.cooldown',
+      message: 'Priya said not now.',
+      fields: { retry_after_ms: '540000' },
+    })
+
+    await client.requestFollow('priya')
+
+    expect(events.at(-1)).toMatchObject({
+      type: 'refused',
+      action: 'follow:request',
+      code: 'follow.cooldown',
+    })
   })
 })

@@ -175,7 +175,46 @@ export interface OfficeSnapshot {
    * to automatic, and it has to survive a reload, which is why it travels rather
    * than being remembered on the client.
    */
-  you: { userId: string; deviceId: string; manual: ManualStatus | null }
+  you: {
+    userId: string
+    deviceId: string
+    manual: ManualStatus | null
+    /**
+     * Who you follow, who follows you, and whom you have asked.
+     *
+     * Here rather than on `PublicPresence` for the same reason as `manual`: being
+     * followed is plainly visible to the person being followed and to the follower,
+     * and nobody else's business. Optional, so a host on an older engine and a
+     * fixture written before following existed both still type.
+     */
+    follow?: FollowState
+  }
+}
+
+/**
+ * One person's side of following, as their own screens see it.
+ *
+ * Following is a link between two people in one office, held in memory by the
+ * engine and gone with either of them. The person being followed always sees who
+ * is following them, because being followed without knowing it is the failure
+ * this feature exists to avoid.
+ */
+export interface FollowState {
+  /**
+   * The person you follow, or null.
+   *
+   * `waitingFor` is set while a move is held back because you are in a call: the
+   * room they went to, and the instant the follow gives up if you are still in it.
+   */
+  following: {
+    userId: string
+    since: string
+    waitingFor?: { roomId: string; until: string }
+  } | null
+  /** Who follows you, oldest first. Each can be stopped from your side. */
+  followers: Array<{ userId: string; since: string }>
+  /** Your own request to follow somebody, while they decide. */
+  asking: { requestId: string; userId: string; expiresAt: string } | null
 }
 
 /**
@@ -325,6 +364,63 @@ export interface ReactionRequest {
   reaction: string
 }
 
+/**
+ * A tap on the shoulder: who, and optionally one plain line.
+ *
+ * The line is short on purpose — a nudge that becomes a message defeats itself,
+ * because a message needs answering and a nudge does not. No formatting, no
+ * attachments, no mentions: it is drawn as text and nothing else.
+ */
+/**
+ * The longest line a nudge may carry: a tweet's length.
+ *
+ * Here rather than in the engine's options because both sides have to agree —
+ * the composer counts down to it and the server refuses past it — and two copies
+ * of a number like this drift.
+ */
+export const NUDGE_LINE_MAX = 280
+
+export interface NudgeRequest {
+  userId: string
+  line?: string
+}
+
+/**
+ * How a nudge was delivered.
+ *
+ * `now` is a toast on their screen. `held` means they are busy or in a call: it
+ * arrived as a quiet badge, and they see it once the call is over. Either way it
+ * is not stored anywhere — it lives in the socket and on their screen.
+ */
+export type NudgeDelivery = 'now' | 'held'
+
+/** Ask to follow somebody. Asked for, never taken. */
+export interface FollowRequest {
+  userId: string
+}
+
+export interface FollowReplyRequest {
+  requestId: string
+}
+
+/** The followed person cutting one follower loose. */
+export interface FollowRemoveRequest {
+  userId: string
+}
+
+/** Why a follow ended. Each means something different to the person told. */
+export type FollowEndReason =
+  /** The follower pressed stop. */
+  | 'stopped'
+  /** The person being followed pressed stop against them. */
+  | 'removed'
+  /** The follower walked somewhere by themselves, which is obviously what they meant. */
+  | 'moved_away'
+  /** One of them left the office, went offline, or lost access. */
+  | 'left'
+  /** The follower stayed in a call for longer than a move waits. */
+  | 'call'
+
 export interface StatusRequest {
   /** null puts the person back on automatic. */
   manual: ManualStatus | null
@@ -437,6 +533,35 @@ export interface ClientEvents {
     packetLoss: number
     roundTripMs: number
   }) => void
+  /**
+   * Catch somebody's eye without starting a conversation.
+   *
+   * Refused outright when they are on do not disturb, away, offline or (by the
+   * host's say) out of office — never queued, because a nudge is about now. The
+   * acknowledgement says whether it went straight to their screen or is waiting
+   * quietly for their call to end.
+   */
+  'person:nudge': (
+    request: NudgeRequest,
+    ack: (result: Ack<{ nudgeId: string; delivery: NudgeDelivery }>) => void,
+  ) => void
+  /**
+   * Ask to follow somebody.
+   *
+   * `following` is true when the host says this pair needs no asking (a
+   * remembered allowance) and the follow has already started; otherwise the
+   * request waits for an answer, and expires like a knock does.
+   */
+  'follow:request': (
+    request: FollowRequest,
+    ack: (result: Ack<{ requestId: string; following: boolean }>) => void,
+  ) => void
+  'follow:accept': (request: FollowReplyRequest, ack: (result: Ack) => void) => void
+  'follow:decline': (request: FollowReplyRequest, ack: (result: Ack) => void) => void
+  /** Stop following, or withdraw a request still waiting. Always available. */
+  'follow:stop': (ack: (result: Ack) => void) => void
+  /** The followed person stopping one follower. */
+  'follow:remove': (request: FollowRemoveRequest, ack: (result: Ack) => void) => void
   'status:manual': (request: StatusRequest, ack: (result: Ack) => void) => void
   'status:custom': (request: CustomStatusRequest, ack: (result: Ack) => void) => void
   'device:activity': (request: ActivityRequest) => void
@@ -529,6 +654,53 @@ export interface ServerEvents {
    * the meantime. Nothing was held open.
    */
   'knock:admitted': (event: { roomId: string; byUserId: string }) => void
+  /**
+   * Somebody nudged you.
+   *
+   * `delivery: 'held'` means you are busy or in a call: show it as a quiet badge,
+   * and as the ordinary notice once, when the call ends. Nothing about it is
+   * stored, here or on the server; a screen that was not connected missed it.
+   * `roomId` is where they were when they nudged, so "join them" needs nothing
+   * else.
+   */
+  'nudge:received': (event: {
+    nudgeId: string
+    userId: string
+    displayName: string
+    photoUrl?: string
+    roomId: string
+    line?: string
+    delivery: NudgeDelivery
+    at: string
+  }) => void
+  /** Somebody would like to follow you. Accept, decline, or let it expire. */
+  'follow:requested': (event: {
+    requestId: string
+    userId: string
+    displayName: string
+    photoUrl?: string
+    expiresAt: string
+  }) => void
+  /**
+   * A follow request is over. To the asker and to every device of the person
+   * asked, so the card goes everywhere. Declining is said to nobody else.
+   */
+  'follow:resolved': (event: {
+    requestId: string
+    outcome: 'accepted' | 'declined' | 'expired' | 'cancelled'
+  }) => void
+  /** Your side of following changed. The whole of it, so nothing has to be merged. */
+  'follow:state': (event: FollowState) => void
+  /** You were moved because the person you follow moved. The move itself is a diff. */
+  'follow:moved': (event: { leaderId: string; roomId: string }) => void
+  /**
+   * The person you follow moved and you were not taken along, and why: a locked
+   * room, a full one, one you have no access to, or a call you are still in. You
+   * stay where you are and keep following.
+   */
+  'follow:held': (event: { leaderId: string; roomId: string } & ErrorEnvelope) => void
+  /** A follow ended. To both people, with who and why. */
+  'follow:ended': (event: { leaderId: string; followerId: string; reason: FollowEndReason }) => void
   /** The template on disk changed; re-read it. */
   'template:changed': (event: { officeId: string }) => void
   /**
@@ -616,6 +788,53 @@ export const Refusal = {
   REACTION_UNKNOWN: 'reaction.unknown',
   /** Enough. A held key is not a conversation. */
   REACTION_RATE_LIMITED: 'reaction.rate_limited',
+
+  /** Nobody by that id is in this office right now. */
+  PERSON_UNKNOWN: 'person.unknown',
+
+  /** Nudging yourself. */
+  NUDGE_SELF: 'nudge.self',
+  /** The line is longer than a nudge allows, or is not plain text. */
+  NUDGE_LINE_INVALID: 'nudge.line_invalid',
+  /** On do not disturb. Not queued: a nudge is about now. Send a message instead. */
+  NUDGE_DND: 'nudge.dnd',
+  /** Away from the keyboard or backgrounded on a phone. Not queued; never pushed. */
+  NUDGE_AWAY: 'nudge.away',
+  /** Gone, or reconnecting. Not queued: a stale tap on the shoulder is noise. */
+  NUDGE_OFFLINE: 'nudge.offline',
+  /**
+   * Out of office, by the host's say. The engine never works this out: a host's
+   * identity adapter refuses `nudge` with this code, and may put the return date
+   * (a date, never a formatted one) in `fields.returns_on`.
+   */
+  NUDGE_OUT_OF_OFFICE: 'nudge.out_of_office',
+  /** Too many nudges to this one person in the window. */
+  NUDGE_RATE_LIMITED_PERSON: 'nudge.rate_limited_person',
+  /** Too many nudges overall in the window. */
+  NUDGE_RATE_LIMITED: 'nudge.rate_limited',
+
+  /** Following yourself. */
+  FOLLOW_SELF: 'follow.self',
+  /** The person is on do not disturb, so they cannot be asked. */
+  FOLLOW_DND: 'follow.dnd',
+  /**
+   * Following cannot be chained: somebody who follows cannot be followed, and
+   * somebody who is followed cannot follow. A follower moving under somebody
+   * else's control is a loop waiting to happen.
+   */
+  FOLLOW_CHAIN: 'follow.chain',
+  /** They already have as many followers as one person may. */
+  FOLLOW_FULL: 'follow.full',
+  /** They declined a moment ago. `fields.retry_after_ms` says how long is left. */
+  FOLLOW_COOLDOWN: 'follow.cooldown',
+  /** Already following somebody. Stop first. */
+  FOLLOW_ALREADY: 'follow.already',
+  /** Accepted, declined, expired, withdrawn, or never existed. */
+  FOLLOW_UNKNOWN: 'follow.unknown',
+  /** Asked to stop something that is not happening. */
+  FOLLOW_NOT_FOLLOWING: 'follow.not_following',
+  /** The move is waiting for the follower's call to end. */
+  FOLLOW_WAITING_FOR_CALL: 'follow.waiting_for_call',
 
   /** The request did not match the contract. */
   MALFORMED: 'request.malformed',

@@ -1,4 +1,5 @@
 import type {
+  FollowState,
   OfficeChange,
   OfficeDiff,
   ManualStatus,
@@ -38,7 +39,11 @@ export interface OfficeState {
    * or not they are in the conversation happening in it.
    */
   calls: Map<string, RoomCall>
-  you: { userId: string; deviceId: string; manual: ManualStatus | null }
+  /**
+   * Who you are, and the things about you that only you see: the status you
+   * chose, and your side of following.
+   */
+  you: { userId: string; deviceId: string; manual: ManualStatus | null; follow?: FollowState }
   /** False until the first snapshot lands, so the map can show its skeleton. */
   ready: boolean
 }
@@ -200,6 +205,28 @@ export function yourRoom(state: OfficeState): string | null {
  */
 export function statusIsChosen(state: OfficeState): boolean {
   return state.you.manual !== null
+}
+
+/** Nobody followed, nobody following, nothing asked. */
+export const NOT_FOLLOWING: FollowState = Object.freeze({
+  following: null,
+  followers: [],
+  asking: null,
+}) as FollowState
+
+/**
+ * Your side of following: whom you follow, who follows you, whom you asked.
+ *
+ * Never undefined, so a control can read it before the first snapshot and from
+ * a server that predates following alike.
+ */
+export function followOf(state: OfficeState): FollowState {
+  return state.you.follow ?? NOT_FOLLOWING
+}
+
+/** Whether somebody is following this person, as far as this client can see — only its own. */
+export function isFollowedBy(state: OfficeState, followerId: string): boolean {
+  return followOf(state).followers.some((one) => one.userId === followerId)
 }
 
 /** The call in a room, or null when nobody is talking in it. */

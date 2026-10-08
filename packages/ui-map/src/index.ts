@@ -24,6 +24,33 @@ export {
   type OutgoingKnockProps,
 } from './Knocks.js'
 
+/**
+ * A tap on the shoulder, and walking with somebody: the notices, the controls
+ * that stay on screen while a follow lasts, and the two hooks behind them, which
+ * carry no strings so a host drawing its own in its own language uses them as
+ * they are.
+ */
+export {
+  HeldNudges,
+  NUDGE_VISIBLE_MS,
+  NudgeDialog,
+  NudgeDock,
+  type HeldNudgesProps,
+  type NudgeDialogProps,
+  type NudgeDockProps,
+} from './Nudges.js'
+export { useNudges, type IncomingNudge, type Nudges, type UseNudgesOptions } from './useNudges.js'
+export {
+  FollowRequestDock,
+  FollowersControl,
+  FollowingBar,
+  type FollowRequestDockProps,
+  type FollowersControlProps,
+  type FollowingBarProps,
+  type IncomingFollowRequest,
+} from './Follow.js'
+export { useFollow, type Following, type UseFollowOptions } from './useFollow.js'
+
 export {
   MaximiseButton,
   OfficeMap,
@@ -74,6 +101,32 @@ export {
 export { useShare, useShareView, type Share, type UseShareOptions } from './useShare.js'
 export { createSounds, type Sounds } from './sounds.js'
 export { useSounds, type UseSoundsOptions } from './useSounds.js'
+/**
+ * Room ambience: the room's background loop, played locally and never into a
+ * call. The host says what to play and how loud; the engine only plays it.
+ */
+export {
+  AMBIENCE_DUCK_HOLD_MS,
+  AMBIENCE_DUCK_LEVEL,
+  AMBIENCE_FADE_MS,
+  AMBIENCE_LOAD_TIMEOUT_MS,
+  ambienceGain,
+  createAmbiencePlayer,
+  type AmbiencePlayback,
+  type AmbiencePlayer,
+} from './ambience.js'
+export {
+  useAmbience,
+  type Ambience,
+  type AmbienceStatus,
+  type UseAmbienceOptions,
+} from './useAmbience.js'
+export {
+  AMBIENCE_LABELS,
+  AmbienceControl,
+  type AmbienceControlProps,
+  type AmbienceLabels,
+} from './AmbienceControl.js'
 export { tileLayout, VIDEO_ASPECT, type TileLayout } from './tileLayout.js'
 export { Control, controlClasses, type ControlProps } from './controls.js'
 export { DevicePanel, PermissionPrimer, type DevicePanelProps } from './DevicePanel.js'

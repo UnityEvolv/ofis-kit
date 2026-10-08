@@ -152,6 +152,33 @@ export function bindConnection(
     void engine.reportCallFailure(id, String(request?.reason ?? 'unknown'))
   })
 
+  socket.on('person:nudge', (request, ack) =>
+    handle(
+      ack,
+      () =>
+        engine.nudge(id, {
+          userId: String(request?.userId ?? ''),
+          // Passed as it came: the engine is what decides whether it is a line.
+          ...(request?.line === undefined ? {} : { line: request.line }),
+        }),
+      'person:nudge',
+    ),
+  )
+
+  socket.on('follow:request', (request, ack) =>
+    handle(ack, () => engine.requestFollow(id, String(request?.userId ?? '')), 'follow:request'),
+  )
+  socket.on('follow:accept', (request, ack) =>
+    handle(ack, () => engine.acceptFollow(id, String(request?.requestId ?? '')), 'follow:accept'),
+  )
+  socket.on('follow:decline', (request, ack) =>
+    handle(ack, () => engine.declineFollow(id, String(request?.requestId ?? '')), 'follow:decline'),
+  )
+  socket.on('follow:stop', (ack) => handle(ack, () => engine.stopFollowing(id), 'follow:stop'))
+  socket.on('follow:remove', (request, ack) =>
+    handle(ack, () => engine.removeFollower(id, String(request?.userId ?? '')), 'follow:remove'),
+  )
+
   socket.on('status:manual', (request, ack) =>
     handle(ack, () => engine.setManualStatus(id, request?.manual ?? null), 'status:manual'),
   )

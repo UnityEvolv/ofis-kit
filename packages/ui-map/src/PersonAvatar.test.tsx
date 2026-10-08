@@ -392,3 +392,22 @@ describe('asking to speak, and reacting, from the map', () => {
     expect(screen.queryByTestId('reaction-float')).not.toBeInTheDocument()
   })
 })
+
+describe('being followed', () => {
+  it('shows on your own avatar with the number, and says it', () => {
+    render(
+      <PersonAvatar
+        person={person({ userId: 'ada', displayName: 'Ada' })}
+        size={56}
+        followers={2}
+      />,
+    )
+    expect(screen.getByTestId('followers-badge')).toHaveTextContent('2')
+    expect(screen.getByLabelText(/2 people following you/)).toBeInTheDocument()
+  })
+
+  it('draws nothing when nobody follows', () => {
+    render(<PersonAvatar person={person({ userId: 'ada', displayName: 'Ada' })} size={56} />)
+    expect(screen.queryByTestId('followers-badge')).toBeNull()
+  })
+})

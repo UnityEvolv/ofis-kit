@@ -32,6 +32,15 @@ export {
   isRequired,
 } from './types.js'
 
+export type { AmbienceTrack } from './ambience.js'
+export {
+  AMBIENCE_ID_MAX_LENGTH,
+  AMBIENCE_NONE,
+  isAmbienceId,
+  roomAmbience,
+  roomTrack,
+} from './ambience.js'
+
 export type { ErrorEnvelope, TemplateErrorCode, TemplateIssue, Validated } from './errors.js'
 export { TemplateError, issue } from './errors.js'
 

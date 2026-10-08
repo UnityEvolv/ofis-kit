@@ -1,5 +1,10 @@
 import { Alert, Button, Icon, Stepper } from '@unityevolv/unitykit'
-import { createTemplate, type CanvasShape, type Template } from '@unityevolv/ofiskit-template'
+import {
+  createTemplate,
+  type AmbienceTrack,
+  type CanvasShape,
+  type Template,
+} from '@unityevolv/ofiskit-template'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { OfficeBuilder } from './OfficeBuilder.js'
@@ -33,6 +38,8 @@ export interface BuilderStepsProps {
   /** Shown above the rooms: where the host's saved files go. */
   saveHint?(files: { light: string; dark?: string }): ReactNode
   initialShape?: CanvasShape
+  /** The loops the host serves, for the ambience controls. See `OfficeBuilderProps`. */
+  ambienceLibrary?: readonly AmbienceTrack[]
 }
 
 /*
@@ -209,6 +216,7 @@ export function BuilderSteps(props: BuilderStepsProps) {
                   props.onSave({ ...finished, images: namesFor(files) }, images)
                 }
                 onPickImage={() => go(BACKGROUND)}
+                {...(props.ambienceLibrary ? { ambienceLibrary: props.ambienceLibrary } : {})}
               />
             </>
           )}

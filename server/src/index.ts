@@ -95,6 +95,9 @@ const realtime = createRealtimeServer({
   // The ceiling a public demo sets, enforced at the door. Null, and so no ceiling,
   // unless MAX_PRESENT is set.
   maxPresent: config.demo.maxPresent,
+  // Nudge and follow limits, from the environment with the decided defaults.
+  nudge: config.nudge,
+  follow: config.follow,
   ...(config.allowedOrigins.length > 0 ? { allowedOrigins: config.allowedOrigins } : {}),
 })
 
@@ -119,6 +122,8 @@ const TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
+  // Room ambience loops, from config/ambience.
+  '.mp3': 'audio/mpeg',
 }
 
 async function serve(request: IncomingMessage, response: ServerResponse): Promise<unknown> {
