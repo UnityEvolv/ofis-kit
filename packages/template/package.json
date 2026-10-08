@@ -1,6 +1,6 @@
 {
   "name": "@unityevolv/ofiskit-template",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The office layout schema and its geometry validator. The same template.json the free office reads imports into unityofis unchanged.",
   "license": "Apache-2.0",
   "type": "module",

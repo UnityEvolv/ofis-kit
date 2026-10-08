@@ -1,5 +1,16 @@
 # @unityevolv/ofiskit-ui-builder
 
+## 0.3.0
+
+### Minor Changes
+
+- [#58](https://github.com/UnityEvolv/ofis-kit/pull/58) [`1ccd949`](https://github.com/UnityEvolv/ofis-kit/commit/1ccd949f646386f10d669418111a21933abef394) Thanks [@nvamsiram](https://github.com/nvamsiram)! - Ambience controls in the builder (UO-279). Pass `ambienceLibrary` (`AmbienceTrack[]`) to `OfficeBuilder` or `BuilderSteps` and the template panel offers an office ambience, and each room's panel a choice of following the office, none, or its own loop, with a preview so the author hears it before publishing. Meeting and conference rooms get a word of guidance, not a refusal. Without a library the controls are not offered and a template's existing choices are kept.
+
+### Patch Changes
+
+- Updated dependencies [[`31b3e18`](https://github.com/UnityEvolv/ofis-kit/commit/31b3e18dc7f9dc992e649b9825df66ca5dc17424)]:
+  - @unityevolv/ofiskit-template@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

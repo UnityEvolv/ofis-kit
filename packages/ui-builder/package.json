@@ -1,6 +1,6 @@
 {
   "name": "@unityevolv/ofiskit-ui-builder",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The office builder: draw rooms and user areas on a background image and emit a template. Takes a layout, emits a layout; the host decides what to do with it.",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -29,7 +29,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@unityevolv/ofiskit-template": "0.2.0"
+    "@unityevolv/ofiskit-template": "0.3.0"
   },
   "peerDependencies": {
     "@unityevolv/unitykit": ">=0.1.0",

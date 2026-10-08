@@ -1,5 +1,17 @@
 # @unityevolv/ofiskit-realtime-client
 
+## 0.3.0
+
+### Minor Changes
+
+- [#58](https://github.com/UnityEvolv/ofis-kit/pull/58) [`8d85b13`](https://github.com/UnityEvolv/ofis-kit/commit/8d85b13f6eec1668abfc1a8ac18dcdabab5b51fa) Thanks [@nvamsiram](https://github.com/nvamsiram)! - `nudge`, `requestFollow`, `acceptFollow`, `declineFollow`, `stopFollowing` and `removeFollower` on the client, with `nudge` and `follow.*` events, `followOf(state)` for your own side of following, and `NUDGE_LINE_MAX` and `Refusal` re-exported. A `refused` event now carries the server's `fields`.
+
+### Patch Changes
+
+- Updated dependencies [[`f1e8196`](https://github.com/UnityEvolv/ofis-kit/commit/f1e8196a8cbb5f70a84ba05bd45e3ecba75c2ade), [`31b3e18`](https://github.com/UnityEvolv/ofis-kit/commit/31b3e18dc7f9dc992e649b9825df66ca5dc17424)]:
+  - @unityevolv/ofiskit-realtime-core@0.4.0
+  - @unityevolv/ofiskit-template@0.3.0
+
 ## 0.2.3
 
 ### Patch Changes
