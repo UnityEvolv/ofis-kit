@@ -1,5 +1,24 @@
 # @unityevolv/ofiskit-ui-map
 
+## 0.6.0
+
+### Minor Changes
+
+- [#58](https://github.com/UnityEvolv/ofis-kit/pull/58) [`7aa5441`](https://github.com/UnityEvolv/ofis-kit/commit/7aa5441b8a3c5ed70b1ccf46a3127fbf9e4a5974) Thanks [@nvamsiram](https://github.com/nvamsiram)! - `NudgeDock`, `HeldNudges`, `NudgeDialog`, `FollowRequestDock`, `FollowingBar` and `FollowersControl`, with the string-free hooks `useNudges` and `useFollow`. Your own avatar shows how many people follow you, and a nudge or a follow request plays the chime.
+
+- [#58](https://github.com/UnityEvolv/ofis-kit/pull/58) [`1c0e134`](https://github.com/UnityEvolv/ofis-kit/commit/1c0e1345327b6b67380a0f1f15d4e454d3267a43) Thanks [@nvamsiram](https://github.com/nvamsiram)! - Room ambience playback (UO-279). The engine plays a room's loop locally, never into a call, at the volume the host gives it; whether the person wants it is the host's to say.
+
+  - `useAmbience({ track, enabled, volume, suspended, speakerDeviceId? })` returns `{ status, track, start, duck }`. `enabled: false` is absolute. `suspended` (pass "in a call") fades it out and back. `status` is `silent | off | paused | blocked | loading | playing | unavailable`; `blocked` means the browser wants a press first, and `start()` from that press plays it for the rest of the session.
+  - `AmbienceControl` is the bar's indicator and quick control: shown whenever the room has a loop (even to somebody who has it off), the offer to start when the browser is waiting for a press, and the person's switch and volume in a popover. English by default; pass `labels` to translate.
+  - `createAmbiencePlayer()` is the Web Audio player behind it: seamless loops, each fetched once per session, 400 ms fades, and a duck under notifications.
+  - `useSounds` takes `onSound`, called as a knock or chime plays; pass `ambience.duck` so a knock is never buried.
+
+### Patch Changes
+
+- Updated dependencies [[`8d85b13`](https://github.com/UnityEvolv/ofis-kit/commit/8d85b13f6eec1668abfc1a8ac18dcdabab5b51fa), [`31b3e18`](https://github.com/UnityEvolv/ofis-kit/commit/31b3e18dc7f9dc992e649b9825df66ca5dc17424)]:
+  - @unityevolv/ofiskit-realtime-client@0.3.0
+  - @unityevolv/ofiskit-template@0.3.0
+
 ## 0.5.1
 
 ### Patch Changes

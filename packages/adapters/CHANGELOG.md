@@ -1,5 +1,16 @@
 # @unityevolv/ofiskit-adapters
 
+## 0.3.0
+
+### Minor Changes
+
+- [#58](https://github.com/UnityEvolv/ofis-kit/pull/58) [`f1e8196`](https://github.com/UnityEvolv/ofis-kit/commit/f1e8196a8cbb5f70a84ba05bd45e3ecba75c2ade) Thanks [@nvamsiram](https://github.com/nvamsiram)! - The permissions `nudge` and `follow`, asked with `targetUserId`, so a host can refuse for a guest or for somebody out of office. An optional `followsWithoutAsking` on the identity adapter for a remembered per-pair allowance, and a `follow.changed` host event that keeps follows the same on every node.
+
+### Patch Changes
+
+- Updated dependencies [[`31b3e18`](https://github.com/UnityEvolv/ofis-kit/commit/31b3e18dc7f9dc992e649b9825df66ca5dc17424)]:
+  - @unityevolv/ofiskit-template@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

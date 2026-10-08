@@ -1,5 +1,17 @@
 # @unityevolv/ofiskit-realtime-core
 
+## 0.4.0
+
+### Minor Changes
+
+- [#58](https://github.com/UnityEvolv/ofis-kit/pull/58) [`f1e8196`](https://github.com/UnityEvolv/ofis-kit/commit/f1e8196a8cbb5f70a84ba05bd45e3ecba75c2ade) Thanks [@nvamsiram](https://github.com/nvamsiram)! - Nudge a colleague (UO-277) and follow a colleague (UO-278). New events `person:nudge`, `follow:request`, `follow:accept`, `follow:decline`, `follow:stop` and `follow:remove`, sending `nudge:received`, `follow:requested`, `follow:resolved`, `follow:state`, `follow:moved`, `follow:held` and `follow:ended`. A nudge is delivered now to somebody available, held for somebody in a call or a meeting, and refused for do not disturb, away and offline; nothing is stored. Following is asked for, never chained, at most five followers per person, and a declined asker waits ten minutes. The limits are the engine options `nudge` and `follow` (defaults in `NUDGE_DEFAULTS` and `FOLLOW_DEFAULTS`), and the snapshot's `you.follow` carries your own side of following.
+
+### Patch Changes
+
+- Updated dependencies [[`f1e8196`](https://github.com/UnityEvolv/ofis-kit/commit/f1e8196a8cbb5f70a84ba05bd45e3ecba75c2ade), [`31b3e18`](https://github.com/UnityEvolv/ofis-kit/commit/31b3e18dc7f9dc992e649b9825df66ca5dc17424)]:
+  - @unityevolv/ofiskit-adapters@0.3.0
+  - @unityevolv/ofiskit-template@0.3.0
+
 ## 0.3.1
 
 ### Patch Changes
