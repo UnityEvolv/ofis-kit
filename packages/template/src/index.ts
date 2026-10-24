@@ -61,3 +61,15 @@ export type { CreateTemplateOptions, UnfittedArea } from './create.js'
 export { addRoom, centredArea, createTemplate, withAvatarSize } from './create.js'
 
 export { idMintedAt, isId, newId } from './id.js'
+
+export type { OfficeSvgImport, OfficeSvgOptions } from './svg/office-svg.js'
+export {
+  AREA_ID,
+  OFFICE_SVG_VERSION,
+  ROOM_ID,
+  canvasForRatio,
+  readOfficeSvg,
+} from './svg/office-svg.js'
+export { ALLOWED_ELEMENTS, MAX_SVG_BYTES, checkSvgSafety } from './svg/safety.js'
+export type { XmlElement } from './svg/xml.js'
+export { XmlParseError, parseXml } from './svg/xml.js'

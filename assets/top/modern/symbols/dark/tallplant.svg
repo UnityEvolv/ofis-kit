@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-48 -47.18 96 94.35" width="96" height="94.35" data-symbol="tallplant" data-bbox="-36 -35.18 72 70.35">
+  <defs>
+    <filter id="shS" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.5"/></filter>
+  </defs>
+  <g id="tallplant" filter="url(#shS)"><circle r="12" fill="#6b3f2b"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#2f6a46"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#3f8a5b" transform="rotate(60)"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#244f36" transform="rotate(120)"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#2f6a46" transform="rotate(180)"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#3f8a5b" transform="rotate(240)"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#244f36" transform="rotate(300)"/><circle r="9" fill="#4da66c"/></g>
+</svg>

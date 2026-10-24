@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 144 84" width="144" height="84" data-symbol="desk" data-bbox="0 0 120 60">
+  <defs>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-color="#5a4632" flood-opacity="0.22"/></filter>
+  </defs>
+  <g id="desk" filter="url(#sh)"><rect width="120" height="60" rx="5" fill="#f1e5d3" stroke="#c9b08e" stroke-width="2"/><ellipse cx="60" cy="19" rx="10" ry="4" fill="#3d405b" opacity="0.55"/><rect x="32" y="8" width="56" height="7" rx="2" fill="#3d405b"/><rect x="35" y="10" width="50" height="3" rx="1" fill="#7fb7e6"/><rect x="40" y="36" width="40" height="11" rx="2" fill="#c9d3da"/><path d="M44 40 H76 M44 43.5 H76" stroke="#9fadb8" stroke-width="1.2"/><ellipse cx="93" cy="42" rx="4" ry="6" fill="#e8edf0" stroke="#c9b08e" stroke-width="1"/></g>
+</svg>

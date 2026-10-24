@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" data-theme-defs="dark">
+  <defs>
+    <radialGradient id="water" cx="0.5" cy="0.45" r="0.75"><stop offset="0" stop-color="#0c2e4a"/><stop offset="1" stop-color="#04111f"/></radialGradient>
+    <linearGradient id="tubeH" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a2229"/><stop offset="0.3" stop-color="#3b4752"/><stop offset="0.5" stop-color="#55636e"/><stop offset="0.7" stop-color="#3b4752"/><stop offset="1" stop-color="#1a2229"/></linearGradient>
+    <linearGradient id="tubeV" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1a2229"/><stop offset="0.3" stop-color="#3b4752"/><stop offset="0.5" stop-color="#55636e"/><stop offset="0.7" stop-color="#3b4752"/><stop offset="1" stop-color="#1a2229"/></linearGradient>
+    <linearGradient id="tubeGlass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b5578"/><stop offset="1" stop-color="#3f8fbd"/></linearGradient>
+    <pattern id="sandPat" width="128" height="128" patternUnits="userSpaceOnUse"><use href="#floor"/></pattern>
+    <pattern id="deckPat" width="128" height="64" patternUnits="userSpaceOnUse"><rect width="128" height="64" fill="#66543d"/><path d="M0 1 h128 M0 33 h128" stroke="#3f3222" stroke-width="2" opacity="0.8"/><path d="M1 0 v32 M65 32 v32" stroke="#3f3222" stroke-width="2" opacity="0.8"/><path d="M12 12 h40 M70 20 h46 M8 44 h30 M80 52 h36 M20 24 h20" stroke="#56462f" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/><g fill="#8f9aa3" opacity="0.5"><circle cx="8" cy="8" r="1.5"/><circle cx="120" cy="24" r="1.5"/><circle cx="72" cy="40" r="1.5"/><circle cx="56" cy="56" r="1.5"/></g></pattern>
+    <pattern id="caustic" width="180" height="180" patternUnits="userSpaceOnUse"><g fill="none" stroke="#9fd0ff" stroke-width="3" opacity="0.045"><path d="M30 40 q30 -30 70 -10 q30 20 10 50 q-30 30 -70 10 q-30 -20 -10 -50 z"/><path d="M110 110 q25 -20 50 0 q15 25 -10 45 q-30 15 -50 -5 q-10 -25 10 -40 z"/><path d="M20 130 q15 -25 40 -10 q15 20 -5 35 q-25 10 -35 -25 z"/><path d="M120 20 q20 -10 35 10 q5 20 -15 25 q-25 0 -20 -35 z"/></g></pattern>
+  </defs>
+</svg>

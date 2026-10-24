@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-232 -232 464 464" width="464" height="464" data-symbol="sun" data-bbox="-220 -220 440 440">
+  <defs>
+    <radialGradient id="sunGlowG" cx="0.5" cy="0.5" r="0.5"><stop offset="0.35" stop-color="#ffd23f" stop-opacity="0.45"/><stop offset="1" stop-color="#ffd23f" stop-opacity="0"/></radialGradient>
+  </defs>
+  <g id="sun"><circle cx="0" cy="0" r="220" fill="url(#sunGlowG)"/><path d="M82.5 -15.9 L150.0 0.0 L82.5 15.9 Z M79.4 27.5 L110.9 64.0 L63.5 55.0 Z M55.0 63.5 L75.0 129.9 L27.5 79.4 Z M15.9 82.5 L0.0 128.0 L-15.9 82.5 Z M-27.5 79.4 L-75.0 129.9 L-55.0 63.5 Z M-63.5 55.0 L-110.9 64.0 L-79.4 27.5 Z M-82.5 15.9 L-150.0 0.0 L-82.5 -15.9 Z M-79.4 -27.5 L-110.9 -64.0 L-63.5 -55.0 Z M-55.0 -63.5 L-75.0 -129.9 L-27.5 -79.4 Z M-15.9 -82.5 L-0.0 -128.0 L15.9 -82.5 Z M27.5 -79.4 L75.0 -129.9 L55.0 -63.5 Z M63.5 -55.0 L110.9 -64.0 L79.4 -27.5 Z" fill="#ff8c42" stroke="#1b1f3a" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/><circle cx="0" cy="0" r="82" fill="#ffd23f" stroke="#1b1f3a" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/><circle cx="0" cy="0" r="60" fill="#ffe98f"/><circle cx="-22" cy="-24" r="14" fill="#ffffff"/><circle cx="-2" cy="-36" r="6" fill="#ffffff"/></g>
+</svg>

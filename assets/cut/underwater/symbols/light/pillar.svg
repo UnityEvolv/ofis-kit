@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 46 324" width="46" height="324" data-symbol="pillar" data-bbox="0 0 22 300">
+  <g id="pillar"><rect x="0" y="0" width="22" height="300" fill="#b4c0c8"/><rect x="0" y="0" width="6" height="300" fill="#fff" opacity="0.55"/><rect x="16" y="0" width="6" height="300" fill="#000" opacity="0.14"/><g fill="#5f6d78" opacity="0.55"><circle cx="11" cy="20" r="2.5"/><circle cx="11" cy="60" r="2.5"/><circle cx="11" cy="100" r="2.5"/><circle cx="11" cy="140" r="2.5"/><circle cx="11" cy="180" r="2.5"/><circle cx="11" cy="220" r="2.5"/><circle cx="11" cy="260" r="2.5"/></g></g>
+</svg>

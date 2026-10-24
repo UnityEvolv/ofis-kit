@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 144 38" width="144" height="38" data-symbol="window" data-bbox="0 0 120 14">
+  <defs>
+    <linearGradient id="glassG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f7db0"/><stop offset="1" stop-color="#8fd0ea"/></linearGradient>
+  </defs>
+  <g id="window"><rect width="120" height="14" rx="7" fill="#8a98a3"/><rect x="5" y="4" width="110" height="6" rx="3" fill="url(#glassG)"/><rect x="8" y="5" width="60" height="2" rx="1" fill="#fff" opacity="0.4"/><g fill="#eef3f6"><circle cx="4" cy="7" r="1.5"/><circle cx="116" cy="7" r="1.5"/><circle cx="60" cy="2" r="1.2"/><circle cx="60" cy="12" r="1.2"/></g></g>
+</svg>

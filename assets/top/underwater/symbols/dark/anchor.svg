@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-9 -10 78 89" width="78" height="89" data-symbol="anchor" data-bbox="3 2 54 65">
+  <defs>
+    <filter id="shS" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.5"/></filter>
+  </defs>
+  <g id="anchor" fill="none" stroke="#4a5663" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" filter="url(#shS)"><circle cx="30" cy="7" r="5"/><line x1="30" y1="12" x2="30" y2="64"/><line x1="15" y1="21" x2="45" y2="21"/><path d="M7 44 Q9 66 30 67 Q51 66 53 44"/><path d="M3 50 L7 39 L14 48" fill="#4a5663"/><path d="M57 50 L53 39 L46 48" fill="#4a5663"/><circle cx="30" cy="21" r="2" fill="#a37f32" stroke="none"/></g>
+</svg>

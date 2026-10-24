@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" data-theme-defs="dark">
+  <defs>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#061a2e"/><stop offset="1" stop-color="#0d3350"/></linearGradient>
+    <linearGradient id="wTeal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d3f3f"/><stop offset="1" stop-color="#27504e"/></linearGradient>
+    <linearGradient id="wSand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a4030"/><stop offset="1" stop-color="#574b38"/></linearGradient>
+    <linearGradient id="wCoral" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4e2f30"/><stop offset="1" stop-color="#5c3a3b"/></linearGradient>
+    <linearGradient id="wKelp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b3f2c"/><stop offset="1" stop-color="#364d36"/></linearGradient>
+    <linearGradient id="wNavy" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c2a44"/><stop offset="1" stop-color="#253655"/></linearGradient>
+    <linearGradient id="wPearl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3a44"/><stop offset="1" stop-color="#464652"/></linearGradient>
+    <linearGradient id="domeG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#15223a"/><stop offset="1" stop-color="#23334d"/></linearGradient>
+    <pattern id="panel" width="120" height="60" patternUnits="userSpaceOnUse"><rect x="0" y="58" width="120" height="2" fill="#fff" opacity="0.04"/><rect x="118" y="0" width="2" height="60" fill="#fff" opacity="0.04"/><circle cx="6" cy="6" r="1.5" fill="#fff" opacity="0.04"/></pattern>
+  </defs>
+</svg>

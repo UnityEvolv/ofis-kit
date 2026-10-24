@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-14 -20 87 88" width="87" height="88" data-symbol="door" data-bbox="-2 -8 63 64">
+  <g id="door"><rect x="-1" y="-8" width="62" height="16" fill="#cbc2b4"/><path d="M0 56 A56 56 0 0 0 56 0" fill="none" stroke="#8a7a66" stroke-width="1.5" stroke-dasharray="4 3"/><rect x="-2" y="0" width="4" height="56" rx="1" fill="#a37c5f"/></g>
+</svg>

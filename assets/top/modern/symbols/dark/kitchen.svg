@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 244 74" width="244" height="74" data-symbol="kitchen" data-bbox="0 0 220 50">
+  <defs>
+    <filter id="shS" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.5"/></filter>
+  </defs>
+  <g id="kitchen" filter="url(#shS)"><rect width="220" height="50" rx="3" fill="#3b4552"/><rect x="18" y="10" width="54" height="30" rx="6" fill="#566370"/><rect x="24" y="15" width="42" height="20" rx="4" fill="#44515c"/><circle cx="45" cy="7" r="3" fill="#a9b4bd"/><rect x="92" y="8" width="64" height="34" rx="3" fill="#1f272e"/><circle cx="108" cy="18" r="5" fill="none" stroke="#5a6670" stroke-width="2"/><circle cx="140" cy="18" r="5" fill="none" stroke="#5a6670" stroke-width="2"/><circle cx="108" cy="32" r="5" fill="none" stroke="#5a6670" stroke-width="2"/><circle cx="140" cy="32" r="5" fill="none" stroke="#5a6670" stroke-width="2"/><rect x="170" y="0" width="50" height="50" rx="3" fill="#4a545e" stroke="#2e3640" stroke-width="2"/><path d="M195 4 V46" stroke="#2e3640" stroke-width="2"/></g>
+</svg>

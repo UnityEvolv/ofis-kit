@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" data-theme-defs="dark">
+  <defs>
+    <linearGradient id="space" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#141a44"/><stop offset="0.5" stop-color="#0b0e2a"/><stop offset="1" stop-color="#070a1f"/></linearGradient>
+    <radialGradient id="bridgeGlowG" cx="0.5" cy="0.5" r="0.5"><stop offset="0.5" stop-color="#7fdde8" stop-opacity="0.5"/><stop offset="1" stop-color="#7fdde8" stop-opacity="0"/></radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>
+    <clipPath id="cp-moon"><circle cx="0" cy="0" r="185"/></clipPath>
+    <pattern id="stars" width="128" height="128" patternUnits="userSpaceOnUse"><use href="#floor"/></pattern>
+  </defs>
+</svg>

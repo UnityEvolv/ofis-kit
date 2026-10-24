@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-70 -64 140 90" width="140" height="90" data-symbol="dome" data-bbox="-58 -52 116 66">
+  <g id="dome"><ellipse cx="0" cy="0" rx="58" ry="14" fill="#b9c1d9" stroke="#1b1f3a" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/><path d="M-52 0 A52 52 0 0 1 52 0 Z" fill="#9be7f0" fill-opacity="0.85" stroke="#1b1f3a" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/><path d="M-52 0 L-26 -45 L26 -45 L52 0 M-26 -45 L0 0 L26 -45 M0 -52 L-26 -45 M0 -52 L26 -45 M-45 -26 L-26 -45 M45 -26 L26 -45 M-26 -45 H26" fill="none" stroke="#1b1f3a" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" opacity="0.7"/><circle cx="-22" cy="-30" r="6" fill="#ffffff"/></g>
+</svg>

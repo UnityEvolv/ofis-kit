@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -46 324 118" width="324" height="118" data-symbol="kitchen" data-bbox="0 -34 300 94">
+  <defs>
+    <filter id="shS" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.5"/></filter>
+  </defs>
+  <g id="kitchen" filter="url(#shS)"><rect x="0" y="0" width="300" height="60" rx="6" fill="#596368"/><rect x="0" y="0" width="300" height="10" rx="4" fill="#464e51"/><rect x="14" y="14" width="60" height="40" rx="4" fill="#60737d"/><rect x="90" y="14" width="80" height="40" rx="4" fill="#6d797f"/><rect x="190" y="-34" width="44" height="34" rx="6" fill="#39474e"/><rect x="196" y="-28" width="32" height="12" rx="2" fill="#8cc4f0"/><circle cx="260" cy="-8" r="10" fill="#34393c"/><circle cx="282" cy="-8" r="10" fill="#34393c"/></g>
+</svg>

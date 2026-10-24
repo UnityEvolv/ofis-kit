@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 -30 60 60" width="60" height="60" data-symbol="chair" data-bbox="-18 -18 36 36">
+  <g id="chair"><circle cx="0" cy="0" r="18" fill="#6c43c7" stroke="#0a0c22" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><path d="M-15 -8 A17 17 0 0 1 15 -8" fill="none" stroke="#0a0c22" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/><path d="M-13 -8 A15 15 0 0 1 13 -8" fill="none" stroke="#9b7ae6" stroke-width="3" stroke-linecap="round"/><circle cx="0" cy="3" r="9" fill="#9b7ae6" stroke="#0a0c22" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></g>
+</svg>

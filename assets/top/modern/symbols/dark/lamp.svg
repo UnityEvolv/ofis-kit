@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-72 -72 144 144" width="144" height="144" data-symbol="lamp" data-bbox="-60 -60 120 120">
+  <defs>
+    <radialGradient id="lampGlow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffc766" stop-opacity="0.65"/><stop offset="0.55" stop-color="#ffc766" stop-opacity="0.227"/><stop offset="1" stop-color="#ffc766" stop-opacity="0"/></radialGradient>
+  </defs>
+  <g id="lamp"><circle r="60" fill="url(#lampGlow)"/><circle r="15" fill="#ffd868"/><circle r="5" fill="#fff6c8"/></g>
+</svg>
