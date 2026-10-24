@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-82 -137 164 163" width="164" height="163" data-symbol="teleporter" data-bbox="-70 -125 140 139">
+  <defs>
+    <linearGradient id="teleG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#27c3d6" stop-opacity="0"/><stop offset="1" stop-color="#27c3d6" stop-opacity="0.45"/></linearGradient>
+  </defs>
+  <g id="teleporter"><rect x="-40" y="-120" width="80" height="120" fill="url(#teleG)"/><g fill="#8fe9f2" opacity="0.9"><circle cx="-14" cy="-40" r="3"/><circle cx="18" cy="-70" r="3.5"/><circle cx="-6" cy="-96" r="2.5"/><circle cx="24" cy="-24" r="2.5"/></g><ellipse cx="0" cy="-116" rx="44" ry="9" fill="none" stroke="#8fe9f2" stroke-width="5" opacity="0.8"/><ellipse cx="0" cy="0" rx="70" ry="14" fill="#b9c1d9" stroke="#1b1f3a" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/><ellipse cx="0" cy="-1" rx="50" ry="9" fill="#27c3d6" stroke="#1b1f3a" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><ellipse cx="0" cy="-1" rx="22" ry="4" fill="#8fe9f2"/></g>
+</svg>
