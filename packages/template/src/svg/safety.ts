@@ -85,8 +85,19 @@ const REFUSED_ELEMENTS: Record<string, string> = {
 /** The largest file accepted, in bytes. A drawn office is tens of kilobytes. */
 export const MAX_SVG_BYTES = 1_000_000
 
-/** A CSS value that reaches outside the file: a `url()` to anything but an id, or an import. */
-const UNSAFE_CSS = /url\(\s*['"]?\s*(?!#)|@import|expression\(/i
+/**
+ * True when CSS reaches outside the file: a `url()` to anything but an id, an
+ * import, or an expression. A plain scan rather than one regular expression,
+ * so a long run of spaces inside `url(` cannot make the check backtrack.
+ */
+export function cssReachesOutside(css: string): boolean {
+  if (/@import|expression\(/i.test(css)) return true
+  for (const match of css.matchAll(/url\(/gi)) {
+    const argument = css.slice((match.index ?? 0) + 4).replace(/^[\s"']+/, '')
+    if (!argument.startsWith('#')) return true
+  }
+  return false
+}
 
 /** Check one parsed SVG tree and list every reason it cannot be shown. */
 export function checkSvgSafety(root: XmlElement): TemplateIssue[] {
@@ -142,7 +153,7 @@ export function checkSvgSafety(root: XmlElement): TemplateIssue[] {
         }
         continue
       }
-      if (lower === 'style' && UNSAFE_CSS.test(value)) {
+      if (lower === 'style' && cssReachesOutside(value)) {
         issues.push(
           issue(
             TemplateError.SVG_UNSAFE,
@@ -154,7 +165,7 @@ export function checkSvgSafety(root: XmlElement): TemplateIssue[] {
       }
     }
 
-    if (element.name === 'style' && UNSAFE_CSS.test(element.text)) {
+    if (element.name === 'style' && cssReachesOutside(element.text)) {
       issues.push(
         issue(
           TemplateError.SVG_UNSAFE,

@@ -29,7 +29,7 @@ describe('the symbol libraries', () => {
           if (file.startsWith('_')) continue
           expect(checkSelfContained(join(dir, file)), `${name}/${mode}/${file}`).toEqual([])
           expect(readFileSync(join(dir, file), 'utf8'), `${name}/${mode}/${file}`).not.toMatch(
-            /<text[\s>]|<script|<image|<animate/,
+            /<text[\s>]|<script|<image|<animate/i,
           )
         }
       }

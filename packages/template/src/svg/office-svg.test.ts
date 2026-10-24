@@ -101,7 +101,14 @@ describe('the safety check', () => {
   it('refuses CSS that reaches outside the file', () => {
     expect(unsafe(`<style>@import url(x.css);</style>`)).toHaveLength(1)
     expect(unsafe(`<rect style="fill:url(http://x/y)"/>`)).toHaveLength(1)
+    expect(unsafe(`<rect style="fill:URL( 'x.png' )"/>`)).toHaveLength(1)
     expect(unsafe(`<rect style="fill:url(#g)"/>`)).toEqual([])
+    expect(unsafe(`<rect style="fill:url( '#g' ); stroke:url(#h)"/>`)).toEqual([])
+    // A long run of spaces inside url( must not make the check slow.
+    const padded = `<style>.a{fill:url(${' '.repeat(50_000)}#g)}</style>`
+    const started = Date.now()
+    expect(unsafe(padded)).toEqual([])
+    expect(Date.now() - started).toBeLessThan(500)
   })
 })
 
