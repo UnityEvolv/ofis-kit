@@ -1,0 +1,135 @@
+{
+  "version": "1",
+  "note": "The machine-readable half of spec.md. The importer, the designer guide and the AI prompt all read from here; change a rule here and regenerate the prompt (npm run office:prompt).",
+  "root": {
+    "element": "svg",
+    "attributes": {
+      "data-ofis": "1",
+      "data-canvas": "landscape | square | portrait",
+      "data-avatar": "small | medium | large",
+      "data-name": "optional: the template's name"
+    }
+  },
+  "canvases": {
+    "landscape": { "ratio": "16:9", "viewBox": "0 0 1920 1080" },
+    "square": { "ratio": "1:1", "viewBox": "0 0 1080 1080" },
+    "portrait": { "ratio": "3:4", "viewBox": "0 0 1080 1440" }
+  },
+  "ratioTolerance": 0.03,
+  "groups": {
+    "backdrop": "everything that is not a room and sits below the rooms: sky, ground, the building shell, floor slabs",
+    "rooms": "the room groups",
+    "overlay": "optional: anything drawn above the rooms, such as pillars between them"
+  },
+  "room": {
+    "element": "g",
+    "idPattern": "^room-(reception|break|workspace|meeting|conference)-(.+)$",
+    "idExample": "room-meeting-Design_studio",
+    "nameRule": "the part after the type; underscores become spaces",
+    "types": ["reception", "break", "workspace", "meeting", "conference"],
+    "attributes": { "data-bar": "top | bottom (default top)" },
+    "bounds": "the first <rect> child of the group, read from its x, y, width and height in viewBox units"
+  },
+  "area": {
+    "element": "rect",
+    "idPattern": "^area-(\\d+)x(\\d+)(?:_\\d+)?$",
+    "idExample": "area-4x1",
+    "placement": "a child of the room group; its x and y are the area's top-left corner",
+    "visibility": "fill=\"none\" and no stroke, so it never shows in the picture",
+    "sizeInViewBoxPixels": {
+      "note": "columns x rows cells; one cell per canvas and avatar size, derived from the engine's avatar unit at the 1024x768 reference viewport",
+      "landscape": { "small": [90, 120], "medium": [120, 161.25], "large": [165, 213.75] },
+      "square": { "small": [67.5, 90], "medium": [90, 120.9375], "large": [123.75, 160.3125] },
+      "portrait": { "small": [90, 120], "medium": [120, 161.25], "large": [165, 213.75] }
+    }
+  },
+  "limits": {
+    "maxBytes": 1000000,
+    "maxRooms": 30,
+    "minRoomPixelsAtReference": { "barHeight": 32, "barMinWidth": 168 }
+  },
+  "officeRules": [
+    "Exactly one reception and exactly one break room.",
+    "Room names are unique within the file.",
+    "Rooms do not overlap; every room lies inside the canvas.",
+    "A room is wide enough for its control bar (168px at a 1024x768 viewport) and tall enough for the bar plus one avatar cell.",
+    "Every area lies inside its room, clear of the bar edge and of other areas.",
+    "No lettering anywhere: no <text>. The product draws every room name on the room's bar.",
+    "No animation. Office pictures are still.",
+    "The dark variant has identical structure and geometry to the light one; only colours differ."
+  ],
+  "safety": {
+    "allowedElements": [
+      "svg",
+      "g",
+      "defs",
+      "symbol",
+      "use",
+      "rect",
+      "circle",
+      "ellipse",
+      "line",
+      "polyline",
+      "polygon",
+      "path",
+      "title",
+      "desc",
+      "metadata",
+      "linearGradient",
+      "radialGradient",
+      "stop",
+      "pattern",
+      "clipPath",
+      "mask",
+      "marker",
+      "switch",
+      "style",
+      "filter",
+      "feBlend",
+      "feColorMatrix",
+      "feComponentTransfer",
+      "feFuncA",
+      "feFuncB",
+      "feFuncG",
+      "feFuncR",
+      "feComposite",
+      "feDropShadow",
+      "feFlood",
+      "feGaussianBlur",
+      "feMerge",
+      "feMergeNode",
+      "feMorphology",
+      "feOffset",
+      "feTurbulence",
+      "feDisplacementMap",
+      "feDiffuseLighting",
+      "feSpecularLighting",
+      "feDistantLight",
+      "fePointLight",
+      "feSpotLight"
+    ],
+    "refusedElements": {
+      "script": "runs code",
+      "foreignObject": "embeds a document",
+      "image": "embeds a raster image; draw everything as shapes",
+      "a": "is a link",
+      "animate": "animates",
+      "animateTransform": "animates",
+      "animateMotion": "animates",
+      "set": "animates",
+      "DOCTYPE": "declarations are not read at all"
+    },
+    "attributeRules": [
+      "No on* event attributes.",
+      "href and xlink:href may only point at an id in the same file (#…).",
+      "style attributes and <style> blocks may not use url() to anything but an id, @import, or expression()."
+    ]
+  },
+  "drawingGuidance": [
+    "Furniture is the layout. Draw chairs, desks and tables so an empty room still looks furnished.",
+    "Leave the floor in front of furniture clear where avatars will stand; the area marker says where.",
+    "Nothing tall on a desk or table surface, and a calm wall behind each seat, so a face and a name label read against it.",
+    "Keep contrast moderate: the product draws room bars and status dots on top in both light and dark, and they have to win.",
+    "No people, no faces, no logos, no brands."
+  ]
+}

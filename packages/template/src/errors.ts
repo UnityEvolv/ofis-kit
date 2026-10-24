@@ -68,6 +68,23 @@ export const TemplateError = {
   AREA_OVERLAPS_BAR: 'template.area_overlaps_bar',
   /** Cell counts that are not whole numbers, or are zero or negative. */
   AREA_FRACTIONAL: 'template.area_fractional',
+
+  /** Not well-formed XML, no viewBox, too large: the file cannot be read at all. */
+  SVG_MALFORMED: 'template.svg_malformed',
+  /** Scripts, embedded documents, outside links, raster images, event handlers. */
+  SVG_UNSAFE: 'template.svg_unsafe',
+  /** The viewBox is not one of the three canvas ratios, or disagrees with data-canvas. */
+  SVG_CANVAS_MISMATCH: 'template.svg_canvas_mismatch',
+  /** Lettering in a picture that carries rooms. The product draws every name. */
+  SVG_TEXT: 'template.svg_text',
+  /** A room group with no first <rect> to take its bounds from. */
+  SVG_ROOM_BOUNDS_MISSING: 'template.svg_room_bounds_missing',
+  /** Warning: a file that claims to be an office but has no room groups. */
+  SVG_ROOM_MISSING: 'template.svg_room_missing',
+  /** Warning: an area marker that would show in the picture. */
+  SVG_AREA_VISIBLE: 'template.svg_area_visible',
+  /** Warning: no data-avatar on the root, so medium was assumed. */
+  SVG_AVATAR_SIZE_MISSING: 'template.svg_avatar_size_missing',
 } as const
 
 export type TemplateErrorCode = (typeof TemplateError)[keyof typeof TemplateError]

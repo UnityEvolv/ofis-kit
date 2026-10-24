@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 144 54" width="144" height="54" data-symbol="bookshelf" data-bbox="0 0 120 30">
+  <defs>
+    <filter id="shS" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.5"/></filter>
+  </defs>
+  <g id="bookshelf" filter="url(#shS)"><rect width="120" height="30" rx="2" fill="#4d3a2c"/><rect x="4" y="4" width="112" height="24" fill="#342619"/><rect x="8" y="8" width="8" height="18" rx="1.5" fill="#9d5e4e"/><rect x="18" y="7.5" width="6" height="19" rx="1.5" fill="#2a2d44"/><rect x="26" y="7" width="10" height="20" rx="1.5" fill="#4e7a66"/><rect x="38" y="6.5" width="7" height="21" rx="1.5" fill="#a08a5a"/><rect x="47" y="8" width="9" height="18" rx="1.5" fill="#5a6f8a"/><rect x="58" y="7.5" width="6" height="19" rx="1.5" fill="#a08c3f"/><rect x="66" y="7" width="12" height="20" rx="1.5" fill="#9d5e4e"/><rect x="80" y="6.5" width="8" height="21" rx="1.5" fill="#2a2d44"/><rect x="90" y="8" width="7" height="18" rx="1.5" fill="#4e7a66"/><rect x="99" y="7.5" width="10" height="19" rx="1.5" fill="#a08a5a"/></g>
+</svg>

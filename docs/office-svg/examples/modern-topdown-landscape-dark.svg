@@ -1,0 +1,260 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" data-ofis="1" data-canvas="landscape" data-avatar="small">
+  <defs>
+    <linearGradient id="glassG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#121d33"/><stop offset="1" stop-color="#1f2f4b"/></linearGradient>
+    <linearGradient id="artG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3a4a5a"/><stop offset="1" stop-color="#5a4a3a"/></linearGradient>
+    <radialGradient id="lampGlow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffc766" stop-opacity="0.65"/><stop offset="0.55" stop-color="#ffc766" stop-opacity="0.227"/><stop offset="1" stop-color="#ffc766" stop-opacity="0"/></radialGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.45"/></filter>
+    <filter id="shS" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.5"/></filter>
+    <filter id="wallSh" x="-5%" y="-5%" width="110%" height="115%"><feDropShadow dx="0" dy="7" stdDeviation="5" flood-color="#000000" flood-opacity="0.55"/></filter>
+
+    <g id="floor"><rect width="128" height="128" fill="#4b3b2c"/><rect x="0" y="0" width="128" height="32" fill="#584632" opacity="0.4"/><rect x="0" y="64" width="128" height="32" fill="#584632" opacity="0.22"/><path d="M0 0 H128 M0 32 H128 M0 64 H128 M0 96 H128 M0 128 H128 M40 0 V32 M100 32 V64 M20 64 V96 M80 96 V128" stroke="#3a2c20" stroke-width="1.5" fill="none"/><path d="M8 16 H30 M60 48 H110 M30 80 H70 M90 112 H120 M110 12 H124" stroke="#3a2c20" stroke-width="1" opacity="0.35" fill="none"/></g>
+    <g id="carpet"><path d="M0 16 L16 0 M112 0 L128 16 M0 32 L32 0 M96 0 L128 32 M0 48 L48 0 M80 0 L128 48 M0 64 L64 0 M64 0 L128 64 M0 80 L80 0 M48 0 L128 80 M0 96 L96 0 M32 0 L128 96 M0 112 L112 0 M16 0 L128 112 M0 128 L128 0 M0 0 L128 128 M16 128 L128 16 M0 16 L112 128 M32 128 L128 32 M0 32 L96 128 M48 128 L128 48 M0 48 L80 128 M64 128 L128 64 M0 64 L64 128 M80 128 L128 80 M0 80 L48 128 M96 128 L128 96 M0 96 L32 128 M112 128 L128 112 M0 112 L16 128" stroke="#ffffff" stroke-width="1" opacity="0.04" fill="none"/></g>
+    <g id="corridor"><rect width="128" height="128" fill="#2b2e35"/><path d="M0 0 H128 M0 64 H128 M0 128 H128 M0 0 V128 M64 0 V128 M128 0 V128" stroke="#212429" stroke-width="2" fill="none"/></g>
+    <pattern id="wood" width="128" height="128" patternUnits="userSpaceOnUse"><use href="#floor"/></pattern>
+    <pattern id="carpetSage" width="128" height="128" patternUnits="userSpaceOnUse"><rect width="128" height="128" fill="#28342b"/><use href="#carpet"/></pattern>
+    <pattern id="carpetBlue" width="128" height="128" patternUnits="userSpaceOnUse"><rect width="128" height="128" fill="#253142"/><use href="#carpet"/></pattern>
+    <pattern id="carpetPlum" width="128" height="128" patternUnits="userSpaceOnUse"><rect width="128" height="128" fill="#332b3b"/><use href="#carpet"/></pattern>
+    <pattern id="carpetCream" width="128" height="128" patternUnits="userSpaceOnUse"><rect width="128" height="128" fill="#36322c"/><use href="#carpet"/></pattern>
+    <pattern id="carpetTerra" width="128" height="128" patternUnits="userSpaceOnUse"><rect width="128" height="128" fill="#3d2f29"/><use href="#carpet"/></pattern>
+    <pattern id="corridorTile" width="128" height="128" patternUnits="userSpaceOnUse"><use href="#corridor"/></pattern>
+
+    <g id="pillar" filter="url(#shS)"><rect width="24" height="24" rx="3" fill="#4a4f5a"/><rect width="24" height="5" rx="2" fill="#9aa3b3" opacity="0.35"/><rect x="19" y="3" width="5" height="21" rx="2" fill="#000" opacity="0.45"/></g>
+    <g id="desk" filter="url(#sh)"><rect width="120" height="60" rx="5" fill="#5c4f41" stroke="#3f362c" stroke-width="2"/><ellipse cx="60" cy="19" rx="10" ry="4" fill="#1f2233" opacity="0.55"/><rect x="32" y="8" width="56" height="7" rx="2" fill="#1f2233"/><rect x="35" y="10" width="50" height="3" rx="1" fill="#6fb0f0"/><rect x="40" y="36" width="40" height="11" rx="2" fill="#3b4452"/><path d="M44 40 H76 M44 43.5 H76" stroke="#2b323d" stroke-width="1.2"/><ellipse cx="93" cy="42" rx="4" ry="6" fill="#4d5663" stroke="#3f362c" stroke-width="1"/></g>
+    <g id="chair" filter="url(#shS)"><rect x="-19" y="-20" width="38" height="12" rx="6" fill="#2d3645"/><rect x="-16" y="-10" width="32" height="26" rx="7" fill="#3a4556"/><rect x="-20" y="-6" width="5" height="16" rx="2" fill="#222a36"/><rect x="15" y="-6" width="5" height="16" rx="2" fill="#222a36"/><rect x="-10" y="-6" width="20" height="18" rx="5" fill="#4a5669" opacity="0.5"/></g>
+    <g id="table" filter="url(#sh)"><rect width="200" height="90" rx="10" fill="#574636" stroke="#3b2f24" stroke-width="2"/><rect x="30" y="38" width="140" height="14" rx="7" fill="#3f6b5a"/></g>
+    <g id="cafe" filter="url(#sh)"><circle r="35" fill="#5c4f41" stroke="#3f362c" stroke-width="2"/><circle r="27" fill="none" stroke="#3f362c" stroke-width="1" opacity="0.5"/><circle cx="10" cy="-8" r="6" fill="#cfd6dc" stroke="#3f362c" stroke-width="1"/><circle cx="10" cy="-8" r="3.5" fill="#3a2616"/></g>
+    <g id="stool" filter="url(#shS)"><circle r="12" fill="#8a5233"/><circle r="7" fill="none" stroke="#6f4228" stroke-width="2"/></g>
+    <g id="sofa" filter="url(#sh)"><rect width="150" height="18" rx="8" fill="#7a4a2e"/><rect x="6" y="14" width="138" height="40" rx="6" fill="#8f5a3a"/><path d="M75 16 V54" stroke="#7a4a2e" stroke-width="2"/><rect x="0" y="10" width="12" height="50" rx="6" fill="#66402a"/><rect x="138" y="10" width="12" height="50" rx="6" fill="#66402a"/><rect x="20" y="20" width="24" height="22" rx="5" fill="#a0785a"/><rect x="106" y="20" width="24" height="22" rx="5" fill="#3f6b5a"/></g>
+    <g id="bookshelf" filter="url(#shS)"><rect width="120" height="30" rx="2" fill="#4d3a2c"/><rect x="4" y="4" width="112" height="24" fill="#342619"/><rect x="8" y="8" width="8" height="18" rx="1.5" fill="#9d5e4e"/><rect x="18" y="7.5" width="6" height="19" rx="1.5" fill="#2a2d44"/><rect x="26" y="7" width="10" height="20" rx="1.5" fill="#4e7a66"/><rect x="38" y="6.5" width="7" height="21" rx="1.5" fill="#a08a5a"/><rect x="47" y="8" width="9" height="18" rx="1.5" fill="#5a6f8a"/><rect x="58" y="7.5" width="6" height="19" rx="1.5" fill="#a08c3f"/><rect x="66" y="7" width="12" height="20" rx="1.5" fill="#9d5e4e"/><rect x="80" y="6.5" width="8" height="21" rx="1.5" fill="#2a2d44"/><rect x="90" y="8" width="7" height="18" rx="1.5" fill="#4e7a66"/><rect x="99" y="7.5" width="10" height="19" rx="1.5" fill="#a08a5a"/></g>
+    <g id="whiteboard" filter="url(#shS)"><rect width="140" height="12" rx="1.5" fill="#c4ccd3" stroke="#6c7681" stroke-width="2"/><rect x="40" y="12" width="60" height="3" rx="1" fill="#5a646e"/><rect x="48" y="12.5" width="8" height="2" rx="1" fill="#9d5e4e"/><rect x="60" y="12.5" width="8" height="2" rx="1" fill="#3a5a8a"/></g>
+    <g id="art" filter="url(#shS)"><rect width="60" height="12" rx="1.5" fill="#5c5448"/><rect x="4" y="3" width="52" height="6" fill="url(#artG)"/></g>
+    <g id="plant" filter="url(#shS)"><circle r="14" fill="#6b3f2b"/><circle r="14" fill="none" stroke="#7d4a33" stroke-width="3"/><circle cx="-10" cy="-6" r="14" fill="#2f6a46"/><circle cx="12" cy="-4" r="13" fill="#3f8a5b"/><circle cx="0" cy="10" r="12" fill="#244f36"/><circle cx="0" cy="-2" r="9" fill="#4da66c"/></g>
+    <g id="tallplant" filter="url(#shS)"><circle r="12" fill="#6b3f2b"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#2f6a46"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#3f8a5b" transform="rotate(60)"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#244f36" transform="rotate(120)"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#2f6a46" transform="rotate(180)"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#3f8a5b" transform="rotate(240)"/><ellipse cx="18" cy="0" rx="18" ry="8" fill="#244f36" transform="rotate(300)"/><circle r="9" fill="#4da66c"/></g>
+    <g id="lamp"><circle r="60" fill="url(#lampGlow)"/><circle r="15" fill="#ffd868"/><circle r="5" fill="#fff6c8"/></g>
+    <g id="window"><rect width="120" height="14" fill="url(#glassG)" stroke="#5b6474" stroke-width="2"/><path d="M40 0 V14 M80 0 V14" stroke="#3b4556" stroke-width="2"/><path d="M4 4 H116" stroke="#9fc3ff" stroke-width="1" opacity="0.25"/></g>
+    <g id="counter" filter="url(#sh)"><rect width="200" height="50" rx="6" fill="#3e2e22"/><rect x="4" y="4" width="192" height="40" rx="4" fill="#5a4433"/><rect x="0" y="42" width="200" height="8" rx="3" fill="#2f2219"/><ellipse cx="152" cy="24" rx="9" ry="3.5" fill="#1f2233" opacity="0.55"/><rect x="128" y="14" width="48" height="7" rx="2" fill="#1f2233"/><rect x="131" y="16" width="42" height="3" rx="1" fill="#6fb0f0"/><circle cx="40" cy="24" r="6" fill="#d8b24a"/><circle cx="40" cy="24" r="2" fill="#2f2219"/><circle cx="90" cy="24" r="8" fill="#3f8a5b"/></g>
+    <g id="kitchen" filter="url(#shS)"><rect width="220" height="50" rx="3" fill="#3b4552"/><rect x="18" y="10" width="54" height="30" rx="6" fill="#566370"/><rect x="24" y="15" width="42" height="20" rx="4" fill="#44515c"/><circle cx="45" cy="7" r="3" fill="#a9b4bd"/><rect x="92" y="8" width="64" height="34" rx="3" fill="#1f272e"/><circle cx="108" cy="18" r="5" fill="none" stroke="#5a6670" stroke-width="2"/><circle cx="140" cy="18" r="5" fill="none" stroke="#5a6670" stroke-width="2"/><circle cx="108" cy="32" r="5" fill="none" stroke="#5a6670" stroke-width="2"/><circle cx="140" cy="32" r="5" fill="none" stroke="#5a6670" stroke-width="2"/><rect x="170" y="0" width="50" height="50" rx="3" fill="#4a545e" stroke="#2e3640" stroke-width="2"/><path d="M195 4 V46" stroke="#2e3640" stroke-width="2"/></g>
+    <g id="rug"><rect x="-100" y="-60" width="200" height="120" rx="6" fill="#8a4a34" opacity="0.6"/><rect x="-86" y="-46" width="172" height="92" rx="4" fill="none" stroke="#a07a52" stroke-width="4" opacity="0.55"/></g>
+    <g id="clock" filter="url(#shS)"><circle r="14" fill="#d7dde1" stroke="#1f2233" stroke-width="3"/><path d="M0 0 V-9 M0 0 L6 4" stroke="#1f2233" stroke-width="2.5" stroke-linecap="round"/></g>
+    <g id="door"><rect x="-1" y="-8" width="62" height="16" fill="#3f434c"/><path d="M0 56 A56 56 0 0 0 56 0" fill="none" stroke="#7a8292" stroke-width="1.5" stroke-dasharray="4 3"/><rect x="-2" y="0" width="4" height="56" rx="1" fill="#6b5540"/></g>
+  </defs>
+
+  <g id="backdrop">
+    <rect width="1920" height="1080" fill="#15201a"/>
+    <rect x="40" y="40" width="1840" height="1000" rx="6" fill="#23272b"/>
+    <rect x="0" y="366" width="60" height="48" fill="#2e3236"/>
+    <rect x="1860" y="686" width="60" height="48" fill="#2e3236"/>
+    <g transform="translate(30 180)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <g transform="translate(30 560)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <g transform="translate(30 900)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <g transform="translate(1890 220)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <g transform="translate(1890 520)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <g transform="translate(1890 940)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <g transform="translate(360 30)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <g transform="translate(900 30)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <g transform="translate(1500 30)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <g transform="translate(420 1050)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <g transform="translate(1100 1050)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <g transform="translate(1700 1050)"><circle cx="2" cy="3" r="22" fill="#000" opacity="0.3"/><circle r="22" fill="#203a28"/><circle cx="-5" cy="-5" r="13" fill="#2d4a35"/></g>
+    <rect x="60" y="60" width="1800" height="960" fill="url(#corridorTile)" stroke="#5e636e" stroke-width="16" filter="url(#wallSh)"/>
+    <rect x="51" y="51" width="1818" height="978" fill="none" stroke="#9aa3b3" stroke-width="2" opacity="0.35"/>
+  </g>
+
+  <g id="rooms">
+    <g id="room-reception-Reception" data-bar="top">
+      <rect x="60" y="60" width="540" height="300" fill="url(#wood)" stroke="#4c515b" stroke-width="12" filter="url(#wallSh)"/>
+      <rect x="55" y="55" width="550" height="310" fill="none" stroke="#9aa3b3" stroke-width="2" opacity="0.35"/>
+      <rect x="66" y="66" width="528" height="8" fill="#000" opacity="0.38"/>
+      <use href="#window" transform="translate(120 53) rotate(0)"/>
+      <use href="#window" transform="translate(440 53) rotate(0)"/>
+      <use href="#window" transform="translate(67 200) rotate(90)"/>
+      <use href="#counter" x="300" y="120"/>
+      <use href="#chair" x="400" y="98"/>
+      <use href="#sofa" transform="translate(66 340) rotate(-90)"/>
+      <use href="#rug" x="320" y="250"/>
+      <use href="#cafe" x="548" y="280"/>
+      <use href="#stool" x="548" y="236"/>
+      <use href="#stool" x="548" y="324"/>
+      <use href="#lamp" x="540" y="180"/>
+      <use href="#plant" x="96" y="160"/>
+      <use href="#clock" x="200" y="358"/>
+      <rect id="area-4x1" x="140" y="190" width="360" height="120" fill="none" stroke="none"/>
+    </g>
+    <g id="room-workspace-Open_floor" data-bar="top">
+      <rect x="660" y="60" width="660" height="300" fill="url(#carpetBlue)" stroke="#4c515b" stroke-width="12" filter="url(#wallSh)"/>
+      <rect x="655" y="55" width="670" height="310" fill="none" stroke="#9aa3b3" stroke-width="2" opacity="0.35"/>
+      <rect x="666" y="66" width="648" height="8" fill="#000" opacity="0.38"/>
+      <use href="#window" transform="translate(700 53) rotate(0)"/>
+      <use href="#window" transform="translate(860 53) rotate(0)"/>
+      <use href="#window" transform="translate(1020 53) rotate(0)"/>
+      <use href="#window" transform="translate(1180 53) rotate(0)"/>
+      <use href="#whiteboard" transform="translate(666 290) rotate(-90)"/>
+      <use href="#desk" x="700" y="126"/>
+      <use href="#desk" x="850" y="126"/>
+      <use href="#desk" x="1000" y="126"/>
+      <use href="#desk" x="1150" y="126"/>
+      <use href="#chair" x="760" y="208"/>
+      <use href="#chair" x="910" y="208"/>
+      <use href="#chair" x="1060" y="208"/>
+      <use href="#chair" x="1210" y="208"/>
+      <use href="#plant" x="1292" y="328"/>
+      <rect id="area-6x1" x="720" y="232" width="540" height="120" fill="none" stroke="none"/>
+    </g>
+    <g id="room-workspace-Library" data-bar="top">
+      <rect x="1380" y="60" width="480" height="300" fill="url(#carpetSage)" stroke="#4c515b" stroke-width="12" filter="url(#wallSh)"/>
+      <rect x="1375" y="55" width="490" height="310" fill="none" stroke="#9aa3b3" stroke-width="2" opacity="0.35"/>
+      <rect x="1386" y="66" width="468" height="8" fill="#000" opacity="0.38"/>
+      <use href="#window" transform="translate(1420 53) rotate(0)"/>
+      <use href="#window" transform="translate(1600 53) rotate(0)"/>
+      <use href="#window" transform="translate(1867 100) rotate(90)"/>
+      <use href="#window" transform="translate(1867 225) rotate(90)"/>
+      <use href="#bookshelf" transform="translate(1386 220) rotate(-90)"/>
+      <use href="#bookshelf" transform="translate(1386 350) rotate(-90)"/>
+      <use href="#sofa" x="1600" y="292"/>
+      <use href="#lamp" x="1794" y="300"/>
+      <use href="#plant" x="1450" y="326"/>
+      <use href="#cafe" x="1800" y="200"/>
+      <use href="#stool" x="1800" y="158"/>
+      <use href="#stool" x="1800" y="242"/>
+      <rect id="area-3x1" x="1460" y="170" width="270" height="120" fill="none" stroke="none"/>
+    </g>
+    <g id="room-workspace-Studio" data-bar="top">
+      <rect x="60" y="420" width="480" height="260" fill="url(#wood)" stroke="#4c515b" stroke-width="12" filter="url(#wallSh)"/>
+      <rect x="55" y="415" width="490" height="270" fill="none" stroke="#9aa3b3" stroke-width="2" opacity="0.35"/>
+      <rect x="66" y="426" width="468" height="8" fill="#000" opacity="0.38"/>
+      <use href="#window" transform="translate(67 490) rotate(90)"/>
+      <use href="#desk" transform="translate(534 500) rotate(90)"/>
+      <use href="#chair" transform="translate(452 560) rotate(-90)"/>
+      <use href="#rug" x="275" y="570"/>
+      <use href="#whiteboard" transform="translate(290 674) rotate(180)"/>
+      <use href="#art" transform="translate(390 674) rotate(180)"/>
+      <use href="#tallplant" x="102" y="636"/>
+      <use href="#plant" x="508" y="648"/>
+      <rect id="area-3x1" x="140" y="510" width="270" height="120" fill="none" stroke="none"/>
+    </g>
+    <g id="room-meeting-Meeting_room" data-bar="top">
+      <rect x="600" y="420" width="660" height="260" fill="url(#carpetPlum)" stroke="#4c515b" stroke-width="12" filter="url(#wallSh)"/>
+      <rect x="595" y="415" width="670" height="270" fill="none" stroke="#9aa3b3" stroke-width="2" opacity="0.35"/>
+      <rect x="606" y="426" width="648" height="8" fill="#000" opacity="0.38"/>
+      <use href="#table" x="880" y="540"/>
+      <use href="#chair" x="920" y="518"/>
+      <use href="#chair" x="980" y="518"/>
+      <use href="#chair" x="1040" y="518"/>
+      <use href="#chair" transform="translate(920 652) rotate(180)"/>
+      <use href="#chair" transform="translate(980 652) rotate(180)"/>
+      <use href="#chair" transform="translate(1040 652) rotate(180)"/>
+      <use href="#chair" transform="translate(858 585) rotate(-90)"/>
+      <use href="#chair" transform="translate(1102 585) rotate(90)"/>
+      <use href="#whiteboard" transform="translate(1254 490) rotate(90)"/>
+      <use href="#art" transform="translate(760 674) rotate(180)"/>
+      <use href="#plant" x="1170" y="648"/>
+      <use href="#clock" x="614" y="650"/>
+      <rect id="area-2x1" x="640" y="500" width="180" height="120" fill="none" stroke="none"/>
+    </g>
+    <g id="room-workspace-Quiet_room" data-bar="top">
+      <rect x="1320" y="420" width="540" height="260" fill="url(#carpetCream)" stroke="#4c515b" stroke-width="12" filter="url(#wallSh)"/>
+      <rect x="1315" y="415" width="550" height="270" fill="none" stroke="#9aa3b3" stroke-width="2" opacity="0.35"/>
+      <rect x="1326" y="426" width="528" height="8" fill="#000" opacity="0.38"/>
+      <use href="#window" transform="translate(1867 470) rotate(90)"/>
+      <use href="#sofa" transform="translate(1326 650) rotate(-90)"/>
+      <use href="#bookshelf" transform="translate(1500 674) rotate(180)"/>
+      <use href="#lamp" x="1404" y="618"/>
+      <use href="#rug" x="1600" y="560"/>
+      <use href="#cafe" x="1790" y="560"/>
+      <use href="#stool" x="1790" y="518"/>
+      <use href="#stool" x="1790" y="602"/>
+      <use href="#plant" x="1828" y="648"/>
+      <use href="#clock" x="1760" y="672"/>
+      <rect id="area-3x1" x="1470" y="500" width="270" height="120" fill="none" stroke="none"/>
+    </g>
+    <g id="room-workspace-Engineering" data-bar="top">
+      <rect x="60" y="740" width="700" height="280" fill="url(#carpetTerra)" stroke="#4c515b" stroke-width="12" filter="url(#wallSh)"/>
+      <rect x="55" y="735" width="710" height="290" fill="none" stroke="#9aa3b3" stroke-width="2" opacity="0.35"/>
+      <rect x="66" y="746" width="688" height="8" fill="#000" opacity="0.38"/>
+      <use href="#window" transform="translate(100 1013) rotate(0)"/>
+      <use href="#window" transform="translate(440 1013) rotate(0)"/>
+      <use href="#window" transform="translate(600 1013) rotate(0)"/>
+      <use href="#window" transform="translate(67 820) rotate(90)"/>
+      <use href="#desk" transform="translate(200 840) rotate(90)"/>
+      <use href="#chair" transform="translate(118 900) rotate(-90)"/>
+      <use href="#desk" transform="translate(600 960) rotate(-90)"/>
+      <use href="#chair" transform="translate(682 900) rotate(90)"/>
+      <use href="#whiteboard" transform="translate(390 1014) rotate(180)"/>
+      <use href="#lamp" x="700" y="960"/>
+      <use href="#plant" x="100" y="985"/>
+      <use href="#tallplant" x="715" y="830"/>
+      <rect id="area-4x1" x="220" y="810" width="360" height="120" fill="none" stroke="none"/>
+    </g>
+    <g id="room-conference-Conference" data-bar="top">
+      <rect x="820" y="740" width="500" height="280" fill="url(#carpetSage)" stroke="#4c515b" stroke-width="12" filter="url(#wallSh)"/>
+      <rect x="815" y="735" width="510" height="290" fill="none" stroke="#9aa3b3" stroke-width="2" opacity="0.35"/>
+      <rect x="826" y="746" width="488" height="8" fill="#000" opacity="0.38"/>
+      <use href="#window" transform="translate(1040 1013) rotate(0)"/>
+      <use href="#window" transform="translate(1180 1013) rotate(0)"/>
+      <use href="#table" x="1090" y="880"/>
+      <use href="#chair" x="1130" y="858"/>
+      <use href="#chair" x="1190" y="858"/>
+      <use href="#chair" x="1250" y="858"/>
+      <use href="#chair" transform="translate(1130 992) rotate(180)"/>
+      <use href="#chair" transform="translate(1190 992) rotate(180)"/>
+      <use href="#chair" transform="translate(1250 992) rotate(180)"/>
+      <use href="#chair" transform="translate(1068 925) rotate(-90)"/>
+      <use href="#whiteboard" transform="translate(826 960) rotate(-90)"/>
+      <use href="#art" transform="translate(960 1014) rotate(180)"/>
+      <use href="#plant" x="852" y="988"/>
+      <use href="#clock" x="1000" y="1012"/>
+      <rect id="area-2x1" x="850" y="820" width="180" height="120" fill="none" stroke="none"/>
+    </g>
+    <g id="room-break-Cafe" data-bar="top">
+      <rect x="1380" y="740" width="480" height="280" fill="url(#wood)" stroke="#4c515b" stroke-width="12" filter="url(#wallSh)"/>
+      <rect x="1375" y="735" width="490" height="290" fill="none" stroke="#9aa3b3" stroke-width="2" opacity="0.35"/>
+      <rect x="1386" y="746" width="468" height="8" fill="#000" opacity="0.38"/>
+      <use href="#window" transform="translate(1867 790) rotate(90)"/>
+      <use href="#window" transform="translate(1700 1013) rotate(0)"/>
+      <use href="#kitchen" transform="translate(1640 1014) rotate(180)"/>
+      <use href="#rug" x="1555" y="870"/>
+      <use href="#cafe" x="1740" y="900"/>
+      <use href="#stool" x="1700" y="900"/>
+      <use href="#stool" x="1780" y="900"/>
+      <use href="#stool" x="1740" y="857"/>
+      <use href="#stool" x="1740" y="943"/>
+      <use href="#sofa" transform="translate(1854 800) rotate(90)"/>
+      <use href="#plant" x="1820" y="985"/>
+      <use href="#lamp" x="1440" y="946"/>
+      <use href="#art" transform="translate(1386 910) rotate(-90)"/>
+      <use href="#clock" x="1680" y="1012"/>
+      <rect id="area-3x1" x="1420" y="810" width="270" height="120" fill="none" stroke="none"/>
+    </g>
+  </g>
+
+  <g id="overlay">
+    <use href="#pillar" x="588" y="348"/>
+    <use href="#pillar" x="648" y="348"/>
+    <use href="#pillar" x="1308" y="348"/>
+    <use href="#pillar" x="1368" y="348"/>
+    <use href="#pillar" x="528" y="408"/>
+    <use href="#pillar" x="588" y="408"/>
+    <use href="#pillar" x="1248" y="408"/>
+    <use href="#pillar" x="1308" y="408"/>
+    <use href="#pillar" x="528" y="668"/>
+    <use href="#pillar" x="588" y="668"/>
+    <use href="#pillar" x="1248" y="668"/>
+    <use href="#pillar" x="1308" y="668"/>
+    <use href="#pillar" x="748" y="728"/>
+    <use href="#pillar" x="808" y="728"/>
+    <use href="#pillar" x="1308" y="728"/>
+    <use href="#pillar" x="1368" y="728"/>
+    <use href="#door" transform="translate(300 360) rotate(0)"/>
+    <use href="#door" transform="translate(1000 360) rotate(0)"/>
+    <use href="#door" transform="translate(1560 360) rotate(0)"/>
+    <use href="#door" transform="translate(200 420) rotate(180)"/>
+    <use href="#door" transform="translate(960 420) rotate(180)"/>
+    <use href="#door" transform="translate(1440 420) rotate(180)"/>
+    <use href="#door" transform="translate(900 680) rotate(0)"/>
+    <use href="#door" transform="translate(420 740) rotate(180)"/>
+    <use href="#door" transform="translate(1000 740) rotate(180)"/>
+    <use href="#door" transform="translate(1560 740) rotate(180)"/>
+    <use href="#door" transform="translate(60 420) rotate(-90)"/>
+    <use href="#door" transform="translate(1860 680) rotate(90)"/>
+  </g>
+</svg>

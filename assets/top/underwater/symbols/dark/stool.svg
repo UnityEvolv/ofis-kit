@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-24 -24 48 48" width="48" height="48" data-symbol="stool" data-bbox="-12 -12 24 24">
+  <defs>
+    <filter id="shS" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.5"/></filter>
+  </defs>
+  <g id="stool" filter="url(#shS)"><circle cx="0" cy="0" r="12" fill="#9d5e4e"/><circle cx="-2" cy="-2" r="7" fill="#b57461" opacity="0.8"/><circle cx="0" cy="0" r="2" fill="#7e4a3b"/></g>
+</svg>

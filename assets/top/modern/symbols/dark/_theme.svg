@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" data-theme-defs="dark">
+  <defs>
+    <filter id="wallSh" x="-5%" y="-5%" width="110%" height="115%"><feDropShadow dx="0" dy="7" stdDeviation="5" flood-color="#000000" flood-opacity="0.55"/></filter>
+    <pattern id="wood" width="128" height="128" patternUnits="userSpaceOnUse"><use href="#floor"/></pattern>
+    <pattern id="carpetSage" width="128" height="128" patternUnits="userSpaceOnUse"><rect width="128" height="128" fill="#28342b"/><use href="#carpet"/></pattern>
+    <pattern id="carpetBlue" width="128" height="128" patternUnits="userSpaceOnUse"><rect width="128" height="128" fill="#253142"/><use href="#carpet"/></pattern>
+    <pattern id="carpetPlum" width="128" height="128" patternUnits="userSpaceOnUse"><rect width="128" height="128" fill="#332b3b"/><use href="#carpet"/></pattern>
+    <pattern id="carpetCream" width="128" height="128" patternUnits="userSpaceOnUse"><rect width="128" height="128" fill="#36322c"/><use href="#carpet"/></pattern>
+    <pattern id="carpetTerra" width="128" height="128" patternUnits="userSpaceOnUse"><rect width="128" height="128" fill="#3d2f29"/><use href="#carpet"/></pattern>
+    <pattern id="corridorTile" width="128" height="128" patternUnits="userSpaceOnUse"><use href="#corridor"/></pattern>
+  </defs>
+</svg>

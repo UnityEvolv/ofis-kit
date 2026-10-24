@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 164 39" width="164" height="39" data-symbol="whiteboard" data-bbox="0 0 140 15">
+  <defs>
+    <filter id="shS" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.5"/></filter>
+  </defs>
+  <g id="whiteboard" filter="url(#shS)"><rect width="140" height="12" rx="1.5" fill="#c4ccd3" stroke="#6c7681" stroke-width="2"/><rect x="40" y="12" width="60" height="3" rx="1" fill="#5a646e"/><rect x="48" y="12.5" width="8" height="2" rx="1" fill="#9d5e4e"/><rect x="60" y="12.5" width="8" height="2" rx="1" fill="#3a5a8a"/></g>
+</svg>

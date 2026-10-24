@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 174 84" width="174" height="84" data-symbol="sofa" data-bbox="0 0 150 60">
+  <defs>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#0f2a3d" flood-opacity="0.28"/></filter>
+  </defs>
+  <g id="sofa" filter="url(#sh)"><rect width="150" height="60" rx="16" fill="#d9a893"/><rect x="0" y="0" width="150" height="18" rx="9" fill="#edc9b8"/><path d="M75 16 L30 4 M75 16 L52 2 M75 16 L75 1 M75 16 L98 2 M75 16 L120 4" stroke="#f6e3d6" stroke-width="2" stroke-linecap="round" opacity="0.85"/><rect x="0" y="10" width="16" height="50" rx="8" fill="#edc9b8"/><rect x="134" y="10" width="16" height="50" rx="8" fill="#edc9b8"/><rect x="22" y="20" width="50" height="34" rx="6" fill="#8ec9c0"/><rect x="78" y="20" width="50" height="34" rx="6" fill="#f0a08a"/><rect x="26" y="24" width="42" height="6" rx="3" fill="#fff" opacity="0.2"/><rect x="82" y="24" width="42" height="6" rx="3" fill="#fff" opacity="0.2"/></g>
+</svg>

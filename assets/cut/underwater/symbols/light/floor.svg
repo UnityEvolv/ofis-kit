@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 1744 68" width="1744" height="68" data-symbol="floor" data-bbox="0 0 1720 44">
+  <defs>
+    <linearGradient id="floorTop" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e6d3ab"/><stop offset="1" stop-color="#d4bd90"/></linearGradient>
+    <linearGradient id="floorEdge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a08c6b"/><stop offset="1" stop-color="#7f6d52"/></linearGradient>
+    <pattern id="grate" width="28" height="30" patternUnits="userSpaceOnUse"><rect x="12" y="7" width="4" height="16" rx="2" fill="#000" opacity="0.12"/></pattern>
+  </defs>
+  <g id="floor"><rect x="0" y="0" width="1720" height="30" fill="url(#floorTop)"/><rect x="0" y="0" width="1720" height="30" fill="url(#grate)"/><rect x="0" y="30" width="1720" height="14" fill="url(#floorEdge)"/><rect x="0" y="0" width="1720" height="3" fill="#fff" opacity="0.55"/><rect x="0" y="30" width="1720" height="2" fill="#000" opacity="0.18"/></g>
+</svg>

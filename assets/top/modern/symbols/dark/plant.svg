@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-36 -32 73 66" width="73" height="66" data-symbol="plant" data-bbox="-24 -20 49 42">
+  <defs>
+    <filter id="shS" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.5"/></filter>
+  </defs>
+  <g id="plant" filter="url(#shS)"><circle r="14" fill="#6b3f2b"/><circle r="14" fill="none" stroke="#7d4a33" stroke-width="3"/><circle cx="-10" cy="-6" r="14" fill="#2f6a46"/><circle cx="12" cy="-4" r="13" fill="#3f8a5b"/><circle cx="0" cy="10" r="12" fill="#244f36"/><circle cx="0" cy="-2" r="9" fill="#4da66c"/></g>
+</svg>

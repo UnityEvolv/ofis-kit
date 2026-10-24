@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -21 244 95" width="244" height="95" data-symbol="desk" data-bbox="0 -9 220 71">
+  <defs>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#000000" flood-opacity="0.44"/></filter>
+  </defs>
+  <g id="desk" filter="url(#sh)"><rect x="0" y="0" width="220" height="14" rx="5" fill="#534531"/><rect x="0" y="0" width="220" height="4" rx="2" fill="#fff" opacity="0.245"/><rect x="6" y="14" width="208" height="8" rx="2" fill="#7f6f59"/><rect x="18" y="22" width="9" height="40" fill="#483b30"/><rect x="193" y="22" width="9" height="40" fill="#483b30"/><rect x="24" y="-9" width="36" height="9" rx="2" fill="#89613a"/><rect x="150" y="-7" width="26" height="7" rx="2" fill="#8cc4f0"/><rect x="100" y="-5" width="16" height="5" rx="2" fill="#333547"/></g>
+</svg>

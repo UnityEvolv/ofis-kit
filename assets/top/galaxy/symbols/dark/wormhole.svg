@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-162 -162 324 324" width="324" height="324" data-symbol="wormhole" data-bbox="-150 -150 300 300">
+  <defs>
+    <radialGradient id="holeGlowG" cx="0.5" cy="0.5" r="0.5"><stop offset="0.4" stop-color="#22b4c7" stop-opacity="0.65"/><stop offset="1" stop-color="#22b4c7" stop-opacity="0"/></radialGradient>
+    <g id="sparkle"><path d="M0 -14 Q2.5 -2.5 14 0 Q2.5 2.5 0 14 Q-2.5 2.5 -14 0 Q-2.5 -2.5 0 -14 Z" fill="#ffffff"/></g>
+  </defs>
+  <g id="wormhole"><circle cx="0" cy="0" r="150" fill="url(#holeGlowG)"/><circle cx="0" cy="0" r="95" fill="#6c43c7" stroke="#0a0c22" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/><circle cx="0" cy="0" r="70" fill="#22b4c7" stroke="#0a0c22" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="0" cy="0" r="46" fill="#7fdde8" stroke="#0a0c22" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="0" cy="0" r="24" fill="#070a1f" stroke="#0a0c22" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/><path d="M-84 -28 A88 88 0 0 1 -30 -82" fill="none" stroke="#9b7ae6" stroke-width="10" stroke-linecap="round"/><path d="M-60 -18 A62 62 0 0 1 -22 -58" fill="none" stroke="#f7f5ef" stroke-width="7" stroke-linecap="round"/><g transform="translate(60 -70) scale(0.9)"><use href="#sparkle"/></g><g transform="translate(-70 60) scale(0.7)"><use href="#sparkle"/></g></g>
+</svg>

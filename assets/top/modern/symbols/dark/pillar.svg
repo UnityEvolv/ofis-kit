@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 48 48" width="48" height="48" data-symbol="pillar" data-bbox="0 0 24 24">
+  <defs>
+    <filter id="shS" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.5"/></filter>
+  </defs>
+  <g id="pillar" filter="url(#shS)"><rect width="24" height="24" rx="3" fill="#4a4f5a"/><rect width="24" height="5" rx="2" fill="#9aa3b3" opacity="0.35"/><rect x="19" y="3" width="5" height="21" rx="2" fill="#000" opacity="0.45"/></g>
+</svg>

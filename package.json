@@ -37,7 +37,12 @@
     "watch:packages": "tsc -b packages/template packages/presence-store packages/adapters packages/realtime-core packages/realtime-client packages/ui-map packages/ui-builder server --watch --preserveWatchOutput",
     "kit:styles": "node tools/kit-styles/check.mjs",
     "no-branding": "node tools/no-branding/check.mjs",
-    "turn:check": "node tools/turn-check/check.mjs"
+    "turn:check": "node tools/turn-check/check.mjs",
+    "office:prompt": "node tools/office-prompt/build.mjs",
+    "office:prompt:check": "node tools/office-prompt/build.mjs --check",
+    "office:assets": "node tools/office-assets/build.mjs",
+    "office:assets:check": "node tools/office-assets/build.mjs --check",
+    "office:assets:split": "node tools/office-assets/split.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

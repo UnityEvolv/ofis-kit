@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" data-ofis="1" data-canvas="landscape" data-avatar="small" data-name="Two rooms">
+  <defs>
+    <!-- Paste a theme's symbols and gradients here. -->
+  </defs>
+  <g id="backdrop">
+    <rect width="1920" height="1080" fill="#e9eef3"/>
+    <rect x="100" y="60" width="1720" height="980" fill="#efe7db" stroke="#a9998a" stroke-width="8"/>
+  </g>
+  <g id="rooms">
+    <g id="room-reception-Reception" data-bar="top">
+      <rect x="100" y="742" width="500" height="298" fill="#fbf1d6"/>
+      <use href="#counter" x="140" y="970"/>
+      <use href="#plant" x="560" y="1002"/>
+      <rect id="area-4x1" x="192" y="832" width="360" height="120" fill="none"/>
+    </g>
+    <g id="room-break-Cafe" data-bar="top">
+      <rect x="1264" y="742" width="556" height="298" fill="#e3ece2"/>
+      <use href="#kitchen" x="1294" y="862"/>
+      <use href="#sofa" x="1354" y="986"/>
+      <rect id="area-4x1" x="1363" y="842" width="360" height="120" fill="none"/>
+    </g>
+  </g>
+  <g id="overlay">
+    <use href="#pillar" x="600" y="742"/>
+  </g>
+</svg>

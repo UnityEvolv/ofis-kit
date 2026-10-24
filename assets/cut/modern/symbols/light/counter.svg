@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -42 284 124" width="284" height="124" data-symbol="counter" data-bbox="0 -30 260 100">
+  <defs>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#5a4632" flood-opacity="0.22"/></filter>
+  </defs>
+  <g id="counter" filter="url(#sh)"><rect x="0" y="0" width="260" height="70" rx="10" fill="#7a5a44"/><rect x="0" y="0" width="260" height="12" rx="6" fill="#b58c6b"/><rect x="0" y="0" width="260" height="4" rx="2" fill="#fff" opacity="0.4"/><rect x="18" y="20" width="224" height="40" rx="4" fill="#6a4c38"/><rect x="60" y="-30" width="48" height="30" rx="4" fill="#3f4f60"/><circle cx="170" cy="-12" r="12" fill="#f4d35e"/><rect x="200" y="-18" width="30" height="18" rx="3" fill="#e07a5f"/></g>
+</svg>

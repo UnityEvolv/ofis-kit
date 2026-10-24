@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" data-theme-defs="dark">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0e1628"/><stop offset="1" stop-color="#1c2336"/></linearGradient>
+    <linearGradient id="wCream" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#433724"/><stop offset="1" stop-color="#4e4433"/></linearGradient>
+    <linearGradient id="wSage" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#394437"/><stop offset="1" stop-color="#455245"/></linearGradient>
+    <linearGradient id="wBlue" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b3948"/><stop offset="1" stop-color="#344555"/></linearGradient>
+    <linearGradient id="wTerra" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#523b2b"/><stop offset="1" stop-color="#604737"/></linearGradient>
+    <linearGradient id="wPlum" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#403345"/><stop offset="1" stop-color="#4d3f54"/></linearGradient>
+    <linearGradient id="wYellow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#564824"/><stop offset="1" stop-color="#695a31"/></linearGradient>
+    <pattern id="wallpaper" width="36" height="36" patternUnits="userSpaceOnUse"><circle cx="18" cy="18" r="1.6" fill="#fff" opacity="0.03"/></pattern>
+    <pattern id="brick" width="60" height="30" patternUnits="userSpaceOnUse"><rect width="60" height="30" fill="#59483a"/><rect x="0" y="0" width="58" height="13" rx="2" fill="#685446"/><rect x="30" y="15" width="58" height="13" rx="2" fill="#685446"/><rect x="-28" y="15" width="56" height="13" rx="2" fill="#685446"/></pattern>
+  </defs>
+</svg>
