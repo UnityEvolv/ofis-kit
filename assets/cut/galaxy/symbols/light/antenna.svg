@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 -104 60 116" width="60" height="116" data-symbol="antenna" data-bbox="-18 -92 36 92">
+  <defs>
+    <radialGradient id="beaconGlow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffd23f" stop-opacity="0.5"/><stop offset="1" stop-color="#ffd23f" stop-opacity="0"/></radialGradient>
+  </defs>
+  <g id="antenna"><circle cx="0" cy="-74" r="18" fill="url(#beaconGlow)"/><rect x="-3" y="-70" width="6" height="70" fill="#b9c1d9" stroke="#1b1f3a" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><path d="M-14 -50 H14 M-10 -32 H10" stroke="#1b1f3a" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><circle cx="0" cy="-74" r="7" fill="#e8423f" stroke="#1b1f3a" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><circle cx="-2" cy="-76" r="2" fill="#ffffff"/></g>
+</svg>
