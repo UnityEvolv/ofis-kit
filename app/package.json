@@ -18,7 +18,7 @@
     "@unityevolv/ofiskit-realtime-client": "0.3.1",
     "@unityevolv/ofiskit-realtime-core": "0.4.1",
     "@unityevolv/ofiskit-template": "0.4.0",
-    "@unityevolv/ofiskit-ui-builder": "0.3.1",
+    "@unityevolv/ofiskit-ui-builder": "0.4.0",
     "@unityevolv/ofiskit-ui-map": "0.6.1",
     "@unityevolv/unitykit": "^0.1.0",
     "react": "^19.0.0",
