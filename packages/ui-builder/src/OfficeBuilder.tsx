@@ -8,6 +8,7 @@ import {
 } from '@unityevolv/ofiskit-template'
 import { useMemo, useState } from 'react'
 
+import { edgeWarnings } from './background/officeImport.js'
 import { BuilderCanvas } from './canvas/BuilderCanvas.js'
 import type { ChangeOptions, Selection, Tool } from './canvas/types.js'
 import { useHistory } from './history.js'
@@ -66,6 +67,9 @@ export function OfficeBuilder(props: OfficeBuilderProps) {
 
   const validation = useMemo(() => validateTemplate(template), [template])
   const issues: TemplateIssue[] = validation.ok ? [] : validation.issues
+  // A room against the canvas edge is allowed; it is told that a festival
+  // frame, when an org turns one on, covers that strip.
+  const notes = useMemo(() => edgeWarnings(template), [template])
 
   const room =
     selection.kind !== 'none' && 'roomId' in selection
@@ -176,6 +180,7 @@ export function OfficeBuilder(props: OfficeBuilderProps) {
         */}
         <SaveBar
           issues={issues}
+          notes={notes}
           saveLabel={props.saveLabel}
           onSave={() => props.onSave(template)}
         />

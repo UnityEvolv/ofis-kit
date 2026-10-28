@@ -1,7 +1,9 @@
 import { Alert, Button, Icon } from '@unityevolv/unitykit'
 import {
   BuilderSteps,
+  loadOfficePrompts,
   loadPromptDocument,
+  type OfficePrompt,
   type PromptDocument,
 } from '@unityevolv/ofiskit-ui-builder'
 import type { Template } from '@unityevolv/ofiskit-template'
@@ -22,6 +24,7 @@ import { useAmbienceLibrary } from './ambience.js'
  */
 export function BuilderPage({ onBack }: { onBack?: () => void }) {
   const [prompt, setPrompt] = useState<PromptDocument | null>(null)
+  const [officePrompts, setOfficePrompts] = useState<OfficePrompt[]>([])
   const [failed, setFailed] = useState<string | null>(null)
   // The loops this app serves, for the office and room ambience controls.
   const ambienceLibrary = useAmbienceLibrary()
@@ -33,6 +36,11 @@ export function BuilderPage({ onBack }: { onBack?: () => void }) {
     loadPromptDocument(`${import.meta.env.BASE_URL}background-prompt.json`)
       .then(setPrompt)
       .catch((cause: unknown) => setFailed(cause instanceof Error ? cause.message : 'unknown'))
+    // The office prompts are the second way in; without them the builder still
+    // works the first way, so a host that does not serve them loses nothing.
+    loadOfficePrompts(`${import.meta.env.BASE_URL}office-prompts.json`)
+      .then(setOfficePrompts)
+      .catch(() => setOfficePrompts([]))
   }, [])
 
   function download(finished: Template) {
@@ -68,6 +76,7 @@ export function BuilderPage({ onBack }: { onBack?: () => void }) {
         {prompt && (
           <BuilderSteps
             document={prompt}
+            officePrompts={officePrompts}
             saveLabel="Download template.json"
             onSave={download}
             ambienceLibrary={ambienceLibrary}

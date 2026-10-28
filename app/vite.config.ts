@@ -1,4 +1,4 @@
-import { copyFile, readFile } from 'node:fs/promises'
+import { copyFile, readdir, readFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -8,7 +8,31 @@ import { defineConfig, type Plugin } from 'vite'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const promptDocument = join(here, '..', 'docs', 'background-prompt.json')
+const officePromptsDir = join(here, '..', 'docs', 'office-svg', 'prompts')
 const configDir = join(here, '..', 'config')
+
+/**
+ * The office prompts as one index, read from the generated files.
+ *
+ * One file per theme and view under docs/office-svg/prompts, written by
+ * `npm run office:prompt` from the spec and the symbol libraries. The builder
+ * fetches this index and copies a prompt to the clipboard; it never holds one.
+ */
+async function officePromptsIndex(): Promise<string> {
+  const names = (await readdir(officePromptsDir).catch(() => []))
+    .filter((name) => name.endsWith('.md'))
+    .sort()
+  const prompts = await Promise.all(
+    names.map(async (name) => {
+      const text = await readFile(join(officePromptsDir, name), 'utf8')
+      const id = name.replace(/\.md$/, '')
+      const [theme = id, view = 'cut'] = id.split(/-(?=[^-]+$)/)
+      const label = /^# Draw an office: (.+)$/m.exec(text)?.[1] ?? id
+      return { id, theme, view, label, text }
+    }),
+  )
+  return JSON.stringify({ prompts })
+}
 
 /**
  * Serve the background prompt from the one copy of it.
@@ -21,15 +45,19 @@ const configDir = join(here, '..', 'config')
  * worthless.
  */
 function backgroundPrompt(): Plugin {
-  const served = '/background-prompt.json'
+  const documents: Record<string, () => Promise<string>> = {
+    '/background-prompt.json': () => readFile(promptDocument, 'utf8'),
+    '/office-prompts.json': officePromptsIndex,
+  }
 
   return {
     name: 'ofiskit:background-prompt',
 
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
-        if (request.url !== served) return next()
-        void readFile(promptDocument, 'utf8').then(
+        const read = request.url === undefined ? undefined : documents[request.url]
+        if (read === undefined) return next()
+        void read().then(
           (body) => {
             response.setHeader('content-type', 'application/json')
             response.end(body)
@@ -40,11 +68,9 @@ function backgroundPrompt(): Plugin {
     },
 
     async generateBundle() {
-      this.emitFile({
-        type: 'asset',
-        fileName: 'background-prompt.json',
-        source: await readFile(promptDocument, 'utf8'),
-      })
+      for (const [path, read] of Object.entries(documents)) {
+        this.emitFile({ type: 'asset', fileName: path.slice(1), source: await read() })
+      }
     },
   }
 }

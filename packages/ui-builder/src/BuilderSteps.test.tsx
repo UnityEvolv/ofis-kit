@@ -140,6 +140,55 @@ describe('the builder, in three steps', () => {
   })
 })
 
+describe('a picture that carries its rooms', () => {
+  const office = () =>
+    new File(
+      [
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440" data-ofis="1" data-avatar="small"><g id="rooms">
+          <g id="room-reception-Reception"><rect x="100" y="800" width="900" height="500"/></g>
+          <g id="room-break-Cafe"><rect x="1400" y="800" width="900" height="500"/></g>
+          <g id="room-meeting-Design_studio"><rect x="100" y="100" width="900" height="500"/></g>
+          <g id="room-workspace-Floor"><rect x="1400" y="100" width="900" height="500"/></g>
+        </g></svg>`,
+      ],
+      'office.svg',
+      { type: 'image/svg+xml' },
+    )
+
+  it('opens the rooms already placed, and can start blank instead', async () => {
+    const { person } = open()
+    await person.click(next('Background'))
+    await uploadLight(office())
+    await person.click(next('Rooms'))
+    await screen.findByRole('list', { name: 'Rooms' })
+
+    // Only the rooms step is visible; the background step says the same thing
+    // from behind its `hidden`, which text queries do not respect.
+    const stage = () => within(screen.getByRole('region', { name: 'Rooms' }))
+    const rooms = () => within(screen.getByRole('list', { name: 'Rooms' }))
+    expect(rooms().getAllByRole('button')).toHaveLength(4)
+    expect(rooms().getByRole('button', { name: /Design studio/ })).toBeInTheDocument()
+    expect(stage().getByText(/4 rooms and 0 user areas found/)).toBeInTheDocument()
+
+    await person.click(screen.getByRole('button', { name: 'start blank instead' }))
+    expect(rooms().getAllByRole('button')).toHaveLength(3)
+    expect(stage().queryByText(/found in the picture/)).toBeNull()
+  })
+
+  it('replaces drawn rooms when a later picture carries its own', async () => {
+    const { person } = open()
+    await toRooms(person)
+    const rooms = () => within(screen.getByRole('list', { name: 'Rooms' }))
+    expect(rooms().getAllByRole('button')).toHaveLength(3)
+
+    await person.click(screen.getByRole('button', { name: 'Replace image' }))
+    await uploadLight(office())
+    await person.click(next('Rooms'))
+
+    expect(rooms().getAllByRole('button')).toHaveLength(4)
+  })
+})
+
 describe('what survives moving between steps', () => {
   it('keeps what was typed into the prompt', async () => {
     const { person } = open()
