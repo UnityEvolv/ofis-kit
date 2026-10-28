@@ -12,8 +12,14 @@ import type { TemplateIssue } from '@unityevolv/ofiskit-template'
 /** Enough to show what kind of trouble it is in without filling the panel. */
 const SHOWN = 6
 
-export function SaveBar(props: { issues: TemplateIssue[]; saveLabel: string; onSave(): void }) {
-  const { issues } = props
+export function SaveBar(props: {
+  issues: TemplateIssue[]
+  /** Worth knowing, not worth refusing: shown under the verdict, never blocking it. */
+  notes?: string[]
+  saveLabel: string
+  onSave(): void
+}) {
+  const { issues, notes = [] } = props
 
   return (
     <section className="border-t border-base-300 pt-3">
@@ -29,6 +35,14 @@ export function SaveBar(props: { issues: TemplateIssue[]; saveLabel: string; onS
             ))}
           </ul>
         </Alert>
+      )}
+
+      {notes.length > 0 && (
+        <ul className="mt-2 space-y-1 text-xs text-base-content/75">
+          {notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
       )}
 
       <Button className="mt-3 w-full" disabled={issues.length > 0} onClick={props.onSave}>

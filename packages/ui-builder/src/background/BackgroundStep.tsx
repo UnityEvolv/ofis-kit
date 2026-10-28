@@ -4,6 +4,12 @@ import { useEffect, useState } from 'react'
 
 import type { PromptDocument } from '../prompt/prompt.js'
 import { darkVersion } from './darkVersion.js'
+import {
+  describeFound,
+  firstMovedRoom,
+  importOfficeFile,
+  type ImportedOffice,
+} from './officeImport.js'
 
 /**
  * Step two: the picture the office is drawn on.
@@ -16,6 +22,12 @@ import { darkVersion } from './darkVersion.js'
  * Each image is checked on the way in, against the shape chosen in step one: a
  * picture of the wrong ratio puts every room slightly wrong against it, and
  * finding that out here costs one regeneration rather than a whole layout.
+ *
+ * An SVG is read as well as looked at. One that carries its rooms (see
+ * docs/office-svg/spec.md) hands them to the host, and the rooms step opens
+ * already laid out; one that carries something that must not be shown to an
+ * office's members is refused with the element named. A plain SVG is a picture,
+ * as it always was.
  */
 
 export interface BackgroundImages {
@@ -23,6 +35,9 @@ export interface BackgroundImages {
   light: string | null
   dark: string | null
 }
+
+/** A light SVG that brought its rooms with it. */
+export type OfficeFromPicture = Extract<ImportedOffice, { kind: 'office' }>
 
 export interface BackgroundStepProps {
   document: PromptDocument
@@ -35,6 +50,11 @@ export interface BackgroundStepProps {
    * not a `.webp` name for a file that is not one.
    */
   onImage(slot: 'light' | 'dark', url: string, fileName: string): void
+  /**
+   * The light image carried its rooms, or (null) a new light image did not. Sent
+   * after `onImage`, so a host that ignores it still has the picture.
+   */
+  onOffice?(office: OfficeFromPicture | null): void
 }
 
 /** The name a background should have beside template.json, keeping its type. */
@@ -54,9 +74,13 @@ export function BackgroundStep(props: BackgroundStepProps) {
   const [problem, setProblem] = useState<string | null>(null)
   /** The light image, when it is an SVG: the only kind a dark version can be made from. */
   const [lightSvg, setLightSvg] = useState<File | null>(null)
+  /** The rooms the light image carried, which a dark image is held to. */
+  const [lightOffice, setLightOffice] = useState<OfficeFromPicture | null>(null)
   /** A dark version made here, which the author needs as a file; they never had one. */
   const [generated, setGenerated] = useState<{ url: string; name: string } | null>(null)
   const [generating, setGenerating] = useState(false)
+  /** What a file dropped on "Check a file" would do, said without doing it. */
+  const [checked, setChecked] = useState<{ name: string; result: ImportedOffice } | null>(null)
 
   // The download link's URL is this step's own; the one handed to the host is not.
   useEffect(
@@ -68,6 +92,35 @@ export function BackgroundStep(props: BackgroundStepProps) {
 
   /** Check an image against the canvas, and hand it to the host if it fits. */
   async function accept(file: File, slot: 'light' | 'dark'): Promise<boolean> {
+    // An SVG is read before it is shown: what it carries decides what happens
+    // next, and a refused one is never shown at all.
+    let office: ImportedOffice | null = null
+    if (isSvg(file)) {
+      office = importOfficeFile(await file.text(), backgroundFileName(file, slot))
+      if (office.kind === 'refused') {
+        setProblem(
+          `That file cannot be used as a background. ${office.issues
+            .map((issue) => issue.message)
+            .join(' ')}`,
+        )
+        return false
+      }
+      if (slot === 'dark' && lightOffice) {
+        // The dark variant is a recolouring of the same scene, never a different
+        // layout: the rooms it carries must be the rooms the light one carries.
+        const moved =
+          office.kind === 'office'
+            ? firstMovedRoom(lightOffice.template, office.template)
+            : 'every room'
+        if (moved !== null) {
+          setProblem(
+            `The dark picture does not carry the same rooms as the light one (${moved}). Export both from the same frames, or generate the dark version here.`,
+          )
+          return false
+        }
+      }
+    }
+
     const url = URL.createObjectURL(file)
     const image = new Image()
 
@@ -109,6 +162,12 @@ export function BackgroundStep(props: BackgroundStepProps) {
     // Replaced by whatever came in now; generating sets it again straight after.
     setGenerated(null)
     props.onImage(slot, url, backgroundFileName(file, slot))
+
+    if (slot === 'light') {
+      const carried = office?.kind === 'office' ? office : null
+      setLightOffice(carried)
+      props.onOffice?.(carried)
+    }
     return true
   }
 
@@ -137,6 +196,18 @@ export function BackgroundStep(props: BackgroundStepProps) {
     }
   }
 
+  /** Report on a file as an import would, and keep nothing. */
+  async function check(file: File) {
+    if (!isSvg(file)) {
+      setChecked({ name: file.name, result: { kind: 'picture' } })
+      return
+    }
+    setChecked({
+      name: file.name,
+      result: importOfficeFile(await file.text(), backgroundFileName(file, 'light')),
+    })
+  }
+
   return (
     <div className="mx-auto grid max-w-5xl gap-6 p-4 lg:grid-cols-2">
       <section className="space-y-3" aria-labelledby="background-light">
@@ -145,7 +216,7 @@ export function BackgroundStep(props: BackgroundStepProps) {
         </h2>
         <p className="text-sm text-base-content/75">
           Required. The office is drawn on this. It should be {canvas.ratio}, ideally{' '}
-          {canvas.resolution}.
+          {canvas.resolution}. An SVG drawn to the office convention brings its rooms with it.
         </p>
 
         {/*
@@ -170,6 +241,19 @@ export function BackgroundStep(props: BackgroundStepProps) {
         </Field>
 
         <Preview url={props.images.light} label="The light image" />
+
+        {lightOffice && (
+          <div role="status" className="text-xs">
+            <p className="font-medium text-success">{describeFound(lightOffice.found)}</p>
+            <p className="text-base-content/75">
+              They are placed for you on the next step
+              {lightOffice.issues.length > 0 &&
+                `, with ${lightOffice.issues.length} thing${lightOffice.issues.length === 1 ? '' : 's'} to fix shown there`}
+              .
+            </p>
+            <Report issues={lightOffice.issues} warnings={lightOffice.warnings} />
+          </div>
+        )}
       </section>
 
       <section className="space-y-3" aria-labelledby="background-dark">
@@ -235,7 +319,83 @@ export function BackgroundStep(props: BackgroundStepProps) {
           {problem}
         </Alert>
       )}
+
+      {/*
+        The same reading an upload gets, without the upload: for a designer or
+        an AI's author who wants to know what the builder would say before
+        committing to a file. The message list is plain text so it can be
+        pasted straight back to whoever drew the file.
+      */}
+      <section className="space-y-2 lg:col-span-2" aria-labelledby="background-check">
+        <h2 id="background-check" className="text-base font-semibold">
+          Check a file
+        </h2>
+        <p className="text-sm text-base-content/75">
+          See what the builder would make of an SVG without loading it: which rooms it finds and
+          anything that needs fixing.
+        </p>
+        <Field label="File to check" help="Nothing is saved.">
+          {(control) => (
+            <input
+              {...control}
+              type="file"
+              accept=".svg,image/svg+xml"
+              className="file-input file-input-bordered file-input-sm w-full max-w-md"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) void check(file)
+              }}
+            />
+          )}
+        </Field>
+        {checked && (
+          <div role="status" className="rounded-lg bg-base-200 p-3 text-xs">
+            <p className="font-medium">{checked.name}</p>
+            {checked.result.kind === 'picture' && (
+              <p>A plain picture: no room groups. The rooms would be drawn by hand.</p>
+            )}
+            {checked.result.kind === 'refused' && (
+              <>
+                <p className="text-error">This file cannot be used as a background.</p>
+                <Report issues={checked.result.issues} warnings={[]} />
+              </>
+            )}
+            {checked.result.kind === 'office' && (
+              <>
+                <p className="text-success">{describeFound(checked.result.found)}</p>
+                {checked.result.issues.length === 0 && checked.result.warnings.length === 0 && (
+                  <p>Nothing to fix.</p>
+                )}
+                <Report issues={checked.result.issues} warnings={checked.result.warnings} />
+              </>
+            )}
+          </div>
+        )}
+      </section>
     </div>
+  )
+}
+
+/** Every message, each on its own line, so the list copies cleanly. */
+function Report({
+  issues,
+  warnings,
+}: {
+  issues: { message: string }[]
+  warnings: { message: string }[]
+}) {
+  if (issues.length === 0 && warnings.length === 0) return null
+  return (
+    <ul className="mt-1 list-disc space-y-0.5 pl-4">
+      {issues.map((issue, index) => (
+        <li key={`issue-${index}`}>{issue.message}</li>
+      ))}
+      {warnings.map((warning, index) => (
+        <li key={`warning-${index}`} className="text-base-content/70">
+          {warning.message}
+        </li>
+      ))}
+    </ul>
   )
 }
 

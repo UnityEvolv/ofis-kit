@@ -67,22 +67,109 @@ afterEach(() => {
 const LIGHT_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440"><rect fill="#fbf6ee"/></svg>'
 
+/** An office drawn to the convention: two rooms, one with an area, on the stub's 2560x1440. */
+const marked = (rooms: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440" data-ofis="1" data-canvas="landscape" data-avatar="small">
+  <g id="rooms">${rooms}</g></svg>`
+const RECEPTION = `<g id="room-reception-Reception"><rect x="100" y="800" width="900" height="500" fill="#fbf6ee"/>
+  <rect id="area-4x1" x="200" y="900" width="480" height="160" fill="none"/></g>`
+const CAFE = (x = 1400) =>
+  `<g id="room-break-Cafe"><rect x="${x}" y="800" width="900" height="500" fill="#e3ece2"/></g>`
+const OFFICE_SVG = marked(RECEPTION + CAFE())
+
 function step() {
   const onImage = vi.fn()
+  const onOffice = vi.fn()
   render(
     <BackgroundStep
       document={prompt}
       shape="landscape"
       images={{ light: null, dark: null }}
       onImage={onImage}
+      onOffice={onOffice}
     />,
   )
-  return { onImage }
+  return { onImage, onOffice }
 }
 
-function upload(file: File) {
-  fireEvent.change(screen.getByLabelText(/^Light image/), { target: { files: [file] } })
+function upload(file: File, slot: 'Light' | 'Dark' = 'Light') {
+  fireEvent.change(screen.getByLabelText(new RegExp(`^${slot} image`)), {
+    target: { files: [file] },
+  })
 }
+
+describe('a picture that carries its rooms', () => {
+  it('hands the rooms to the host and says what it found', async () => {
+    const { onImage, onOffice } = step()
+    upload(new File([OFFICE_SVG], 'office.svg', { type: 'image/svg+xml' }))
+
+    await waitFor(() => expect(onImage).toHaveBeenCalledWith('light', 'blob:1', 'office-light.svg'))
+    await waitFor(() => expect(onOffice).toHaveBeenCalledTimes(1))
+    const office = onOffice.mock.calls[0]?.[0]
+    expect(office.kind).toBe('office')
+    expect(office.found).toEqual({ rooms: 2, areas: 1 })
+    expect(office.template.rooms.map((room: { name: string }) => room.name)).toEqual([
+      'Reception',
+      'Cafe',
+    ])
+    expect(screen.getByText('2 rooms and 1 user area found in the picture.')).toBeInTheDocument()
+  })
+
+  it('says a plain picture carries none, so a host can forget an earlier office', async () => {
+    const { onOffice } = step()
+    upload(new File([OFFICE_SVG], 'office.svg', { type: 'image/svg+xml' }))
+    await waitFor(() => expect(onOffice).toHaveBeenCalledTimes(1))
+
+    upload(new File([LIGHT_SVG], 'plain.svg', { type: 'image/svg+xml' }))
+    await waitFor(() => expect(onOffice).toHaveBeenLastCalledWith(null))
+  })
+
+  it('refuses a file that cannot be shown safely, with the element named', async () => {
+    const { onImage, onOffice } = step()
+    upload(new File([marked(RECEPTION + CAFE() + '<script/>')], 'x.svg', { type: 'image/svg+xml' }))
+
+    expect(await screen.findByText(/cannot be used as a background/)).toHaveTextContent('<script>')
+    expect(onImage).not.toHaveBeenCalled()
+    expect(onOffice).not.toHaveBeenCalled()
+    expect(screen.queryByRole('img', { name: 'The light image' })).toBeNull()
+  })
+
+  it('holds a dark image to the rooms the light one carries', async () => {
+    const { onImage } = step()
+    upload(new File([OFFICE_SVG], 'office.svg', { type: 'image/svg+xml' }))
+    await waitFor(() => expect(onImage).toHaveBeenCalledTimes(1))
+
+    upload(
+      new File([marked(RECEPTION + CAFE(1460))], 'dark.svg', { type: 'image/svg+xml' }),
+      'Dark',
+    )
+    expect(await screen.findByText(/does not carry the same rooms/)).toHaveTextContent('Cafe')
+    expect(onImage).toHaveBeenCalledTimes(1)
+
+    upload(new File([OFFICE_SVG], 'dark.svg', { type: 'image/svg+xml' }), 'Dark')
+    await waitFor(() =>
+      expect(onImage).toHaveBeenLastCalledWith('dark', 'blob:2', 'office-dark.svg'),
+    )
+  })
+
+  it('reports on a checked file without loading it', async () => {
+    const { onImage } = step()
+    fireEvent.change(screen.getByLabelText(/^File to check/), {
+      target: {
+        files: [new File([marked(RECEPTION + RECEPTION)], 'twice.svg', { type: 'image/svg+xml' })],
+      },
+    })
+
+    const report = await screen.findByText('2 rooms and 2 user areas found in the picture.')
+    expect(report.closest('[role="status"]')).toHaveTextContent(/exactly one reception/)
+    expect(onImage).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText(/^File to check/), {
+      target: { files: [new File([LIGHT_SVG], 'plain.svg', { type: 'image/svg+xml' })] },
+    })
+    expect(await screen.findByText(/A plain picture/)).toBeInTheDocument()
+  })
+})
 
 describe('generating the dark version', () => {
   it('is offered once an SVG background is in', async () => {

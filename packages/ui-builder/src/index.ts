@@ -19,14 +19,25 @@ export {
   backgroundFileName,
   type BackgroundImages,
   type BackgroundStepProps,
+  type OfficeFromPicture,
 } from './background/BackgroundStep.js'
 export { darkVersion } from './background/darkVersion.js'
+export {
+  describeFound,
+  edgeWarnings,
+  fillAreas,
+  firstMovedRoom,
+  importOfficeFile,
+  type ImportedOffice,
+} from './background/officeImport.js'
 export { useHistory, type History } from './history.js'
 export {
   applyPreset,
   defaultSlots,
+  loadOfficePrompts,
   loadPromptDocument,
   renderPrompt,
+  type OfficePrompt,
   type PromptDocument,
   type PromptPreset,
   type PromptSlot,

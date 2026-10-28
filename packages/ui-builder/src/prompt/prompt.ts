@@ -91,3 +91,30 @@ export async function loadPromptDocument(path: string): Promise<PromptDocument> 
     throw new Error(`The background prompt could not be loaded (${response.status}).`)
   return (await response.json()) as PromptDocument
 }
+
+/**
+ * A prompt that asks an assistant for an office drawn to the SVG convention,
+ * in one theme and one view, with that theme's symbols inside it.
+ *
+ * Generated in the repository from the spec and the symbol libraries
+ * (`npm run office:prompt`), never written by hand, so the prompt, the
+ * designer guide and the importer cannot disagree. The builder only carries
+ * them to the clipboard.
+ */
+export interface OfficePrompt {
+  /** `<theme>-<view>`, the file name without its extension. */
+  id: string
+  theme: string
+  view: 'cut' | 'top'
+  /** For a person: "Modern office, cutaway". */
+  label: string
+  text: string
+}
+
+/** Load the office prompts, served beside the prompt document as one index. */
+export async function loadOfficePrompts(path: string): Promise<OfficePrompt[]> {
+  const response = await fetch(path)
+  if (!response.ok) throw new Error(`The office prompts could not be loaded (${response.status}).`)
+  const index = (await response.json()) as { prompts: OfficePrompt[] }
+  return index.prompts
+}

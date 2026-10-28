@@ -6,6 +6,7 @@ import {
   applyPreset,
   defaultSlots,
   renderPrompt,
+  type OfficePrompt,
   type PromptDocument,
   type SlotValues,
 } from './prompt.js'
@@ -29,14 +30,29 @@ export interface PromptStepProps {
   onShapeChange(shape: CanvasShape): void
   /** What choosing a different shape would undo, said before it happens. */
   shapeChangeWarning?: string
+  /**
+   * The other way to a picture: a prompt per theme and view that asks an
+   * assistant for an office drawn to the SVG convention, rooms included, so the
+   * rooms step opens laid out. Absent, and only the picture prompt is offered.
+   */
+  officePrompts?: readonly OfficePrompt[]
 }
 
 export function PromptStep(props: PromptStepProps) {
   const { document: prompt, shape } = props
   const [values, setValues] = useState<SlotValues>(() => defaultSlots(prompt))
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'picture' | 'office' | null>(null)
+  const [officeId, setOfficeId] = useState<string | null>(props.officePrompts?.[0]?.id ?? null)
 
   const text = useMemo(() => renderPrompt(prompt, shape, values), [prompt, shape, values])
+  const office = props.officePrompts?.find((candidate) => candidate.id === officeId) ?? null
+
+  function copy(which: 'picture' | 'office', content: string) {
+    void navigator.clipboard.writeText(content).then(() => {
+      setCopied(which)
+      setTimeout(() => setCopied(null), 2000)
+    })
+  }
 
   return (
     <div className="mx-auto grid max-w-5xl gap-6 p-4 lg:grid-cols-[1fr_20rem]">
@@ -86,18 +102,9 @@ export function PromptStep(props: PromptStepProps) {
         <div>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">The prompt</h2>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                void navigator.clipboard.writeText(text).then(() => {
-                  setCopied(true)
-                  setTimeout(() => setCopied(false), 2000)
-                })
-              }}
-            >
-              <Icon name={copied ? 'check' : 'copy'} size="sm" />
-              {copied ? 'Copied' : 'Copy'}
+            <Button size="sm" variant="ghost" onClick={() => copy('picture', text)}>
+              <Icon name={copied === 'picture' ? 'check' : 'copy'} size="sm" />
+              {copied === 'picture' ? 'Copied' : 'Copy'}
             </Button>
           </div>
 
@@ -115,6 +122,56 @@ export function PromptStep(props: PromptStepProps) {
             aria-label="The prompt"
           />
         </div>
+
+        {/*
+          The same job done the other way round: instead of a painting the rooms
+          are drawn onto by hand, an SVG that carries its rooms, drawn by the
+          author's own assistant from a theme's symbols. The prompt is generated
+          from the spec and the symbols and only copied here, so what the
+          assistant is told and what the importer accepts cannot drift apart.
+        */}
+        {props.officePrompts && props.officePrompts.length > 0 && office && (
+          <div>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Or have your AI draw the office</h2>
+              <Button size="sm" variant="ghost" onClick={() => copy('office', office.text)}>
+                <Icon name={copied === 'office' ? 'check' : 'copy'} size="sm" />
+                {copied === 'office' ? 'Copied' : 'Copy'} office prompt
+              </Button>
+            </div>
+            <p className="mt-1 text-sm text-base-content/75">
+              Paste this into ChatGPT, Claude, Gemini or whichever assistant you use, answer its
+              questions, and upload the SVG it returns on the next step. Its rooms come with it, so
+              the rooms step opens already laid out.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Theme and view">
+              {props.officePrompts.map((candidate) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  onClick={() => setOfficeId(candidate.id)}
+                  aria-pressed={candidate.id === office.id}
+                  className={[
+                    'rounded-lg border px-3 py-2 text-sm',
+                    'focus-visible:outline-2 focus-visible:outline-primary',
+                    candidate.id === office.id
+                      ? 'border-primary bg-primary/10 font-medium'
+                      : 'border-base-300 hover:bg-base-200',
+                  ].join(' ')}
+                >
+                  {candidate.label}
+                </button>
+              ))}
+            </div>
+            <Textarea
+              readOnly
+              value={office.text}
+              rows={8}
+              className="mt-2 font-mono text-xs"
+              aria-label="The office prompt"
+            />
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">
