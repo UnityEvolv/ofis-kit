@@ -1,5 +1,13 @@
 # @unityevolv/ofiskit-realtime-core
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`3f24592`](https://github.com/UnityEvolv/ofis-kit/commit/3f2459227b3e20f2d1488b3a3e33745107a301a7)]:
+  - @unityevolv/ofiskit-template@0.4.0
+  - @unityevolv/ofiskit-adapters@0.3.1
+
 ## 0.4.0
 
 ### Minor Changes
