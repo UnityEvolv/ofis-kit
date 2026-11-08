@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "name": "Galaxy, cutaway, portrait",
+  "canvas": "portrait",
+  "avatarSize": "small",
+  "images": {
+    "light": "galaxy-cutaway-portrait.svg",
+    "dark": "galaxy-cutaway-portrait-dark.svg"
+  },
+  "rooms": [
+    {
+      "id": "galaxy-cutaway-portrait-2",
+      "name": "Bridge",
+      "type": "meeting",
+      "rect": {
+        "x": 0.1388888888888889,
+        "y": 0.058333333333333334,
+        "width": 0.39814814814814814,
+        "height": 0.1875
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-portrait-1",
+          "x": 0.4351851851851852,
+          "y": 0.10694444444444444,
+          "columns": 1,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-portrait-4",
+      "name": "Observation deck",
+      "type": "break",
+      "rect": {
+        "x": 0.5574074074074075,
+        "y": 0.058333333333333334,
+        "width": 0.3037037037037037,
+        "height": 0.1875
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-portrait-3",
+          "x": 0.5666666666666667,
+          "y": 0.10694444444444444,
+          "columns": 1,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-portrait-6",
+      "name": "Lab",
+      "type": "workspace",
+      "rect": {
+        "x": 0.046296296296296294,
+        "y": 0.2763888888888889,
+        "width": 0.4722222222222222,
+        "height": 0.19444444444444445
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-portrait-5",
+          "x": 0.2777777777777778,
+          "y": 0.325,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-portrait-8",
+      "name": "Engineering",
+      "type": "workspace",
+      "rect": {
+        "x": 0.5388888888888889,
+        "y": 0.2763888888888889,
+        "width": 0.4148148148148148,
+        "height": 0.19444444444444445
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-portrait-7",
+          "x": 0.7462962962962963,
+          "y": 0.325,
+          "columns": 1,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-portrait-10",
+      "name": "Crew quarters",
+      "type": "workspace",
+      "rect": {
+        "x": 0.046296296296296294,
+        "y": 0.5013888888888889,
+        "width": 0.3611111111111111,
+        "height": 0.19444444444444445
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-portrait-9",
+          "x": 0.2222222222222222,
+          "y": 0.55,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-portrait-12",
+      "name": "Workshop",
+      "type": "workspace",
+      "rect": {
+        "x": 0.42777777777777776,
+        "y": 0.5013888888888889,
+        "width": 0.5259259259259259,
+        "height": 0.19444444444444445
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-portrait-11",
+          "x": 0.5796296296296296,
+          "y": 0.55,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-portrait-14",
+      "name": "Docking bay",
+      "type": "reception",
+      "rect": {
+        "x": 0.046296296296296294,
+        "y": 0.7263888888888889,
+        "width": 0.5648148148148148,
+        "height": 0.19444444444444445
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-portrait-13",
+          "x": 0.18518518518518517,
+          "y": 0.775,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-portrait-16",
+      "name": "Cargo hold",
+      "type": "workspace",
+      "rect": {
+        "x": 0.6314814814814815,
+        "y": 0.7263888888888889,
+        "width": 0.32222222222222224,
+        "height": 0.19444444444444445
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-portrait-15",
+          "x": 0.6435185185185185,
+          "y": 0.775,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    }
+  ],
+  "description": "An office in deep space: reception, a break room, workspaces and meeting rooms."
+}

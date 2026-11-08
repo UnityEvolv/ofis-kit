@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "name": "Modern office, top-down, square",
+  "canvas": "square",
+  "avatarSize": "small",
+  "images": {
+    "light": "modern-topdown-square.svg",
+    "dark": "modern-topdown-square-dark.svg"
+  },
+  "rooms": [
+    {
+      "id": "modern-topdown-square-2",
+      "name": "Reception",
+      "type": "reception",
+      "rect": {
+        "x": 0.05555555555555555,
+        "y": 0.05555555555555555,
+        "width": 0.3333333333333333,
+        "height": 0.25925925925925924
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-topdown-square-1",
+          "x": 0.1574074074074074,
+          "y": 0.17592592592592593,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-topdown-square-4",
+      "name": "Open floor",
+      "type": "workspace",
+      "rect": {
+        "x": 0.4444444444444444,
+        "y": 0.05555555555555555,
+        "width": 0.5,
+        "height": 0.25925925925925924
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-topdown-square-3",
+          "x": 0.5185185185185185,
+          "y": 0.21481481481481482,
+          "columns": 4,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-topdown-square-6",
+      "name": "Studio",
+      "type": "workspace",
+      "rect": {
+        "x": 0.05555555555555555,
+        "y": 0.37037037037037035,
+        "width": 0.25925925925925924,
+        "height": 0.24074074074074073
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-topdown-square-5",
+          "x": 0.08888888888888889,
+          "y": 0.4351851851851852,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-topdown-square-8",
+      "name": "Meeting room",
+      "type": "meeting",
+      "rect": {
+        "x": 0.37037037037037035,
+        "y": 0.37037037037037035,
+        "width": 0.2962962962962963,
+        "height": 0.24074074074074073
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-topdown-square-7",
+          "x": 0.3888888888888889,
+          "y": 0.4351851851851852,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-topdown-square-10",
+      "name": "Quiet room",
+      "type": "workspace",
+      "rect": {
+        "x": 0.7222222222222222,
+        "y": 0.37037037037037035,
+        "width": 0.2222222222222222,
+        "height": 0.24074074074074073
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-topdown-square-9",
+          "x": 0.7962962962962963,
+          "y": 0.4351851851851852,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-topdown-square-12",
+      "name": "Engineering",
+      "type": "workspace",
+      "rect": {
+        "x": 0.05555555555555555,
+        "y": 0.6666666666666666,
+        "width": 0.2962962962962963,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-topdown-square-11",
+          "x": 0.08888888888888889,
+          "y": 0.7222222222222222,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-topdown-square-14",
+      "name": "Conference",
+      "type": "conference",
+      "rect": {
+        "x": 0.4074074074074074,
+        "y": 0.6666666666666666,
+        "width": 0.25925925925925924,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-topdown-square-13",
+          "x": 0.4444444444444444,
+          "y": 0.7129629629629629,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-topdown-square-16",
+      "name": "Cafe",
+      "type": "break",
+      "rect": {
+        "x": 0.7222222222222222,
+        "y": 0.6666666666666666,
+        "width": 0.2222222222222222,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-topdown-square-15",
+          "x": 0.7407407407407407,
+          "y": 0.7222222222222222,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    }
+  ],
+  "description": "A modern open-plan office: reception, a break room, workspaces and meeting rooms."
+}

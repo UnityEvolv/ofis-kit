@@ -15,8 +15,11 @@ export type { ChangeOptions, OnChange, Selection, Tool } from './canvas/types.js
 export { BuilderSteps, type BuilderStepsProps } from './BuilderSteps.js'
 export { PromptStep, type PromptStepProps } from './prompt/PromptStep.js'
 export {
+  BACKGROUND_BOUNDS,
   BackgroundStep,
   backgroundFileName,
+  backgroundProblem,
+  RATIO_TOLERANCE,
   type BackgroundImages,
   type BackgroundStepProps,
   type OfficeFromPicture,

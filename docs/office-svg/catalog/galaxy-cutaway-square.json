@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "name": "Galaxy, cutaway, square",
+  "canvas": "square",
+  "avatarSize": "small",
+  "images": {
+    "light": "galaxy-cutaway-square.svg",
+    "dark": "galaxy-cutaway-square-dark.svg"
+  },
+  "rooms": [
+    {
+      "id": "galaxy-cutaway-square-2",
+      "name": "Bridge",
+      "type": "meeting",
+      "rect": {
+        "x": 0.1574074074074074,
+        "y": 0.06851851851851852,
+        "width": 0.3333333333333333,
+        "height": 0.23703703703703705
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-square-1",
+          "x": 0.3611111111111111,
+          "y": 0.12037037037037036,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-square-4",
+      "name": "Observation deck",
+      "type": "break",
+      "rect": {
+        "x": 0.5111111111111111,
+        "y": 0.06851851851851852,
+        "width": 0.3314814814814815,
+        "height": 0.23703703703703705
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-square-3",
+          "x": 0.7129629629629629,
+          "y": 0.12037037037037036,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-square-6",
+      "name": "Lab",
+      "type": "workspace",
+      "rect": {
+        "x": 0.046296296296296294,
+        "y": 0.34629629629629627,
+        "width": 0.4444444444444444,
+        "height": 0.23703703703703705
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-square-5",
+          "x": 0.06481481481481481,
+          "y": 0.39814814814814814,
+          "columns": 1,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-square-8",
+      "name": "Engineering",
+      "type": "workspace",
+      "rect": {
+        "x": 0.5111111111111111,
+        "y": 0.34629629629629627,
+        "width": 0.4425925925925926,
+        "height": 0.23703703703703705
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-square-7",
+          "x": 0.5925925925925926,
+          "y": 0.39814814814814814,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-square-10",
+      "name": "Docking bay",
+      "type": "reception",
+      "rect": {
+        "x": 0.046296296296296294,
+        "y": 0.6240740740740741,
+        "width": 0.4166666666666667,
+        "height": 0.25555555555555554
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-square-9",
+          "x": 0.06481481481481481,
+          "y": 0.6851851851851852,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-square-12",
+      "name": "Cargo hold",
+      "type": "workspace",
+      "rect": {
+        "x": 0.48333333333333334,
+        "y": 0.6240740740740741,
+        "width": 0.2222222222222222,
+        "height": 0.25555555555555554
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-square-11",
+          "x": 0.5555555555555556,
+          "y": 0.6851851851851852,
+          "columns": 1,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-cutaway-square-14",
+      "name": "Crew quarters",
+      "type": "workspace",
+      "rect": {
+        "x": 0.725925925925926,
+        "y": 0.6240740740740741,
+        "width": 0.22777777777777777,
+        "height": 0.25555555555555554
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-cutaway-square-13",
+          "x": 0.8888888888888888,
+          "y": 0.6851851851851852,
+          "columns": 1,
+          "rows": 1
+        }
+      ]
+    }
+  ],
+  "description": "An office in deep space: reception, a break room, workspaces and meeting rooms."
+}

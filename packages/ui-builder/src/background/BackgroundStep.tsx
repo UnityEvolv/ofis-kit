@@ -57,6 +57,68 @@ export interface BackgroundStepProps {
   onOffice?(office: OfficeFromPicture | null): void
 }
 
+/**
+ * The bounds a raster background is held to, per canvas shape: the exact
+ * ratio, because every room is placed in normalised coordinates against the
+ * picture and nothing is cropped for the author, and a resolution between a
+ * sharp tablet and a 4K wall. A host that stores pictures (the office
+ * service) holds them to the same bounds, so a picture accepted here is
+ * never refused later. An SVG scales: its ratio may be off by `RATIO_TOLERANCE`
+ * and it has no resolution.
+ */
+export const BACKGROUND_BOUNDS: Readonly<
+  Record<
+    CanvasShape,
+    {
+      ratio: readonly [number, number]
+      min: readonly [number, number]
+      max: readonly [number, number]
+    }
+  >
+> = {
+  landscape: { ratio: [16, 9], min: [1920, 1080], max: [3840, 2160] },
+  square: { ratio: [1, 1], min: [1080, 1080], max: [2160, 2160] },
+  portrait: { ratio: [3, 4], min: [1080, 1440], max: [2160, 2880] },
+}
+
+/** How far an SVG's ratio may be from the canvas's: the office-svg spec's ratioTolerance. */
+export const RATIO_TOLERANCE = 0.03
+
+const size = ([width, height]: readonly [number, number]) => `${width}x${height}`
+
+/**
+ * Why a picture of width x height cannot be the background of a canvas, in
+ * the author's words, or null when it can. The recommended resolution comes
+ * from the prompt document, which is what the author was told to generate.
+ */
+export function backgroundProblem(
+  shape: CanvasShape,
+  canvas: { ratio: string; resolution: string },
+  width: number,
+  height: number,
+  svg: boolean,
+): string | null {
+  const bounds = BACKGROUND_BOUNDS[shape]
+  const [ratioWidth, ratioHeight] = bounds.ratio
+  if (svg) {
+    const target = ratioWidth / ratioHeight
+    if (Math.abs(width / height - target) / target > RATIO_TOLERANCE) {
+      return `That picture is ${width}x${height}, which is not ${canvas.ratio}. Rooms would sit wrong against it; draw it to ${canvas.ratio}.`
+    }
+    return null
+  }
+  if (width * ratioHeight !== height * ratioWidth) {
+    return `That image is ${width}x${height}, which is not exactly ${canvas.ratio}. Rooms would sit wrong against it. Generate it at ${canvas.resolution}, or crop it to ${canvas.ratio}.`
+  }
+  if (width < bounds.min[0] || height < bounds.min[1]) {
+    return `That image is ${width}x${height}, smaller than ${size(bounds.min)}. It would look soft on a large screen. Generate it at ${canvas.resolution}.`
+  }
+  if (width > bounds.max[0] || height > bounds.max[1]) {
+    return `That image is ${width}x${height}, larger than ${size(bounds.max)}. Scale it down to ${canvas.resolution}.`
+  }
+  return null
+}
+
 /** The name a background should have beside template.json, keeping its type. */
 export function backgroundFileName(file: File, slot: 'light' | 'dark'): string {
   const extension = isSvg(file) ? 'svg' : (/\.([a-z0-9]+)$/i.exec(file.name)?.[1] ?? 'png')
@@ -79,8 +141,6 @@ export function BackgroundStep(props: BackgroundStepProps) {
   /** A dark version made here, which the author needs as a file; they never had one. */
   const [generated, setGenerated] = useState<{ url: string; name: string } | null>(null)
   const [generating, setGenerating] = useState(false)
-  /** What a file dropped on "Check a file" would do, said without doing it. */
-  const [checked, setChecked] = useState<{ name: string; result: ImportedOffice } | null>(null)
 
   // The download link's URL is this step's own; the one handed to the host is not.
   useEffect(
@@ -136,24 +196,13 @@ export function BackgroundStep(props: BackgroundStepProps) {
       return false
     }
 
-    const wanted = canvas.ratio.split(':').map(Number)
-    const target = (wanted[0] ?? 1) / (wanted[1] ?? 1)
-    const actual = image.width / image.height
-
-    if (Math.abs(actual - target) > 0.03) {
-      setProblem(
-        `That image is ${image.width}x${image.height}, which is not ${canvas.ratio}. ` +
-          `Rooms would sit slightly wrong against it. Generate it at ${canvas.resolution}.`,
-      )
+    const refused = backgroundProblem(shape, canvas, image.width, image.height, isSvg(file))
+    if (refused) {
+      setProblem(refused)
       URL.revokeObjectURL(url)
       return false
     }
-
-    setProblem(
-      image.width < 1200
-        ? `That image is only ${image.width} pixels wide. It will look soft on a large screen.`
-        : null,
-    )
+    setProblem(null)
 
     if (slot === 'light') {
       // A new light picture makes any dark version made from the old one stale.
@@ -196,18 +245,6 @@ export function BackgroundStep(props: BackgroundStepProps) {
     }
   }
 
-  /** Report on a file as an import would, and keep nothing. */
-  async function check(file: File) {
-    if (!isSvg(file)) {
-      setChecked({ name: file.name, result: { kind: 'picture' } })
-      return
-    }
-    setChecked({
-      name: file.name,
-      result: importOfficeFile(await file.text(), backgroundFileName(file, 'light')),
-    })
-  }
-
   return (
     <div className="mx-auto grid max-w-5xl gap-6 p-4 lg:grid-cols-2">
       <section className="space-y-3" aria-labelledby="background-light">
@@ -215,8 +252,9 @@ export function BackgroundStep(props: BackgroundStepProps) {
           Background image
         </h2>
         <p className="text-sm text-base-content/75">
-          Required. The office is drawn on this. It should be {canvas.ratio}, ideally{' '}
-          {canvas.resolution}. An SVG drawn to the office convention brings its rooms with it.
+          Required. The office is drawn on this. A picture is exactly {canvas.ratio}, between{' '}
+          {size(BACKGROUND_BOUNDS[shape].min)} and {size(BACKGROUND_BOUNDS[shape].max)}; generate it
+          at {canvas.resolution}. An SVG drawn to the office convention brings its rooms with it.
         </p>
 
         {/*
@@ -225,12 +263,12 @@ export function BackgroundStep(props: BackgroundStepProps) {
           what associates the label with the input; a label on the wrapper alone
           points at nothing.
         */}
-        <Field label="Light image" help="PNG, JPEG, WebP, AVIF or SVG.">
+        <Field label="Light image" help="PNG, JPEG, WebP or SVG.">
           {(control) => (
             <input
               {...control}
               type="file"
-              accept="image/*"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
               className="file-input file-input-bordered file-input-sm w-full"
               onChange={(event) => {
                 const file = event.target.files?.[0]
@@ -269,7 +307,7 @@ export function BackgroundStep(props: BackgroundStepProps) {
             <input
               {...control}
               type="file"
-              accept="image/*"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
               className="file-input file-input-bordered file-input-sm w-full"
               onChange={(event) => {
                 const file = event.target.files?.[0]
@@ -319,59 +357,6 @@ export function BackgroundStep(props: BackgroundStepProps) {
           {problem}
         </Alert>
       )}
-
-      {/*
-        The same reading an upload gets, without the upload: for a designer or
-        an AI's author who wants to know what the builder would say before
-        committing to a file. The message list is plain text so it can be
-        pasted straight back to whoever drew the file.
-      */}
-      <section className="space-y-2 lg:col-span-2" aria-labelledby="background-check">
-        <h2 id="background-check" className="text-base font-semibold">
-          Check a file
-        </h2>
-        <p className="text-sm text-base-content/75">
-          See what the builder would make of an SVG without loading it: which rooms it finds and
-          anything that needs fixing.
-        </p>
-        <Field label="File to check" help="Nothing is saved.">
-          {(control) => (
-            <input
-              {...control}
-              type="file"
-              accept=".svg,image/svg+xml"
-              className="file-input file-input-bordered file-input-sm w-full max-w-md"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                if (file) void check(file)
-              }}
-            />
-          )}
-        </Field>
-        {checked && (
-          <div role="status" className="rounded-lg bg-base-200 p-3 text-xs">
-            <p className="font-medium">{checked.name}</p>
-            {checked.result.kind === 'picture' && (
-              <p>A plain picture: no room groups. The rooms would be drawn by hand.</p>
-            )}
-            {checked.result.kind === 'refused' && (
-              <>
-                <p className="text-error">This file cannot be used as a background.</p>
-                <Report issues={checked.result.issues} warnings={[]} />
-              </>
-            )}
-            {checked.result.kind === 'office' && (
-              <>
-                <p className="text-success">{describeFound(checked.result.found)}</p>
-                {checked.result.issues.length === 0 && checked.result.warnings.length === 0 && (
-                  <p>Nothing to fix.</p>
-                )}
-                <Report issues={checked.result.issues} warnings={checked.result.warnings} />
-              </>
-            )}
-          </div>
-        )}
-      </section>
     </div>
   )
 }
