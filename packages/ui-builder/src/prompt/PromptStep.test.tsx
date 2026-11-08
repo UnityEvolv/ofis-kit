@@ -59,6 +59,11 @@ describe('the office prompts', () => {
       />,
     )
 
+    // The two ways to a picture are tabs; the painting's prompt opens first.
+    expect(screen.getByRole('textbox', { name: 'The prompt' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'The office prompt' })).toBeNull()
+    await person.click(screen.getByRole('tab', { name: /^Office prompt/ }))
+
     expect(
       screen.getByRole('button', { name: 'Modern office, cutaway', pressed: true }),
     ).toBeTruthy()
@@ -73,6 +78,7 @@ describe('the office prompts', () => {
     expect(await copied()).toBe('GALAXY')
 
     // The picture prompt's own copy button is unchanged by the second one.
+    await person.click(screen.getByRole('tab', { name: 'Picture prompt' }))
     await person.click(screen.getByRole('button', { name: 'Copy' }))
     expect(await copied()).toContain('floor plan')
   })

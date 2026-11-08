@@ -6,7 +6,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PromptDocument } from '../prompt/prompt.js'
-import { BackgroundStep, backgroundFileName } from './BackgroundStep.js'
+import { BackgroundStep, backgroundFileName, backgroundProblem } from './BackgroundStep.js'
 
 /**
  * The background step's dark version: offered for an SVG and only an SVG, made in the
@@ -151,23 +151,57 @@ describe('a picture that carries its rooms', () => {
       expect(onImage).toHaveBeenLastCalledWith('dark', 'blob:2', 'office-dark.svg'),
     )
   })
+})
 
-  it('reports on a checked file without loading it', async () => {
-    const { onImage } = step()
-    fireEvent.change(screen.getByLabelText(/^File to check/), {
-      target: {
-        files: [new File([marked(RECEPTION + RECEPTION)], 'twice.svg', { type: 'image/svg+xml' })],
+describe('the bounds a picture is held to', () => {
+  const landscape = { ratio: '16:9', resolution: '2560x1440' }
+
+  it('refuses a raster that is not exactly the canvas ratio, or outside the resolution bounds', () => {
+    expect(backgroundProblem('landscape', landscape, 2560, 1440, false)).toBeNull()
+    expect(backgroundProblem('landscape', landscape, 1920, 1080, false)).toBeNull()
+    expect(backgroundProblem('landscape', landscape, 3840, 2160, false)).toBeNull()
+    // Close to 16:9 is not 16:9: a host storing it refuses it, so this does too.
+    expect(backgroundProblem('landscape', landscape, 1792, 1024, false)).toMatch(/not exactly 16:9/)
+    expect(backgroundProblem('landscape', landscape, 1600, 900, false)).toMatch(
+      /smaller than 1920x1080/,
+    )
+    expect(backgroundProblem('landscape', landscape, 5120, 2880, false)).toMatch(
+      /larger than 3840x2160/,
+    )
+    expect(
+      backgroundProblem('square', { ratio: '1:1', resolution: '1600x1600' }, 1600, 1600, false),
+    ).toBeNull()
+    expect(
+      backgroundProblem('portrait', { ratio: '3:4', resolution: '1536x2048' }, 1536, 2048, false),
+    ).toBeNull()
+  })
+
+  it('holds an SVG to the ratio within the tolerance, and to no resolution', () => {
+    expect(backgroundProblem('landscape', landscape, 1920, 1080, true)).toBeNull()
+    expect(backgroundProblem('landscape', landscape, 192, 108, true)).toBeNull()
+    expect(backgroundProblem('landscape', landscape, 1900, 1080, true)).toBeNull()
+    expect(backgroundProblem('landscape', landscape, 1600, 1200, true)).toMatch(/not 16:9/)
+  })
+
+  it('refuses an upload outside them, saying which bound', async () => {
+    vi.stubGlobal(
+      'Image',
+      class {
+        width = 1792
+        height = 1024
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        set src(_url: string) {
+          queueMicrotask(() => this.onload?.())
+        }
       },
+    )
+    const { onImage } = step()
+    fireEvent.change(screen.getByLabelText(/^Light image/), {
+      target: { files: [new File(['x'], 'wide.png', { type: 'image/png' })] },
     })
-
-    const report = await screen.findByText('2 rooms and 2 user areas found in the picture.')
-    expect(report.closest('[role="status"]')).toHaveTextContent(/exactly one reception/)
+    expect(await screen.findByText(/1792x1024, which is not exactly 16:9/)).toBeInTheDocument()
     expect(onImage).not.toHaveBeenCalled()
-
-    fireEvent.change(screen.getByLabelText(/^File to check/), {
-      target: { files: [new File([LIGHT_SVG], 'plain.svg', { type: 'image/svg+xml' })] },
-    })
-    expect(await screen.findByText(/A plain picture/)).toBeInTheDocument()
   })
 })
 

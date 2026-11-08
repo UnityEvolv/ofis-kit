@@ -40,6 +40,8 @@
     "turn:check": "node tools/turn-check/check.mjs",
     "office:prompt": "node tools/office-prompt/build.mjs",
     "office:prompt:check": "node tools/office-prompt/build.mjs --check",
+    "office:catalog": "node tools/office-catalog/build.mjs",
+    "office:catalog:check": "node tools/office-catalog/build.mjs --check",
     "office:assets": "node tools/office-assets/build.mjs",
     "office:assets:check": "node tools/office-assets/build.mjs --check",
     "office:assets:split": "node tools/office-assets/split.mjs"

@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "name": "Galaxy, top-down, landscape",
+  "canvas": "landscape",
+  "avatarSize": "small",
+  "images": {
+    "light": "galaxy-topdown-landscape.svg",
+    "dark": "galaxy-topdown-landscape-dark.svg"
+  },
+  "rooms": [
+    {
+      "id": "galaxy-topdown-landscape-2",
+      "name": "Launch pad",
+      "type": "reception",
+      "rect": {
+        "x": 0.005208333333333333,
+        "y": 0.037037037037037035,
+        "width": 0.25,
+        "height": 0.3861111111111111
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-topdown-landscape-1",
+          "x": 0.11354166666666667,
+          "y": 0.2574074074074074,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-topdown-landscape-4",
+      "name": "Saucer lounge",
+      "type": "break",
+      "rect": {
+        "x": 0.27239583333333334,
+        "y": 0.053703703703703705,
+        "width": 0.215625,
+        "height": 0.2796296296296296
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-topdown-landscape-3",
+          "x": 0.3333333333333333,
+          "y": 0.16944444444444445,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-topdown-landscape-6",
+      "name": "Ring station",
+      "type": "workspace",
+      "rect": {
+        "x": 0.50625,
+        "y": 0.049074074074074076,
+        "width": 0.2375,
+        "height": 0.35555555555555557
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-topdown-landscape-5",
+          "x": 0.578125,
+          "y": 0.1712962962962963,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-topdown-landscape-8",
+      "name": "Moon base",
+      "type": "meeting",
+      "rect": {
+        "x": 0.775,
+        "y": 0.053703703703703705,
+        "width": 0.2,
+        "height": 0.337037037037037
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-topdown-landscape-7",
+          "x": 0.828125,
+          "y": 0.20833333333333334,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-topdown-landscape-10",
+      "name": "Asteroid mine",
+      "type": "workspace",
+      "rect": {
+        "x": 0.0171875,
+        "y": 0.4842592592592593,
+        "width": 0.290625,
+        "height": 0.3111111111111111
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-topdown-landscape-9",
+          "x": 0.115625,
+          "y": 0.5833333333333334,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-topdown-landscape-12",
+      "name": "Command ship",
+      "type": "conference",
+      "rect": {
+        "x": 0.32708333333333334,
+        "y": 0.47962962962962963,
+        "width": 0.3489583333333333,
+        "height": 0.3
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-topdown-landscape-11",
+          "x": 0.4421875,
+          "y": 0.5740740740740741,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "galaxy-topdown-landscape-14",
+      "name": "Satellite",
+      "type": "workspace",
+      "rect": {
+        "x": 0.6973958333333333,
+        "y": 0.48518518518518516,
+        "width": 0.2875,
+        "height": 0.32592592592592595
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "galaxy-topdown-landscape-13",
+          "x": 0.7942708333333334,
+          "y": 0.6092592592592593,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    }
+  ],
+  "description": "An office in deep space: reception, a break room, workspaces and meeting rooms."
+}

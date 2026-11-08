@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "name": "Underwater, top-down, portrait",
+  "canvas": "portrait",
+  "avatarSize": "small",
+  "images": {
+    "light": "underwater-topdown-portrait.svg",
+    "dark": "underwater-topdown-portrait-dark.svg"
+  },
+  "rooms": [
+    {
+      "id": "underwater-topdown-portrait-2",
+      "name": "Workspace",
+      "type": "workspace",
+      "rect": {
+        "x": 0.027777777777777776,
+        "y": 0.020833333333333332,
+        "width": 0.4537037037037037,
+        "height": 0.20833333333333334
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-portrait-1",
+          "x": 0.1111111111111111,
+          "y": 0.06944444444444445,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-portrait-4",
+      "name": "Open floor",
+      "type": "workspace",
+      "rect": {
+        "x": 0.5370370370370371,
+        "y": 0.020833333333333332,
+        "width": 0.4351851851851852,
+        "height": 0.20833333333333334
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-portrait-3",
+          "x": 0.6296296296296297,
+          "y": 0.07222222222222222,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-portrait-6",
+      "name": "Studio",
+      "type": "workspace",
+      "rect": {
+        "x": 0.027777777777777776,
+        "y": 0.2708333333333333,
+        "width": 0.4537037037037037,
+        "height": 0.20833333333333334
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-portrait-5",
+          "x": 0.12037037037037036,
+          "y": 0.3194444444444444,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-portrait-8",
+      "name": "Meeting room",
+      "type": "meeting",
+      "rect": {
+        "x": 0.5370370370370371,
+        "y": 0.2708333333333333,
+        "width": 0.4351851851851852,
+        "height": 0.20833333333333334
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-portrait-7",
+          "x": 0.6712962962962963,
+          "y": 0.3236111111111111,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-portrait-10",
+      "name": "Quiet room",
+      "type": "workspace",
+      "rect": {
+        "x": 0.027777777777777776,
+        "y": 0.5208333333333334,
+        "width": 0.4537037037037037,
+        "height": 0.20833333333333334
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-portrait-9",
+          "x": 0.1712962962962963,
+          "y": 0.5902777777777778,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-portrait-12",
+      "name": "Library",
+      "type": "workspace",
+      "rect": {
+        "x": 0.5370370370370371,
+        "y": 0.5208333333333334,
+        "width": 0.4351851851851852,
+        "height": 0.20833333333333334
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-portrait-11",
+          "x": 0.6018518518518519,
+          "y": 0.5902777777777778,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-portrait-14",
+      "name": "Reception",
+      "type": "reception",
+      "rect": {
+        "x": 0.027777777777777776,
+        "y": 0.7708333333333334,
+        "width": 0.4537037037037037,
+        "height": 0.20833333333333334
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-portrait-13",
+          "x": 0.125,
+          "y": 0.8194444444444444,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-portrait-16",
+      "name": "Cafe",
+      "type": "break",
+      "rect": {
+        "x": 0.5370370370370371,
+        "y": 0.7708333333333334,
+        "width": 0.4351851851851852,
+        "height": 0.20833333333333334
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-portrait-15",
+          "x": 0.5925925925925926,
+          "y": 0.8194444444444444,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    }
+  ],
+  "description": "An office under the sea: reception, a break room, workspaces and meeting rooms."
+}

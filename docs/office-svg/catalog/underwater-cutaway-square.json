@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "name": "Underwater, cutaway, square",
+  "canvas": "square",
+  "avatarSize": "small",
+  "images": {
+    "light": "underwater-cutaway-square.svg",
+    "dark": "underwater-cutaway-square-dark.svg"
+  },
+  "rooms": [
+    {
+      "id": "underwater-cutaway-square-2",
+      "name": "Workspace",
+      "type": "workspace",
+      "rect": {
+        "x": 0.046296296296296294,
+        "y": 0.06481481481481481,
+        "width": 0.2777777777777778,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-cutaway-square-1",
+          "x": 0.06018518518518518,
+          "y": 0.18796296296296297,
+          "columns": 4,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-cutaway-square-4",
+      "name": "Open floor",
+      "type": "workspace",
+      "rect": {
+        "x": 0.34444444444444444,
+        "y": 0.06481481481481481,
+        "width": 0.34814814814814815,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-cutaway-square-3",
+          "x": 0.36203703703703705,
+          "y": 0.18796296296296297,
+          "columns": 4,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-cutaway-square-6",
+      "name": "Library",
+      "type": "workspace",
+      "rect": {
+        "x": 0.7129629629629629,
+        "y": 0.06481481481481481,
+        "width": 0.24074074074074073,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-cutaway-square-5",
+          "x": 0.7388888888888889,
+          "y": 0.18333333333333332,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-cutaway-square-8",
+      "name": "Studio",
+      "type": "workspace",
+      "rect": {
+        "x": 0.046296296296296294,
+        "y": 0.37592592592592594,
+        "width": 0.4444444444444444,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-cutaway-square-7",
+          "x": 0.1037037037037037,
+          "y": 0.49907407407407406,
+          "columns": 4,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-cutaway-square-10",
+      "name": "Meeting room",
+      "type": "meeting",
+      "rect": {
+        "x": 0.5111111111111111,
+        "y": 0.37592592592592594,
+        "width": 0.4425925925925926,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-cutaway-square-9",
+          "x": 0.6194444444444445,
+          "y": 0.49907407407407406,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-cutaway-square-12",
+      "name": "Reception",
+      "type": "reception",
+      "rect": {
+        "x": 0.046296296296296294,
+        "y": 0.687037037037037,
+        "width": 0.25925925925925924,
+        "height": 0.2759259259259259
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-cutaway-square-11",
+          "x": 0.05092592592592592,
+          "y": 0.7777777777777778,
+          "columns": 4,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-cutaway-square-14",
+      "name": "Engineering",
+      "type": "workspace",
+      "rect": {
+        "x": 0.32592592592592595,
+        "y": 0.687037037037037,
+        "width": 0.29259259259259257,
+        "height": 0.2759259259259259
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-cutaway-square-13",
+          "x": 0.3611111111111111,
+          "y": 0.8083333333333333,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-cutaway-square-16",
+      "name": "Cafe",
+      "type": "break",
+      "rect": {
+        "x": 0.6388888888888888,
+        "y": 0.687037037037037,
+        "width": 0.3148148148148148,
+        "height": 0.2759259259259259
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-cutaway-square-15",
+          "x": 0.6712962962962963,
+          "y": 0.7833333333333333,
+          "columns": 4,
+          "rows": 1
+        }
+      ]
+    }
+  ],
+  "description": "An office under the sea: reception, a break room, workspaces and meeting rooms."
+}

@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "name": "Underwater, top-down, landscape",
+  "canvas": "landscape",
+  "avatarSize": "small",
+  "images": {
+    "light": "underwater-topdown-landscape.svg",
+    "dark": "underwater-topdown-landscape-dark.svg"
+  },
+  "rooms": [
+    {
+      "id": "underwater-topdown-landscape-2",
+      "name": "Workspace",
+      "type": "workspace",
+      "rect": {
+        "x": 0.057291666666666664,
+        "y": 0.027777777777777776,
+        "width": 0.234375,
+        "height": 0.26851851851851855
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-landscape-1",
+          "x": 0.10416666666666667,
+          "y": 0.08888888888888889,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-landscape-4",
+      "name": "Open floor",
+      "type": "workspace",
+      "rect": {
+        "x": 0.34375,
+        "y": 0.027777777777777776,
+        "width": 0.3229166666666667,
+        "height": 0.26851851851851855
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-landscape-3",
+          "x": 0.3880208333333333,
+          "y": 0.0962962962962963,
+          "columns": 5,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-landscape-6",
+      "name": "Library",
+      "type": "workspace",
+      "rect": {
+        "x": 0.7239583333333334,
+        "y": 0.027777777777777776,
+        "width": 0.21875,
+        "height": 0.26851851851851855
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-landscape-5",
+          "x": 0.7604166666666666,
+          "y": 0.12037037037037036,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-landscape-8",
+      "name": "Studio",
+      "type": "workspace",
+      "rect": {
+        "x": 0.041666666666666664,
+        "y": 0.3611111111111111,
+        "width": 0.2708333333333333,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-landscape-7",
+          "x": 0.09375,
+          "y": 0.42592592592592593,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-landscape-10",
+      "name": "Meeting room",
+      "type": "meeting",
+      "rect": {
+        "x": 0.3645833333333333,
+        "y": 0.3611111111111111,
+        "width": 0.2708333333333333,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-landscape-9",
+          "x": 0.453125,
+          "y": 0.43148148148148147,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-landscape-12",
+      "name": "Quiet room",
+      "type": "workspace",
+      "rect": {
+        "x": 0.6927083333333334,
+        "y": 0.3611111111111111,
+        "width": 0.25,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-landscape-11",
+          "x": 0.7708333333333334,
+          "y": 0.4537037037037037,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-landscape-14",
+      "name": "Reception",
+      "type": "reception",
+      "rect": {
+        "x": 0.06770833333333333,
+        "y": 0.7037037037037037,
+        "width": 0.25,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-landscape-13",
+          "x": 0.12239583333333333,
+          "y": 0.7685185185185185,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-landscape-16",
+      "name": "Engineering",
+      "type": "workspace",
+      "rect": {
+        "x": 0.375,
+        "y": 0.7037037037037037,
+        "width": 0.28125,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-landscape-15",
+          "x": 0.421875,
+          "y": 0.7685185185185185,
+          "columns": 4,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "underwater-topdown-landscape-18",
+      "name": "Cafe",
+      "type": "break",
+      "rect": {
+        "x": 0.7135416666666666,
+        "y": 0.7037037037037037,
+        "width": 0.22916666666666666,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "underwater-topdown-landscape-17",
+          "x": 0.7447916666666666,
+          "y": 0.7685185185185185,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    }
+  ],
+  "description": "An office under the sea: reception, a break room, workspaces and meeting rooms."
+}

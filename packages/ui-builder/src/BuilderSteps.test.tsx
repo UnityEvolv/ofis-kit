@@ -192,6 +192,8 @@ describe('a picture that carries its rooms', () => {
 describe('what survives moving between steps', () => {
   it('keeps what was typed into the prompt', async () => {
     const { person } = open()
+    // The fields that tune the prompt are folded until wanted.
+    await person.click(screen.getByRole('button', { name: 'Adjust the prompt' }))
     const field = screen
       .getAllByRole('textbox')
       .find((one) => one.getAttribute('aria-label') !== 'The prompt')!

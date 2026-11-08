@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "name": "Modern office, cutaway, square",
+  "canvas": "square",
+  "avatarSize": "small",
+  "images": {
+    "light": "modern-cutaway-square.svg",
+    "dark": "modern-cutaway-square-dark.svg"
+  },
+  "rooms": [
+    {
+      "id": "modern-cutaway-square-2",
+      "name": "Workspace",
+      "type": "workspace",
+      "rect": {
+        "x": 0.046296296296296294,
+        "y": 0.06481481481481481,
+        "width": 0.26851851851851855,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-cutaway-square-1",
+          "x": 0.08703703703703704,
+          "y": 0.18518518518518517,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-cutaway-square-4",
+      "name": "Open floor",
+      "type": "workspace",
+      "rect": {
+        "x": 0.3351851851851852,
+        "y": 0.06481481481481481,
+        "width": 0.3148148148148148,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-cutaway-square-3",
+          "x": 0.3814814814814815,
+          "y": 0.18518518518518517,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-cutaway-square-6",
+      "name": "Library",
+      "type": "workspace",
+      "rect": {
+        "x": 0.6703703703703704,
+        "y": 0.06481481481481481,
+        "width": 0.2833333333333333,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-cutaway-square-5",
+          "x": 0.8268518518518518,
+          "y": 0.18518518518518517,
+          "columns": 2,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-cutaway-square-8",
+      "name": "Studio",
+      "type": "workspace",
+      "rect": {
+        "x": 0.046296296296296294,
+        "y": 0.37592592592592594,
+        "width": 0.5185185185185185,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-cutaway-square-7",
+          "x": 0.13425925925925927,
+          "y": 0.49074074074074076,
+          "columns": 4,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-cutaway-square-10",
+      "name": "Meeting room",
+      "type": "meeting",
+      "rect": {
+        "x": 0.5851851851851851,
+        "y": 0.37592592592592594,
+        "width": 0.3685185185185185,
+        "height": 0.2777777777777778
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-cutaway-square-9",
+          "x": 0.675,
+          "y": 0.49074074074074076,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-cutaway-square-12",
+      "name": "Reception",
+      "type": "reception",
+      "rect": {
+        "x": 0.046296296296296294,
+        "y": 0.687037037037037,
+        "width": 0.2777777777777778,
+        "height": 0.2759259259259259
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-cutaway-square-11",
+          "x": 0.09166666666666666,
+          "y": 0.7777777777777778,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-cutaway-square-14",
+      "name": "Engineering",
+      "type": "workspace",
+      "rect": {
+        "x": 0.34444444444444444,
+        "y": 0.687037037037037,
+        "width": 0.29259259259259257,
+        "height": 0.2759259259259259
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-cutaway-square-13",
+          "x": 0.3972222222222222,
+          "y": 0.7870370370370371,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "id": "modern-cutaway-square-16",
+      "name": "Cafe",
+      "type": "break",
+      "rect": {
+        "x": 0.6574074074074074,
+        "y": 0.687037037037037,
+        "width": 0.2962962962962963,
+        "height": 0.2759259259259259
+      },
+      "bar": "top",
+      "areas": [
+        {
+          "id": "modern-cutaway-square-15",
+          "x": 0.6898148148148148,
+          "y": 0.8055555555555556,
+          "columns": 3,
+          "rows": 1
+        }
+      ]
+    }
+  ],
+  "description": "A modern open-plan office: reception, a break room, workspaces and meeting rooms."
+}
