@@ -285,3 +285,28 @@ describe('the host’s actions on the bar', () => {
     expect(screen.queryByRole('button', { name: 'Reserve' })).toBeNull()
   })
 })
+
+describe('the padlock', () => {
+  // The picture is the door as it stands; the name is what pressing does.
+  const drawn = (name: string) =>
+    screen.getByRole('button', { name }).querySelector('svg')?.getAttribute('class') ?? ''
+
+  it('is open on a room you are in that is not locked', () => {
+    roomBar({ inside: true })
+    expect(drawn('Lock')).toMatch(/lock-open/)
+    expect(screen.queryByRole('img', { name: /is locked/i })).not.toBeInTheDocument()
+  })
+
+  it('is closed on a locked room you are in, and is the one sign of it', () => {
+    roomBar({ inside: true, locked: true })
+    expect(drawn('Unlock')).toMatch(/lock/)
+    expect(drawn('Unlock')).not.toMatch(/lock-open/)
+    // No second padlock beside it saying the same thing.
+    expect(screen.queryByRole('img', { name: /is locked/i })).not.toBeInTheDocument()
+  })
+
+  it('still marks a locked room for somebody outside it', () => {
+    roomBar({ locked: true })
+    expect(screen.getByRole('img', { name: /is locked/i })).toBeInTheDocument()
+  })
+})

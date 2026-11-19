@@ -79,7 +79,11 @@ interface Action {
    * Set for the buttons that are an icon and nothing else: Lock and Unlock.
    *
    * A padlock says lock and unlock better than the words do, and the words are
-   * still the button's accessible name. Join and Knock stay words at every width:
+   * still the button's accessible name. The padlock drawn is the door as it
+   * stands, not what pressing does: open on an open room, closed on a locked
+   * one. Drawn the other way, the room you had just walked into showed a closed
+   * padlock, and the lock looked as if it had come along with you. Join and
+   * Knock stay words at every width:
    * they are what somebody outside the room came to the bar to do, and a word is
    * what they look for.
    */
@@ -150,7 +154,7 @@ export function RoomBar(props: RoomBarProps) {
         ? {
             key: 'unlock',
             label: 'Unlock',
-            icon: 'unlock',
+            icon: 'lock',
             onClick: props.onUnlock,
             disabled: false,
             variant: 'secondary',
@@ -158,7 +162,7 @@ export function RoomBar(props: RoomBarProps) {
         : {
             key: 'lock',
             label: 'Lock',
-            icon: 'lock',
+            icon: 'unlock',
             onClick: props.onLock,
             disabled: false,
             variant: 'secondary',
@@ -287,9 +291,10 @@ export function RoomBar(props: RoomBarProps) {
           </span>
         )}
 
-        {/* Not on a narrow bar, where the button beside it — Knock from outside,
-            Unlock from inside — already says the room is locked. */}
-        {locked && !compact && (
+        {/* Not on a narrow bar, where Knock beside it already says the room is
+            locked, and never from inside, where the closed padlock on the
+            Unlock button says it. */}
+        {locked && !compact && !inside && (
           <span className="shrink-0 text-base-content/70">
             <Icon name="lock" size="xs" title={`${room.name} is locked`} />
           </span>
