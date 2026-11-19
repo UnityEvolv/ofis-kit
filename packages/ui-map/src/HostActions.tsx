@@ -43,6 +43,14 @@ export interface HostAction {
   label: string
   /** Why it cannot be used right now. Shown as the disabled item's hint and announced with it. */
   disabled?: string | null
+  /**
+   * On a room: in the room's menu and not also a button on its bar. For an
+   * action that is wanted now and then rather than every time, so the bar
+   * keeps to the room's own controls. The map's bar then carries the menu's
+   * button, as the list's card always does, so the action is never behind a
+   * gesture alone. Means nothing on a person, whose actions are a card.
+   */
+  menuOnly?: boolean
   onSelect(): void
 }
 

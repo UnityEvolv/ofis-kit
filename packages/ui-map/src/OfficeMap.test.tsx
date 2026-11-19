@@ -807,6 +807,41 @@ describe('the host’s actions', () => {
     expect(room).toHaveFocus()
   })
 
+  describe('an action kept to the menu', () => {
+    const menuOnly: OfficeMapProps['roomActions'] = (room) => [
+      { id: 'reserve', label: `Reserve ${room.name}`, menuOnly: true, onSelect: reserve },
+    ]
+    const drawWith = (list: boolean) => {
+      const template = office()
+      const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+      draw({ template, list, roomActions: menuOnly })
+      return screen.getByTestId(`room-bar-${workspace.id}`)
+    }
+
+    it('is not a button on the map’s bar, which carries the menu’s button instead', async () => {
+      const user = userEvent.setup()
+      reserve.mockClear()
+      const bar = drawWith(false)
+
+      expect(within(bar).queryByRole('button', { name: 'Reserve Workspace' })).toBeNull()
+      await user.click(within(bar).getByRole('button', { name: 'More actions for Workspace' }))
+      const menu = screen.getByRole('menu', { name: 'Actions for Workspace' })
+      await user.click(within(menu).getByRole('menuitem', { name: 'Reserve Workspace' }))
+      expect(reserve).toHaveBeenCalledTimes(1)
+    })
+
+    it('is not a button on the list’s bar either, and the card keeps its one menu button', () => {
+      const bar = drawWith(true)
+
+      expect(within(bar).queryByRole('button', { name: 'Reserve Workspace' })).toBeNull()
+      expect(within(bar).queryByRole('button', { name: 'More actions for Workspace' })).toBeNull()
+      const card = bar.closest('li')!
+      expect(
+        within(card).getAllByRole('button', { name: 'More actions for Workspace' }),
+      ).toHaveLength(1)
+    })
+  })
+
   it('offers the same in the list: the room’s menu behind a button, the person’s card on their avatar', async () => {
     const user = userEvent.setup()
     const { workspace } = withActions(true)
