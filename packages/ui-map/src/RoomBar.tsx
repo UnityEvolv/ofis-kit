@@ -61,6 +61,13 @@ export interface RoomBarProps {
   menuButton?: boolean
   /** How wide the room is on screen, which decides how much the bar can show. */
   width: number
+  /**
+   * Keep the room-type icon on a narrow bar. The list view asks for it on
+   * reception and the break room, whose half-width cards are narrow on a phone
+   * but are not a room rectangle on a picture: the icon is what says which of
+   * the two shared rooms a card is, whatever somebody named it.
+   */
+  keepTypeIcon?: boolean
   onJoin(): void
   onKnock(): void
   onLock(): void
@@ -239,7 +246,13 @@ export function RoomBar(props: RoomBarProps) {
           The name still says which room it is, and the count is in the room's own
           accessible name.
         */}
-        <span className={['shrink-0 text-base-content/70', compact ? 'hidden' : ''].join(' ')}>
+        <span
+          className={[
+            'shrink-0 text-base-content/70',
+            compact && !props.keepTypeIcon ? 'hidden' : '',
+          ].join(' ')}
+          data-testid="room-type-icon"
+        >
           <Icon
             name={typeIcon}
             size="xs"

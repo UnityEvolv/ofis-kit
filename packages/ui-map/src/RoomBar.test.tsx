@@ -41,6 +41,14 @@ function roomBar(props: Partial<RoomBarProps> = {}) {
 }
 
 describe('the room bar', () => {
+  it('drops the room-type icon on a narrow bar, unless the list asks to keep it', () => {
+    const narrow = roomBar({ width: 120 })
+    expect(screen.getByTestId('room-type-icon').className).toContain('hidden')
+    narrow.unmount()
+    roomBar({ width: 120, keepTypeIcon: true })
+    expect(screen.getByTestId('room-type-icon').className).not.toContain('hidden')
+  })
+
   it('makes Join the one primary button, and a word rather than an icon', () => {
     roomBar()
 

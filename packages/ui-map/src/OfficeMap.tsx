@@ -494,6 +494,8 @@ function RoomCard(props: {
             notice={props.notice}
             actions={props.actions}
             width={width}
+            // The two shared rooms keep their mark however narrow their card is.
+            keepTypeIcon={room.type === 'reception' || room.type === 'break'}
             onJoin={props.onJoin}
             onKnock={props.onKnock}
             onLock={props.onLock}
