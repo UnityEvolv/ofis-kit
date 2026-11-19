@@ -280,6 +280,8 @@ export function OfficeMap(props: OfficeMapProps) {
                     call={call}
                     notice={props.noticeOf?.(room) ?? null}
                     actions={roomActions}
+                    // The map has no other visible way into the room's menu.
+                    menuButton
                     width={pixels.width}
                     onJoin={() => props.onJoin(room.id)}
                     onKnock={() => props.onKnock(room.id)}

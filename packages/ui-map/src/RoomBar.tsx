@@ -3,6 +3,7 @@ import type { RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import type { Room } from '@unityevolv/ofiskit-template'
 import { hostsCalls, isLockable } from '@unityevolv/ofiskit-template'
 
+import { MoreActionsButton } from './HostActions.js'
 import type { HostAction } from './HostActions.js'
 
 /**
@@ -52,6 +53,12 @@ export interface RoomBarProps {
    * room's menu carries them everywhere.
    */
   actions?: readonly HostAction[] | null
+  /**
+   * Draw the room's menu button on the bar when an action is `menuOnly`. The
+   * map asks for it; the list does not, since its card has the button already.
+   * Must sit inside the room's `ActionTarget`, whose menu it opens.
+   */
+  menuButton?: boolean
   /** How wide the room is on screen, which decides how much the bar can show. */
   width: number
   onJoin(): void
@@ -178,7 +185,12 @@ export function RoomBar(props: RoomBarProps) {
    * where a worded button beside Join would push Join off the edge; the room's
    * menu offers the same actions at every width.
    */
-  const hostActions = compact ? [] : (props.actions ?? [])
+  const hostActions = compact ? [] : (props.actions ?? []).filter((action) => !action.menuOnly)
+  // Something the host keeps to the menu, on a bar asked to carry the menu's
+  // button: without it that action would be behind a right-click alone. Not on a
+  // narrow bar, like everything else that is not the room's own action.
+  const menuButton =
+    !compact && props.menuButton === true && (props.actions ?? []).some((one) => one.menuOnly)
   const hostReason = (action: HostAction) =>
     action.disabled !== undefined && action.disabled !== null ? action.disabled : null
 
@@ -359,6 +371,8 @@ export function RoomBar(props: RoomBarProps) {
             </Button>
           )
         })}
+
+        {menuButton && <MoreActionsButton label={`More actions for ${room.name}`} />}
       </div>
 
       {/*
