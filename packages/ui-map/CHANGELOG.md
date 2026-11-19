@@ -1,5 +1,11 @@
 # @unityevolv/ofiskit-ui-map
 
+## 0.6.2
+
+### Patch Changes
+
+- [#67](https://github.com/UnityEvolv/ofis-kit/pull/67) [`b250770`](https://github.com/UnityEvolv/ofis-kit/commit/b250770e4321d57c6b0d859b61e457dc61893a63) Thanks [@nvamsiram](https://github.com/nvamsiram)! - The padlock on a room's bar shows the door as it stands: open on an open room, closed on a locked one. It used to show what pressing would do, so the room you had just walked into carried a closed padlock and the lock looked as if it had followed you. The button's name is unchanged (Lock, Unlock). From inside a locked room the closed padlock on the button is the one sign of it; the separate lock mark is for people outside.
+
 ## 0.6.1
 
 ### Patch Changes
