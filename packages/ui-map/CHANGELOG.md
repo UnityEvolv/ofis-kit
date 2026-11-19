@@ -1,5 +1,11 @@
 # @unityevolv/ofiskit-ui-map
 
+## 0.7.1
+
+### Patch Changes
+
+- [#71](https://github.com/UnityEvolv/ofis-kit/pull/71) [`72b9e1f`](https://github.com/UnityEvolv/ofis-kit/commit/72b9e1fbfa286afa41b9d4cf3ac9a20134132c10) Thanks [@nvamsiram](https://github.com/nvamsiram)! - In the list view, reception and the break room keep their room-type icon on a narrow card. Their half-width cards fell under the compact width on a phone and lost the one mark that says which shared room a card is. `RoomBar` takes `keepTypeIcon` for this; a narrow room on the map still drops the icon, as before.
+
 ## 0.7.0
 
 ### Minor Changes
