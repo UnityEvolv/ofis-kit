@@ -1,5 +1,11 @@
 # @unityevolv/ofiskit-ui-map
 
+## 0.7.0
+
+### Minor Changes
+
+- [#69](https://github.com/UnityEvolv/ofis-kit/pull/69) [`e29c4e5`](https://github.com/UnityEvolv/ofis-kit/commit/e29c4e5015b78bfeadd38af4b172f3ac6397f840) Thanks [@nvamsiram](https://github.com/nvamsiram)! - A host's action on a room can be kept to the room's menu: `menuOnly: true` on a `HostAction` leaves it out of the buttons on the room's bar. The map's bar then carries the menu's three-dots button, as the list's card always has, so the action is never behind a right-click alone. Actions without the flag are drawn as before.
+
 ## 0.6.2
 
 ### Patch Changes
