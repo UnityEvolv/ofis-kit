@@ -1,4 +1,5 @@
 import { Button, Icon } from '@unityevolv/unitykit'
+import type { ReactNode } from 'react'
 import type { RoomCall } from '@unityevolv/ofiskit-realtime-client'
 import type { Room } from '@unityevolv/ofiskit-template'
 import { hostsCalls, isLockable } from '@unityevolv/ofiskit-template'
@@ -68,6 +69,18 @@ export interface RoomBarProps {
    * the two shared rooms a card is, whatever somebody named it.
    */
   keepTypeIcon?: boolean
+  /**
+   * Put the controls on a row of their own along the bottom, and leave the top
+   * row to the room's name and what is happening in it. The list view asks for
+   * it on a phone's width: a heading shared with Join, a padlock and a menu
+   * left a few letters of the name, and the buttons sat at the top of the
+   * card, the far end from the thumb. `children` then sit between the two
+   * rows (the people in the room) and `end` closes the controls row (the
+   * card's menu button).
+   */
+  below?: boolean
+  children?: ReactNode
+  end?: ReactNode
   onJoin(): void
   onKnock(): void
   onLock(): void
@@ -116,8 +129,11 @@ interface Action {
 
 export function RoomBar(props: RoomBarProps) {
   const { room, occupancy, capacity, locked, inside, forbiddenReason, width } = props
-  const compact = width < COMPACT_BELOW
-  const tiny = width < TINY_BELOW
+  // With the controls on a row of their own the top row has the name and the
+  // room's state to itself, and nothing on it has to give way.
+  const below = props.below === true
+  const compact = !below && width < COMPACT_BELOW
+  const tiny = !below && width < TINY_BELOW
 
   const full = capacity !== null && occupancy >= capacity
   // Asked of the template rather than inferred from calls: a conference room has
@@ -224,12 +240,79 @@ export function RoomBar(props: RoomBarProps) {
           ? 'users'
           : 'office'
 
+  const controls = (
+    <>
+      {actions.map((action) => {
+        const shared = {
+          // On a row of their own they are what a thumb presses: a size up.
+          size: below ? ('sm' as const) : ('xs' as const),
+          variant: action.variant,
+          // Tighter on a narrow bar, where a worded button has nothing to shrink
+          // to: the utility beats the kit's own padding, which lives in the
+          // component layer below it.
+          className: compact && !action.icon ? 'shrink-0 px-1' : 'shrink-0',
+          onClick: action.onClick,
+          disabled: action.disabled,
+          ...(action.disabled && action.reason ? { 'aria-describedby': `${room.id}-why` } : {}),
+        }
+
+        /*
+          Lock and Unlock are a padlock at every width, with the word as their
+          accessible name. Join and Knock are words at every width, with less
+          padding around them on a narrow bar. What gives way instead is
+          everything else: the head count, the room-type icon and the lock icon on
+          a narrow bar, the call badge's count and then the badge itself on the
+          tiniest — and the name truncates to its first letters, or on the very
+          tiniest to nothing, because the room's action is never the thing that
+          goes.
+        */
+        return action.icon ? (
+          <Button key={action.key} {...shared} icon={action.icon} aria-label={action.label} />
+        ) : (
+          <Button key={action.key} {...shared}>
+            {action.label}
+          </Button>
+        )
+      })}
+
+      {hostActions.map((action) => {
+        const reason = hostReason(action)
+        const disabled = reason !== null
+        return (
+          <Button
+            key={action.id}
+            size={below ? 'sm' : 'xs'}
+            variant="secondary"
+            className="shrink-0"
+            onClick={action.onSelect}
+            disabled={disabled}
+            // Described by the message row only while the row is saying this
+            // reason and not another control's.
+            {...(disabled && reason && message === reason
+              ? { 'aria-describedby': `${room.id}-why` }
+              : {})}
+          >
+            {action.label}
+          </Button>
+        )
+      })}
+
+      {menuButton && <MoreActionsButton label={`More actions for ${room.name}`} />}
+    </>
+  )
+
   return (
     <div
       // Translucent enough for the room's picture to show through, which is what
       // ties the bar to the room it sits on. The blur is what keeps it readable over
       // any picture: the surface still carries the contrast, never the image.
-      className="pointer-events-auto flex w-full flex-col overflow-hidden rounded-md bg-base-100/50 text-base-content shadow backdrop-blur-sm"
+      // With the controls below it is a card's whole content, people and all:
+      // the card is its surface, and nothing of a person's may be clipped.
+      className={
+        below
+          ? 'pointer-events-auto flex w-full flex-1 flex-col text-base-content'
+          : 'pointer-events-auto flex w-full flex-col overflow-hidden rounded-md bg-base-100/50 text-base-content shadow backdrop-blur-sm'
+      }
       data-testid={`room-bar-${room.id}`}
     >
       <div className="flex min-w-0 items-center gap-1.5 px-1.5 py-1">
@@ -331,62 +414,19 @@ export function RoomBar(props: RoomBarProps) {
           </span>
         )}
 
-        {actions.map((action) => {
-          const shared = {
-            size: 'xs' as const,
-            variant: action.variant,
-            // Tighter on a narrow bar, where a worded button has nothing to shrink
-            // to: the utility beats the kit's own padding, which lives in the
-            // component layer below it.
-            className: compact && !action.icon ? 'shrink-0 px-1' : 'shrink-0',
-            onClick: action.onClick,
-            disabled: action.disabled,
-            ...(action.disabled && action.reason ? { 'aria-describedby': `${room.id}-why` } : {}),
-          }
-
-          /*
-            Lock and Unlock are a padlock at every width, with the word as their
-            accessible name. Join and Knock are words at every width, with less
-            padding around them on a narrow bar. What gives way instead is
-            everything else: the head count, the room-type icon and the lock icon on
-            a narrow bar, the call badge's count and then the badge itself on the
-            tiniest — and the name truncates to its first letters, or on the very
-            tiniest to nothing, because the room's action is never the thing that
-            goes.
-          */
-          return action.icon ? (
-            <Button key={action.key} {...shared} icon={action.icon} aria-label={action.label} />
-          ) : (
-            <Button key={action.key} {...shared}>
-              {action.label}
-            </Button>
-          )
-        })}
-
-        {hostActions.map((action) => {
-          const reason = hostReason(action)
-          const disabled = reason !== null
-          return (
-            <Button
-              key={action.id}
-              size="xs"
-              variant="secondary"
-              className="shrink-0"
-              onClick={action.onSelect}
-              disabled={disabled}
-              // Described by the message row only while the row is saying this
-              // reason and not another control's.
-              {...(disabled && reason && message === reason
-                ? { 'aria-describedby': `${room.id}-why` }
-                : {})}
-            >
-              {action.label}
-            </Button>
-          )
-        })}
-
-        {menuButton && <MoreActionsButton label={`More actions for ${room.name}`} />}
+        {!below && controls}
       </div>
+
+      {below && props.children}
+      {below && (
+        <div
+          className="mt-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 px-1.5 pb-1 pt-2"
+          data-testid={`room-controls-${room.id}`}
+        >
+          {controls}
+          {props.end}
+        </div>
+      )}
 
       {/*
         Collapsed to nothing when there is nothing to say. An empty row here would
