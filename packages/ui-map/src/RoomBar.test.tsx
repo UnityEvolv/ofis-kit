@@ -316,5 +316,24 @@ describe('the padlock', () => {
   it('still marks a locked room for somebody outside it', () => {
     roomBar({ locked: true })
     expect(screen.getByRole('img', { name: /is locked/i })).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /is not locked/i })).not.toBeInTheDocument()
+  })
+
+  // The padlock is the room's: on it whoever looks, not only whoever is inside.
+  it('is on an open room for somebody outside it too, as its state and not a button', () => {
+    roomBar()
+    const door = screen.getByRole('img', { name: /is not locked/i })
+    expect(door.getAttribute('class') ?? '').toMatch(/lock-open/)
+    expect(screen.queryByRole('button', { name: 'Lock' })).not.toBeInTheDocument()
+  })
+
+  it('is not on a room that cannot be locked', () => {
+    roomBar({ room: { ...room(), type: 'reception' } })
+    expect(screen.queryByRole('img', { name: /locked/i })).not.toBeInTheDocument()
+  })
+
+  it('gives way on a narrow bar, where Join or Knock says which it is', () => {
+    roomBar({ width: 120 })
+    expect(screen.queryByRole('img', { name: /locked/i })).not.toBeInTheDocument()
   })
 })

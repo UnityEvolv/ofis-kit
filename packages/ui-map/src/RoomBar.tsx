@@ -316,12 +316,22 @@ export function RoomBar(props: RoomBarProps) {
           </span>
         )}
 
-        {/* Not on a narrow bar, where Knock beside it already says the room is
-            locked, and never from inside, where the closed padlock on the
-            Unlock button says it. */}
-        {locked && !compact && !inside && (
-          <span className="shrink-0 text-base-content/70">
-            <Icon name="lock" size="xs" title={`${room.name} is locked`} />
+        {/*
+          The door as it stands, on every room that has one, for everybody: open
+          or closed. The padlock is the room's, so it is on the room whoever
+          looks. Drawn only on the room you were in, it turned up wherever you
+          walked and nobody else saw it, and read as something you carried.
+          Somebody inside gets the same padlock as a button, below; from outside
+          it is the state alone. Not on a narrow bar, where Join or Knock beside
+          it already says which it is.
+        */}
+        {lockable && !compact && !inside && (
+          <span className="shrink-0 text-base-content/70" data-testid={`room-door-${room.id}`}>
+            {locked ? (
+              <Icon name="lock" size="xs" title={`${room.name} is locked`} />
+            ) : (
+              <Icon name="unlock" size="xs" title={`${room.name} is not locked`} />
+            )}
           </span>
         )}
 
