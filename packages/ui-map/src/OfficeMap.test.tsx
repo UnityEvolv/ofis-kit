@@ -627,6 +627,55 @@ describe('the list view', () => {
     expect(onJoin).toHaveBeenCalledWith(workspace.id)
   })
 
+  it("on a phone's width keeps a card's heading for the name and puts its controls along the bottom", async () => {
+    const person_ = userEvent.setup()
+    const wide = globalThis.ResizeObserver
+    globalThis.ResizeObserver = class {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe() {
+        this.callback(
+          [{ contentRect: { width: 360, height: 640 } } as unknown as ResizeObserverEntry],
+          this as unknown as ResizeObserver,
+        )
+      }
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver
+    try {
+      const template = office()
+      const workspace = template.rooms.find((one) => one.name === 'Workspace')!
+      const { onJoin } = draw({
+        template,
+        list: true,
+        people: [person({ userId: 'grace', roomId: workspace.id })],
+        roomActions: () => [{ id: 'reserve', label: 'Reserve', onSelect: () => {} }],
+      })
+
+      const bar = screen.getByTestId(`room-bar-${workspace.id}`)
+      const controls = within(bar).getByTestId(`room-controls-${workspace.id}`)
+      // Every control the room has is on the bottom row: its own, the host's
+      // and the menu.
+      const all = within(bar).getAllByRole('button')
+      for (const button of all.filter((one) => !one.closest('ul')))
+        expect(controls).toContainElement(button)
+      expect(within(controls).getByRole('button', { name: 'Join' })).toBeInTheDocument()
+      expect(within(controls).getByRole('button', { name: 'Reserve' })).toBeInTheDocument()
+      expect(
+        within(controls).getByRole('button', { name: /more actions for workspace/i }),
+      ).toBeInTheDocument()
+      // The people sit between the name and the controls.
+      const people = within(bar).getByRole('list', { name: /people in Workspace/i })
+      expect(
+        people.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+
+      await person_.click(within(controls).getByRole('button', { name: 'Join' }))
+      expect(onJoin).toHaveBeenCalledWith(workspace.id)
+    } finally {
+      globalThis.ResizeObserver = wide
+    }
+  })
+
   it('puts reception and the break room first, then the rest in the order the map reads', () => {
     // The two rooms every office has are the ones somebody looks for without
     // knowing the office, and they are the part of the list that never moves.

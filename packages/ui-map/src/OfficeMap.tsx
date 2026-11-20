@@ -370,15 +370,27 @@ export function OfficeMap(props: OfficeMapProps) {
  * same actions and updates from the same realtime state, so the two can never
  * disagree — which is the only reason it is safe to offer at all.
  */
+/** Narrower than this, a list's cards put their controls along the bottom. */
+const LIST_STACKS_BELOW = 640
+
 export function RoomListView(props: OfficeMapProps) {
   const { template, state, capacityOf, reactions } = props
   const followersFor = followersOn(state)
   const yourRoomId = yourRoom(state)
   const reducedMotion = useReducedMotion()
+  // On a phone's width a card's controls go to a row along its bottom, and its
+  // heading keeps the room's name. Measured on the list itself, not the window:
+  // a list in a narrow column is as short of width as one on a phone.
+  const [measured, size] = useMeasured<HTMLElement>()
+  const below = size.width > 0 && size.width < LIST_STACKS_BELOW
 
   if (!state.ready) {
     return (
-      <nav aria-label={`${template.name} rooms`} className="h-full overflow-auto p-2">
+      <nav
+        ref={measured}
+        aria-label={`${template.name} rooms`}
+        className="h-full overflow-auto p-2"
+      >
         <p className="p-2 text-sm text-base-content/60" role="status">
           Looking around the office…
         </p>
@@ -404,9 +416,11 @@ export function RoomListView(props: OfficeMapProps) {
 
   const card = (room: Room, half: boolean) => (
     <RoomCard
-      key={room.id}
+      // A new card when the arrangement changes: it measures a different box.
+      key={`${room.id}:${below ? 'below' : 'beside'}`}
       room={room}
       half={half}
+      below={below}
       people={peopleIn(state, room.id)}
       locked={isLocked(state, room.id)}
       inside={room.id === yourRoomId}
@@ -426,7 +440,7 @@ export function RoomListView(props: OfficeMapProps) {
   )
 
   return (
-    <nav aria-label={`${template.name} rooms`} className="h-full overflow-auto p-2">
+    <nav ref={measured} aria-label={`${template.name} rooms`} className="h-full overflow-auto p-2">
       {/* One list, so a screen reader hears one set of rooms in one order; the grid
           is only how it is drawn. */}
       <ul className="grid grid-cols-2 gap-2">
@@ -448,6 +462,8 @@ export function RoomListView(props: OfficeMapProps) {
 function RoomCard(props: {
   room: Room
   half: boolean
+  /** The controls on a row along the bottom, under the people: a phone's width. */
+  below: boolean
   people: PublicPresence[]
   locked: boolean
   inside: boolean
@@ -472,6 +488,53 @@ function RoomCard(props: {
   // its full form and tightens is better than one that starts cramped.
   const width = half && size.width > 0 ? size.width : Number.MAX_SAFE_INTEGER
 
+  const bar = {
+    room,
+    occupancy: people.length,
+    capacity: props.capacity,
+    locked: props.locked,
+    inside: props.inside,
+    call: props.call,
+    notice: props.notice,
+    actions: props.actions,
+    width,
+    // The two shared rooms keep their mark however narrow their card is.
+    keepTypeIcon: room.type === 'reception' || room.type === 'break',
+    onJoin: props.onJoin,
+    onKnock: props.onKnock,
+    onLock: props.onLock,
+    onUnlock: props.onUnlock,
+  }
+  /*
+    The same menu the map opens on a right-click, behind a button anybody
+    can see. The list is the map's accessible twin, so nothing the map
+    offers by gesture is missing from it.
+  */
+  const menu = (
+    <MoreActionsButton
+      label={`More actions for ${room.name}`}
+      {...(props.below ? { size: 'sm' as const } : {})}
+    />
+  )
+  const inside = people.length > 0 && (
+    <ul className="mt-2 flex flex-wrap gap-3 px-1" aria-label={`People in ${room.name}`}>
+      {people.map((person) => (
+        <li key={person.userId}>
+          {/* The same card the map shows, on the same avatar: the host's
+              actions give it one, here as there. */}
+          <PersonAvatar
+            person={person}
+            size={56}
+            reducedMotion={props.reducedMotion}
+            reactions={props.reactions?.get(person.userId) ?? []}
+            actions={props.personActions(person)}
+            followers={props.followersFor(person)}
+          />
+        </li>
+      ))}
+    </ul>
+  )
+
   return (
     <ActionTarget
       as="li"
@@ -482,51 +545,24 @@ function RoomCard(props: {
         half ? '' : 'col-span-2',
       ].join(' ')}
     >
-      <div className="flex items-start gap-1">
-        <div ref={measured} className="min-w-0 flex-1">
-          <RoomBar
-            room={room}
-            occupancy={people.length}
-            capacity={props.capacity}
-            locked={props.locked}
-            inside={props.inside}
-            call={props.call}
-            notice={props.notice}
-            actions={props.actions}
-            width={width}
-            // The two shared rooms keep their mark however narrow their card is.
-            keepTypeIcon={room.type === 'reception' || room.type === 'break'}
-            onJoin={props.onJoin}
-            onKnock={props.onKnock}
-            onLock={props.onLock}
-            onUnlock={props.onUnlock}
-          />
+      {props.below ? (
+        // A phone's width: the name on top, the people, and every control the
+        // room has on one row along the bottom, the menu last.
+        <div ref={measured} className="flex h-full min-w-0 flex-col">
+          <RoomBar {...bar} below end={menu}>
+            {inside}
+          </RoomBar>
         </div>
-        {/*
-          The same menu the map opens on a right-click, behind a button anybody
-          can see. The list is the map's accessible twin, so nothing the map
-          offers by gesture is missing from it.
-        */}
-        <MoreActionsButton label={`More actions for ${room.name}`} />
-      </div>
-
-      {people.length > 0 && (
-        <ul className="mt-2 flex flex-wrap gap-3 px-1" aria-label={`People in ${room.name}`}>
-          {people.map((person) => (
-            <li key={person.userId}>
-              {/* The same card the map shows, on the same avatar: the host's
-                  actions give it one, here as there. */}
-              <PersonAvatar
-                person={person}
-                size={56}
-                reducedMotion={props.reducedMotion}
-                reactions={props.reactions?.get(person.userId) ?? []}
-                actions={props.personActions(person)}
-                followers={props.followersFor(person)}
-              />
-            </li>
-          ))}
-        </ul>
+      ) : (
+        <>
+          <div className="flex items-start gap-1">
+            <div ref={measured} className="min-w-0 flex-1">
+              <RoomBar {...bar} />
+            </div>
+            {menu}
+          </div>
+          {inside}
+        </>
       )}
     </ActionTarget>
   )
